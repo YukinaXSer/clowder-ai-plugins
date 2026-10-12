@@ -198,7 +198,8 @@ if (!window.clowderCompanion) {
         : value.phase === 'connecting' ? '正在请求麦克风'
           : value.recovering ? `正在等待原连接恢复 · ${value.muted ? '麦克风已静音' : '麦克风已开启'}`
             : value.muted ? '麦克风已静音' : active ? '麦克风已开启' : '';
-      for (const id of ['actions', 'chat-call-context', 'transcript-call-context', 'menu-call-context', 'settings-call-context']) $(id).dataset.connectionState = value.recovering ? 'recovering' : active ? 'connected' : 'idle';
+      const connectionState = value.recovering ? 'recovering' : value.phase === 'talking' ? 'connected' : value.phase === 'connecting' ? 'connecting' : 'idle';
+      for (const id of ['actions', 'chat-call-context', 'transcript-call-context', 'menu-call-context', 'settings-call-context']) $(id).dataset.connectionState = connectionState;
       setTexts(['call-state', 'chat-call-state', 'transcript-call-state', 'menu-call-state', 'settings-call-state'], callState);
       setTexts(['call-mic-state', 'chat-call-mic-state', 'transcript-call-mic-state', 'menu-call-mic-state', 'settings-call-mic-state'], microphoneState);
       setHidden(['chat-call-context', 'transcript-call-context', 'menu-call-context', 'settings-call-context'], !active);

@@ -39,6 +39,8 @@ export function fixture(skin, failure, pending = true, autoTranscript = true) {
     liveTransport:{kind:'gpt_live_v3',verifiedModel:null},nativeWork:{scopeId:phase==='idle'?null:'0123456789abcdef',revision:0,active:[],recent:[]},
     duty:{catId:'preview-cat',displayName:'宪宪'},carrier:{catId:'preview-cat',displayName:'宪宪'}});
   let activeMode = null; const emit = event => listeners.forEach(fn=>fn(event));
+  window.__previewCallId = callId;
+  window.__previewEmit = emit;
   window.addEventListener('message',event=>{if(event.source===parent&&event.origin===location.origin&&event.data==='preview-disconnect'){phase='closed';emit({kind:'media-stopped',reason:'closed'});}});
   const note = text => parent.postMessage({kind:'note',text},location.origin);
   window.clowderCompanion = {subscribe(fn){listeners.add(fn);return()=>listeners.delete(fn);},async request(command){

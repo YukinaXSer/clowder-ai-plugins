@@ -94,8 +94,37 @@ button:disabled { opacity: .45; cursor: default; }
 .call-status-line { min-height: 24px; display: flex; align-items: center; gap: 7px; white-space: nowrap; }
 .call-status-line strong { font-size: 13px; font-weight: 600; }
 .call-status-line span:not(.status-dot) { color: var(--desktop-muted); font-size: 12px; }
-.status-dot { width: 8px; height: 8px; flex: none; border-radius: 999px; background: var(--desktop-success); }
-[data-connection-state="recovering"] .status-dot { background: var(--desktop-warning); }
+.status-dot {
+  --call-status-color: var(--desktop-success);
+  position: relative;
+  isolation: isolate;
+  z-index: 0;
+  width: 8px;
+  height: 8px;
+  flex: none;
+  border-radius: 999px;
+  background: var(--call-status-color);
+}
+.status-dot::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: var(--call-status-color);
+  opacity: 0;
+  pointer-events: none;
+  transform: scale(1);
+}
+[data-connection-state="connected"] .status-dot::after,
+[data-connection-state="recovering"] .status-dot::after { animation: call-status-breathe 2s ease-out infinite; }
+[data-connection-state="recovering"] .status-dot { --call-status-color: var(--desktop-warning); }
+[data-connection-state="connecting"] .status-dot,
+[data-connection-state="idle"] .status-dot { --call-status-color: var(--desktop-muted); }
+@keyframes call-status-breathe {
+  from { opacity: .38; transform: scale(1); }
+  to { opacity: 0; transform: scale(3); }
+}
 .call-meeting { min-width: 0; margin: 3px 0 0 15px; display: flex; align-items: center; gap: 5px; color: var(--desktop-muted); font-size: 12px; line-height: 1.35; }
 .call-context > .call-meeting { grid-column: 1 / -1; margin: 0; }
 .meeting-status-dot { width: 7px; height: 7px; flex: none; border-radius: 999px; background: var(--desktop-success); }
@@ -246,7 +275,7 @@ button:disabled { opacity: .45; cursor: default; }
 .settings-empty { padding: 16px; }
 .sr-only { position: absolute; width: 1px; height: 1px; clip-path: inset(50%); overflow: hidden; }
 @media (prefers-reduced-motion: reduce) {
-  #pet, #indicators button, #living-sit [data-layer], #pet[data-action="idle"] #living-sit [data-layer] { animation: none; }
+  #pet, #indicators button, [data-connection-state] .status-dot::after, #living-sit [data-layer], #pet[data-action="idle"] #living-sit [data-layer] { animation: none; }
   #living-sit [data-layer="closed"] { opacity: 0; }
 }
 #pet[data-skin="yanyan-codex"] { background-image: url("./skins/yanyan-codex.webp"); }
