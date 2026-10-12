@@ -5,7 +5,7 @@ import { FirstVisibleTextReceipt } from '../src/visible-text-receipt.mjs';
 const CALL_A = '11111111-1111-4111-8111-111111111111';
 const CALL_B = '22222222-2222-4222-8222-222222222222';
 
-function fixture({ report } = {}) {
+function fixture({ report, now = () => 1_791_804_000_123 } = {}) {
   const frames = [];
   const reports = [];
   const documentListeners = new Map();
@@ -31,7 +31,7 @@ function fixture({ report } = {}) {
       reports.push(observation);
       return report ? report(observation) : { kind: 'ok' };
     },
-    now: () => 1_791_804_000_123,
+    now,
   });
   async function frame() {
     const callback = frames.shift();
@@ -43,17 +43,24 @@ function fixture({ report } = {}) {
   return { document, receipt, reports, frames, documentListeners, windowListeners, frame };
 }
 
-function node({ hidden = false, rect = { left: 10, top: 10, right: 110, bottom: 40 } } = {}) {
+function node({
+  hidden = false,
+  rect = { left: 10, top: 10, right: 110, bottom: 40 },
+  style = { display: 'block', visibility: 'visible', opacity: '1' },
+  panelRect,
+  panelStyle = { display: 'block', visibility: 'visible', opacity: '1' },
+} = {}) {
   const panel = {
     hidden,
     parentElement: null,
-    style: { display: 'block', visibility: 'visible', opacity: '1' },
+    style: panelStyle,
     getAttribute() { return null; },
+    getBoundingClientRect() { return panelRect; },
   };
   return {
     isConnected: true,
     parentElement: panel,
-    style: { display: 'block', visibility: 'visible', opacity: '1' },
+    style,
     getAttribute() { return null; },
     getClientRects() { return this.isConnected && !panel.hidden ? [rect] : []; },
     getBoundingClientRect() { return rect; },
@@ -175,4 +182,135 @@ test('an old in-flight receipt cannot clear or settle the next call attempt', as
   await f.frame();
   assert.equal(f.reports.length, 2);
   assert.equal(f.reports[1].callId, CALL_B);
+});
+
+test('a permanently rejected candidate is discarded so the next visible reference can report', async () => {
+  const attempted = [];
+  const f = fixture({ report: async observation => {
+    attempted.push(observation.reference);
+    if (observation.reference.nativeItemId === 'unknown-item') {
+      throw Object.assign(new Error('unknown item'), { code: 'invalid_request' });
+    }
+    return { kind: 'ok' };
+  } });
+  f.receipt.setCall(CALL_A);
+  f.receipt.observe({
+    callId: CALL_A,
+    reference: { kind: 'native-item', nativeItemId: 'unknown-item' },
+    nodes: [node()],
+  });
+  f.receipt.observe({
+    callId: CALL_A,
+    reference: { kind: 'native-item', nativeItemId: 'known-item' },
+    nodes: [node()],
+  });
+
+  await f.frame();
+  assert.equal(f.frames.length, 1, 'discarding a permanent rejection schedules the next candidate');
+  await f.frame();
+
+  assert.deepEqual(attempted, [
+    { kind: 'native-item', nativeItemId: 'unknown-item' },
+    { kind: 'native-item', nativeItemId: 'known-item' },
+  ]);
+});
+
+test('transient Host failures respect backoff and stop after a bounded attempt budget', async () => {
+  let clock = 10_000;
+  let attempts = 0;
+  const f = fixture({
+    now: () => clock,
+    report: async () => {
+      attempts += 1;
+      throw Object.assign(new Error('busy'), { code: 'busy' });
+    },
+  });
+  f.receipt.setCall(CALL_A);
+  f.receipt.observe({
+    callId: CALL_A,
+    reference: { kind: 'native-item', nativeItemId: 'temporarily-unavailable' },
+    nodes: [node()],
+  });
+
+  await f.frame();
+  f.receipt.retry();
+  await f.frame();
+  assert.equal(attempts, 1, 'an eager retry cannot bypass the first backoff');
+
+  clock += 1_000;
+  f.receipt.retry();
+  await f.frame();
+  assert.equal(attempts, 2);
+
+  clock += 2_000;
+  f.receipt.retry();
+  await f.frame();
+  assert.equal(attempts, 3);
+  f.receipt.retry();
+  assert.equal(f.frames.length, 0, 'exhaustion leaves the first-visible result unknown');
+  assert.equal(f.receipt.observe({
+    callId: CALL_A,
+    reference: { kind: 'native-item', nativeItemId: 'later-item' },
+    nodes: [node()],
+  }), false, 'later text cannot manufacture success after the first visible candidate exhausted');
+});
+
+test('overflow clipping and CSS-hidden nodes do not win over visible text', async () => {
+  const f = fixture();
+  f.receipt.setCall(CALL_A);
+  f.receipt.observe({
+    callId: CALL_A,
+    reference: { kind: 'native-item', nativeItemId: 'clipped' },
+    nodes: [node({
+      rect: { left: 10, top: 80, right: 110, bottom: 110 },
+      panelRect: { left: 0, top: 0, right: 160, bottom: 50 },
+      panelStyle: { display: 'block', visibility: 'visible', opacity: '1', overflow: 'hidden' },
+    })],
+  });
+  f.receipt.observe({
+    callId: CALL_A,
+    reference: { kind: 'native-item', nativeItemId: 'transparent' },
+    nodes: [node({ style: { display: 'block', visibility: 'visible', opacity: '0' } })],
+  });
+  f.receipt.observe({
+    callId: CALL_A,
+    reference: { kind: 'native-item', nativeItemId: 'visibility-hidden' },
+    nodes: [node({ style: { display: 'block', visibility: 'hidden', opacity: '1' } })],
+  });
+  f.receipt.observe({
+    callId: CALL_A,
+    reference: { kind: 'native-item', nativeItemId: 'visible' },
+    nodes: [node()],
+  });
+
+  await f.frame();
+
+  assert.deepEqual(f.reports[0].reference, { kind: 'native-item', nativeItemId: 'visible' });
+});
+
+test('the pending queue stays bounded and evicts its oldest unresolved candidate', async () => {
+  const f = fixture();
+  f.receipt.setCall(CALL_A);
+  for (let index = 0; index < 65; index += 1) {
+    f.receipt.observe({
+      callId: CALL_A,
+      reference: { kind: 'native-item', nativeItemId: `item-${index}` },
+      nodes: [node()],
+    });
+  }
+
+  await f.frame();
+
+  assert.deepEqual(f.reports[0].reference, { kind: 'native-item', nativeItemId: 'item-1' });
+});
+
+test('a successful prior call does not suppress the next call receipt', async () => {
+  const f = fixture();
+  f.receipt.setCall(CALL_A);
+  f.receipt.observe({ callId: CALL_A, reference: { kind: 'message', messageId: 'a' }, nodes: [node()] });
+  await f.frame();
+  f.receipt.setCall(CALL_B);
+  f.receipt.observe({ callId: CALL_B, reference: { kind: 'message', messageId: 'b' }, nodes: [node()] });
+  await f.frame();
+  assert.deepEqual(f.reports.map(value => value.callId), [CALL_A, CALL_B]);
 });

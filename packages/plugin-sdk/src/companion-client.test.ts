@@ -66,6 +66,27 @@ test('presentation observation relays only the visible-text event, call fence, t
   assert.deepEqual(calls, [{ kind: 'presentation.observe', ...observation }]);
 });
 
+test('presentation observation constructs the narrow command at runtime instead of spreading caller fields', async () => {
+  const calls: CompanionCommand[] = [];
+  const client = createCompanionClient({ request: async command => {
+    calls.push(command); return { kind: 'ok' };
+  }, subscribe: () => () => {} });
+  const observation = {
+    event: 'first_text_visible' as const,
+    observedAt: 1_791_804_000_000,
+    callId: '863adf11-9fa3-4156-93af-94f7d6022d85',
+    reference: { kind: 'message' as const, messageId: 'message-1' },
+  };
+
+  await client.observePresentation({
+    ...observation,
+    kind: 'view.hide',
+    text: 'private subtitle',
+  } as unknown as typeof observation);
+
+  assert.deepEqual(calls, [{ kind: 'presentation.observe', ...observation }]);
+});
+
 test('decision reading requests a page without a writer or owner selector', async () => {
   const calls: CompanionCommand[] = [];
   const client = createCompanionClient({ request: async command => {

@@ -35,6 +35,11 @@ SDP. Hiding releases media; the existing Clowder **聊聊** entry restores the c
 Bridge 1.4 adds one untrusted first-visible-subtitle observation containing only
 an epoch-millisecond time, the current call fence and a Host-correlatable source
 reference. It does not claim compositor paint, an unoccluded window or reading.
+Message and native-item references use the same bounded, single-line opaque ID
+contract as the transcript surfaces that supply them. A Host
+`invalid_request` rejects only that candidate so another current reference may
+be observed. Other failures retry after 1 and 2 seconds, then leave the call's
+first-visible result unknown; later text never backfills a manufactured success.
 
 Xianxian uses one layered sitting body or one VP9 clip at a time. Expiring Host
 facts with task, result and event identities select tool work, workspace fetch,

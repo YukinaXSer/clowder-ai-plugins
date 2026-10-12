@@ -52,7 +52,13 @@ export function createCompanionClient(bridge: CompanionSurfaceBridge) {
     screenClose: () => invoke({ kind: 'screen.close' }, 'ok'),
     openConversation: () => invoke({ kind: 'conversation.open' }, 'navigation'),
     observePresentation: (observation: CompanionPresentationObservation) =>
-      invoke({ kind: 'presentation.observe', ...observation }, 'ok'),
+      invoke({
+        kind: 'presentation.observe',
+        event: observation.event,
+        observedAt: observation.observedAt,
+        callId: observation.callId,
+        reference: observation.reference,
+      }, 'ok'),
     readWork: () => invoke({ kind: 'work.read' }, 'work'),
     openWork: (entryRef: string) => invoke({ kind: 'work.open', entryRef }, 'navigation'),
     readDecisions: (offset = 0, limit = 20) => invoke({ kind: 'decisions.read', offset, limit }, 'decisions'),

@@ -16,6 +16,13 @@
       "type": "string",
       "format": "uuid"
     },
+    "CompanionCorrelatableId": {
+      "description": "A bounded single-line opaque identity issued by the Host or its current provider session.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "pattern": "^[^\\s\\u2028\\u2029]+$"
+    },
     "CompanionPresentationReference": {
       "description": "One Host-correlatable identity already present on the current call. The renderer cannot register or select a session with this reference.",
       "oneOf": [
@@ -23,7 +30,7 @@
           "type": "object",
           "properties": {
             "kind": { "const": "message" },
-            "messageId": { "type": "string", "minLength": 1, "maxLength": 256, "pattern": "^[^\\s\\u2028\\u2029]+$" }
+            "messageId": { "$ref": "#/$defs/CompanionCorrelatableId" }
           },
           "required": ["kind", "messageId"],
           "additionalProperties": false
@@ -32,7 +39,7 @@
           "type": "object",
           "properties": {
             "kind": { "const": "native-item" },
-            "nativeItemId": { "type": "string", "minLength": 1, "maxLength": 256, "pattern": "^[^\\s\\u2028\\u2029]+$" }
+            "nativeItemId": { "$ref": "#/$defs/CompanionCorrelatableId" }
           },
           "required": ["kind", "nativeItemId"],
           "additionalProperties": false
@@ -1249,7 +1256,7 @@
         "kind": { "const": "voice" },
         "nativeThreadId": { "type": "string", "minLength": 1, "maxLength": 256, "pattern": "\\S" },
         "realtimeSessionId": { "type": "string", "minLength": 1, "maxLength": 256, "pattern": "\\S" },
-        "nativeItemId": { "type": "string", "minLength": 1, "maxLength": 256, "pattern": "\\S" },
+        "nativeItemId": { "$ref": "#/$defs/CompanionCorrelatableId" },
         "nativeTurnId": { "type": "string", "minLength": 1, "maxLength": 256, "pattern": "\\S" }
       },
       "required": ["kind", "nativeThreadId", "realtimeSessionId", "nativeItemId"],
@@ -1270,7 +1277,7 @@
         {
           "type": "object",
           "properties": {
-            "messageId": { "type": "string", "minLength": 1, "maxLength": 256, "pattern": "\\S" },
+            "messageId": { "$ref": "#/$defs/CompanionCorrelatableId" },
             "role": { "enum": ["user", "assistant"] },
             "text": { "type": "string", "minLength": 1, "maxLength": 16000 },
             "source": { "$ref": "#/$defs/CompanionTranscriptVoiceSource" }
@@ -1281,7 +1288,7 @@
         {
           "type": "object",
           "properties": {
-            "messageId": { "type": "string", "minLength": 1, "maxLength": 256, "pattern": "\\S" },
+            "messageId": { "$ref": "#/$defs/CompanionCorrelatableId" },
             "role": { "const": "user" },
             "text": { "type": "string", "minLength": 1, "maxLength": 16000 },
             "source": { "$ref": "#/$defs/CompanionTranscriptTypedSource" }
@@ -1299,7 +1306,7 @@
             "kind": { "const": "delivery" },
             "delivery": { "const": "accepted" },
             "clientMessageId": { "$ref": "#/$defs/CompanionClientMessageId" },
-            "messageId": { "type": "string", "minLength": 1, "maxLength": 256, "pattern": "\\S" },
+            "messageId": { "$ref": "#/$defs/CompanionCorrelatableId" },
             "callId": {
               "oneOf": [
                 { "$ref": "#/$defs/CompanionCallId" },
@@ -1658,11 +1665,7 @@
               "minLength": 1,
               "maxLength": 256
             },
-            "itemId": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 256
-            }
+            "itemId": { "$ref": "#/$defs/CompanionCorrelatableId" }
           },
           "required": [
             "kind",

@@ -1,4 +1,6 @@
 const MAX_PENDING = 64;
+const MAX_REPORT_ATTEMPTS = 3;
+const REPORT_RETRY_DELAYS_MS = [1_000, 2_000];
 const CLIPPING_OVERFLOW = new Set(['auto', 'clip', 'hidden', 'scroll']);
 
 function referenceKey(reference) {
@@ -51,6 +53,19 @@ function nodeIsVisible(document, node) {
   return visible.right > visible.left && visible.bottom > visible.top;
 }
 
+function currentNodes(candidate) {
+  try {
+    const nodes = typeof candidate.nodes === 'function' ? candidate.nodes() : candidate.nodes;
+    return Array.isArray(nodes) ? nodes.filter(Boolean) : [];
+  } catch {
+    return [];
+  }
+}
+
+function errorCode(value) {
+  return typeof value?.code === 'string' ? value.code : undefined;
+}
+
 /**
  * Reports the first assistant text that reaches a visible renderer surface.
  * A post-mutation animation frame plus DOM/document/viewport checks is not a
@@ -63,7 +78,6 @@ export class FirstVisibleTextReceipt {
     this.now = now;
     this.frame = frame ?? document?.defaultView?.requestAnimationFrame?.bind(document.defaultView);
     this.pending = new Map();
-    this.nodeKeys = new WeakMap();
     this.onVisibilityChange = () => this.retry();
     this.onGeometryChange = () => this.retry();
     document?.addEventListener?.('visibilitychange', this.onVisibilityChange);
@@ -77,25 +91,25 @@ export class FirstVisibleTextReceipt {
     this.callId = callId;
     this.pending.clear();
     this.reported = false;
+    this.exhausted = false;
   }
 
   observe({ callId, reference, nodes } = {}) {
     const key = referenceKey(reference);
-    if (!key || !callId || callId !== this.callId || this.reported || !Array.isArray(nodes)) return false;
-    const candidates = nodes.filter(Boolean);
-    if (candidates.length === 0) return false;
+    if (!key || !callId || callId !== this.callId || this.reported || this.exhausted
+      || (!Array.isArray(nodes) && typeof nodes !== 'function')) return false;
     const existing = this.pending.get(key);
-    const candidate = existing ?? { callId, reference, nodes: [] };
-    candidate.nodes = [...new Set([...candidate.nodes, ...candidates])];
+    const candidate = existing ?? { callId, reference, nodes, attempts: 0, retryAt: 0 };
+    candidate.nodes = nodes;
+    if (!existing && currentNodes(candidate).length === 0) return false;
     this.pending.set(key, candidate);
-    for (const node of candidates) this.nodeKeys.set(node, key);
     while (this.pending.size > MAX_PENDING) this.pending.delete(this.pending.keys().next().value);
     this.retry();
     return true;
   }
 
   retry() {
-    if (this.scheduled || this.inFlight || this.reported || !this.callId || this.pending.size === 0
+    if (this.scheduled || this.inFlight || this.reported || this.exhausted || !this.callId || this.pending.size === 0
       || typeof this.frame !== 'function') return;
     this.scheduled = true;
     this.frame(() => {
@@ -105,14 +119,17 @@ export class FirstVisibleTextReceipt {
   }
 
   async flush() {
-    if (this.inFlight || this.reported || !this.callId) return;
-    const entry = [...this.pending].find(([key, candidate]) => candidate.nodes.some(node =>
-      this.nodeKeys.get(node) === key && nodeIsVisible(this.document, node)));
+    if (this.inFlight || this.reported || this.exhausted || !this.callId) return;
+    const entry = [...this.pending].find(([, candidate]) => currentNodes(candidate).some(node =>
+      nodeIsVisible(this.document, node)));
     if (!entry) return;
     const [key, candidate] = entry;
+    if (candidate.retryAt > this.now()) return;
     const callId = this.callId;
     const attempt = { callId, key };
     this.inFlight = attempt;
+    candidate.attempts += 1;
+    let continueWithNext = false;
     try {
       const reply = await this.report({
         event: 'first_text_visible', observedAt: this.now(), callId, reference: candidate.reference,
@@ -120,16 +137,34 @@ export class FirstVisibleTextReceipt {
       if (reply?.kind === 'ok' && this.callId === callId && this.pending.get(key) === candidate) {
         this.reported = true;
         this.pending.clear();
+      } else if (reply?.kind !== 'ok') {
+        continueWithNext = this.rejectCandidate(callId, key, candidate, reply);
       }
-    } catch {
-      // Absence of a Host receipt remains unknown. A later visibility/content
-      // transition may retry; this observer never manufactures success.
+    } catch (error) {
+      continueWithNext = this.rejectCandidate(callId, key, candidate, error);
     } finally {
       if (this.inFlight === attempt) {
         this.inFlight = undefined;
-        if (this.callId !== callId) this.retry();
+        if (this.callId !== callId || continueWithNext) this.retry();
       }
     }
+  }
+
+  rejectCandidate(callId, key, candidate, failure) {
+    if (this.callId !== callId || this.pending.get(key) !== candidate) return false;
+    if (errorCode(failure) === 'invalid_request') {
+      this.pending.delete(key);
+      return true;
+    }
+    if (candidate.attempts >= MAX_REPORT_ATTEMPTS) {
+      // The first visible candidate was plausible but the Host never confirmed it.
+      // Preserve that result as unknown instead of reporting later text as the first.
+      this.exhausted = true;
+      this.pending.clear();
+      return false;
+    }
+    candidate.retryAt = this.now() + REPORT_RETRY_DELAYS_MS[candidate.attempts - 1];
+    return false;
   }
 
   close() {
@@ -156,14 +191,21 @@ export class VisibleTextPresentation {
     const reference = event.itemId
       ? { kind: 'native-item', nativeItemId: event.itemId }
       : undefined;
-    const nodes = [
+    const stableNodes = [
       this.transcript.append(event.role, event.text, true),
       this.callTranscript.appendLive(event),
-      this.bubble.append(event.role, event.text, speaker, reference),
-      this.callBubble.append(event.role, event.text, speaker, reference),
     ];
-    if (event.role === 'assistant' && reference) this.receipt.observe({
-      callId: event.callId, reference, nodes,
+    this.bubble.append(event.role, event.text, speaker, reference);
+    this.callBubble.append(event.role, event.text, speaker, reference);
+    if (event.role === 'assistant' && reference && typeof event.text === 'string'
+      && event.text.trim().length > 0) this.receipt.observe({
+      callId: event.callId,
+      reference,
+      nodes: () => [
+        ...stableNodes,
+        ...this.bubble.rowsForReference(reference),
+        ...this.callBubble.rowsForReference(reference),
+      ],
     });
   }
 
@@ -171,14 +213,16 @@ export class VisibleTextPresentation {
     if (!this.callTranscript.load(reply)) return false;
     this.callBubble.loadTranscript(reply.rows, companionName);
     for (const row of reply.rows) {
-      if (row.role !== 'assistant') continue;
+      if (row.role !== 'assistant' || row.text.trim().length === 0) continue;
       const reference = { kind: 'message', messageId: row.messageId };
+      const transcriptRow = this.callTranscript.rowForMessage(row.messageId);
       this.receipt.observe({
         callId,
         reference,
-        nodes: [this.callTranscript.rowForMessage(row.messageId), ...this.callBubble.rowsForReference(reference)],
+        nodes: () => [transcriptRow, ...this.callBubble.rowsForReference(reference)],
       });
     }
+    this.receipt.retry();
     return true;
   }
 

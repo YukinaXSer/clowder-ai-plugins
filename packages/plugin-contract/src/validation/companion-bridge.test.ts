@@ -97,6 +97,24 @@ test('visible-text observations expose only a current call fence and one correla
   }
 });
 
+test('presentation references accept exactly the same single-line ids as their source surfaces', () => {
+  const callId = '863adf11-9fa3-4156-93af-94f7d6022d85';
+  const clientMessageId = '6d01d254-1e3b-4588-a352-756449e95025';
+  const spaced = 'opaque id';
+  assert.equal(validateCompanionReply({
+    kind: 'transcript', scope: { callId, realtimeSessionId: 'rtc-1' }, hasMore: false,
+    rows: [{ messageId: spaced, role: 'assistant', text: 'answer', source: {
+      kind: 'voice', nativeThreadId: 'thread-1', realtimeSessionId: 'rtc-1', nativeItemId: 'item-1',
+    } }],
+  }), false);
+  assert.equal(validateCompanionReply({
+    kind: 'delivery', delivery: 'accepted', clientMessageId, messageId: spaced, callId,
+  }), false);
+  assert.equal(validateCompanionEvent({
+    kind: 'audio', type: 'transcript', callId, role: 'assistant', text: 'answer', itemId: spaced,
+  }), false);
+});
+
 test('typed delivery receipts preserve retry and durable message identities', () => {
   const callId = '863adf11-9fa3-4156-93af-94f7d6022d85';
   const clientMessageId = '6d01d254-1e3b-4588-a352-756449e95025';
