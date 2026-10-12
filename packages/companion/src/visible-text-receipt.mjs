@@ -78,6 +78,7 @@ export class FirstVisibleTextReceipt {
     this.now = now;
     this.frame = frame ?? document?.defaultView?.requestAnimationFrame?.bind(document.defaultView);
     this.pending = new Map();
+    this.rejected = new Set();
     this.onVisibilityChange = () => this.retry();
     this.onGeometryChange = () => this.retry();
     document?.addEventListener?.('visibilitychange', this.onVisibilityChange);
@@ -90,6 +91,7 @@ export class FirstVisibleTextReceipt {
     if (callId === this.callId) return;
     this.callId = callId;
     this.pending.clear();
+    this.rejected.clear();
     this.reported = false;
     this.exhausted = false;
   }
@@ -97,6 +99,7 @@ export class FirstVisibleTextReceipt {
   observe({ callId, reference, nodes } = {}) {
     const key = referenceKey(reference);
     if (!key || !callId || callId !== this.callId || this.reported || this.exhausted
+      || this.rejected.has(key)
       || (!Array.isArray(nodes) && typeof nodes !== 'function')) return false;
     const existing = this.pending.get(key);
     const candidate = existing ?? { callId, reference, nodes, attempts: 0, retryAt: 0 };
@@ -154,6 +157,12 @@ export class FirstVisibleTextReceipt {
     if (this.callId !== callId || this.pending.get(key) !== candidate) return false;
     if (errorCode(failure) === 'invalid_request') {
       this.pending.delete(key);
+      if (this.rejected.size >= MAX_PENDING) {
+        this.exhausted = true;
+        this.pending.clear();
+        return false;
+      }
+      this.rejected.add(key);
       return true;
     }
     if (candidate.attempts >= MAX_REPORT_ATTEMPTS) {
@@ -172,6 +181,7 @@ export class FirstVisibleTextReceipt {
     this.document?.removeEventListener?.('scroll', this.onGeometryChange, true);
     this.document?.defaultView?.removeEventListener?.('resize', this.onGeometryChange);
     this.pending.clear();
+    this.rejected.clear();
   }
 }
 

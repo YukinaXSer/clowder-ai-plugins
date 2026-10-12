@@ -99,12 +99,66 @@ test('empty assistant deltas never become a visible-text receipt', () => {
     report: async observation => { f.reports.push(observation); return { kind: 'ok' }; },
     transcript: view,
     callTranscript: { setCall() {}, appendLive: () => visible },
-    bubble: { append: () => visible },
-    callBubble: { append: () => visible },
+    bubble: { append: () => visible, rowsForReference: () => [] },
+    callBubble: { append: () => visible, rowsForReference: () => [] },
   });
   presentation.setCall(CALL_A);
   presentation.appendLive({
     type: 'transcript', callId: CALL_A, role: 'assistant', text: ' \n ', itemId: 'empty-item',
   }, '猫猫');
   assert.equal(f.frames.length, 0);
+});
+
+test('whitespace-only durable rows never become a visible-text receipt', () => {
+  const f = fixture();
+  const visible = node();
+  const presentation = new VisibleTextPresentation({
+    document: f.document,
+    report: async observation => { f.reports.push(observation); return { kind: 'ok' }; },
+    transcript: { append: () => undefined },
+    callTranscript: {
+      setCall() {},
+      load: () => true,
+      rowForMessage: () => visible,
+    },
+    bubble: { rowsForReference: () => [] },
+    callBubble: { loadTranscript() {}, rowsForReference: () => [] },
+  });
+  presentation.setCall(CALL_A);
+  presentation.loadTranscript(CALL_A, {
+    kind: 'transcript', rows: [
+      { messageId: 'blank', role: 'assistant', text: ' \n ', source: { kind: 'voice' } },
+    ],
+  }, '猫猫');
+  assert.equal(f.frames.length, 0);
+});
+
+test('the ordinary live bubble resolves the latest reference after its fixed row is reused', async () => {
+  const f = fixture();
+  const bubble = new RecentBubble([node(), node()]);
+  const callBubble = new RecentBubble([node({ hidden: true }), node({ hidden: true })]);
+  const presentation = new VisibleTextPresentation({
+    document: f.document,
+    report: async observation => { f.reports.push(observation); return { kind: 'ok' }; },
+    transcript: { append: () => undefined },
+    callTranscript: { setCall() {}, appendLive: () => undefined },
+    bubble,
+    callBubble,
+  });
+  presentation.setCall(CALL_A);
+  presentation.appendLive({
+    type: 'transcript', callId: CALL_A, role: 'assistant', text: 'A1', itemId: 'live-a1',
+  }, '猫猫');
+  presentation.appendLive({
+    type: 'transcript', callId: CALL_A, role: 'user', text: 'U1', itemId: 'live-u1',
+  }, '语音');
+  presentation.appendLive({
+    type: 'transcript', callId: CALL_A, role: 'assistant', text: 'A2', itemId: 'live-a2',
+  }, '猫猫');
+
+  await f.frame();
+
+  assert.deepEqual(f.reports.map(value => value.reference), [
+    { kind: 'native-item', nativeItemId: 'live-a2' },
+  ]);
 });

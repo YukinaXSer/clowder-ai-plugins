@@ -206,6 +206,11 @@ test('a permanently rejected candidate is discarded so the next visible referenc
   });
 
   await f.frame();
+  assert.equal(f.receipt.observe({
+    callId: CALL_A,
+    reference: { kind: 'native-item', nativeItemId: 'unknown-item' },
+    nodes: [node()],
+  }), false, 'a permanently rejected reference stays rejected for the current call');
   assert.equal(f.frames.length, 1, 'discarding a permanent rejection schedules the next candidate');
   await f.frame();
 
@@ -213,6 +218,15 @@ test('a permanently rejected candidate is discarded so the next visible referenc
     { kind: 'native-item', nativeItemId: 'unknown-item' },
     { kind: 'native-item', nativeItemId: 'known-item' },
   ]);
+
+  f.receipt.setCall(CALL_B);
+  assert.equal(f.receipt.observe({
+    callId: CALL_B,
+    reference: { kind: 'native-item', nativeItemId: 'unknown-item' },
+    nodes: [node()],
+  }), true, 'a new call gets a fresh bounded rejection set');
+  await f.frame();
+  assert.equal(attempted.length, 3);
 });
 
 test('transient Host failures respect backoff and stop after a bounded attempt budget', async () => {
@@ -220,8 +234,9 @@ test('transient Host failures respect backoff and stop after a bounded attempt b
   let attempts = 0;
   const f = fixture({
     now: () => clock,
-    report: async () => {
+    report: async observation => {
       attempts += 1;
+      if (observation.callId === CALL_B) return { kind: 'ok' };
       throw Object.assign(new Error('busy'), { code: 'busy' });
     },
   });
@@ -253,6 +268,15 @@ test('transient Host failures respect backoff and stop after a bounded attempt b
     reference: { kind: 'native-item', nativeItemId: 'later-item' },
     nodes: [node()],
   }), false, 'later text cannot manufacture success after the first visible candidate exhausted');
+
+  f.receipt.setCall(CALL_B);
+  assert.equal(f.receipt.observe({
+    callId: CALL_B,
+    reference: { kind: 'native-item', nativeItemId: 'next-call-item' },
+    nodes: [node()],
+  }), true);
+  await f.frame();
+  assert.equal(attempts, 4, 'a new call resets the unknown terminal and gets its own receipt');
 });
 
 test('overflow clipping and CSS-hidden nodes do not win over visible text', async () => {

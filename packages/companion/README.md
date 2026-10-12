@@ -37,8 +37,9 @@ an epoch-millisecond time, the current call fence and a Host-correlatable source
 reference. It does not claim compositor paint, an unoccluded window or reading.
 Message and native-item references use the same bounded, single-line opaque ID
 contract as the transcript surfaces that supply them. A Host
-`invalid_request` rejects only that candidate so another current reference may
-be observed. Other failures retry after 1 and 2 seconds, then leave the call's
+`invalid_request` rejects and remembers that candidate for the current call so
+another current reference may be observed without retrying the rejected one.
+Other failures retry after 1 and 2 seconds, then leave the call's
 first-visible result unknown; later text never backfills a manufactured success.
 
 Xianxian uses one layered sitting body or one VP9 clip at a time. Expiring Host
