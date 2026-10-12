@@ -19,6 +19,7 @@ import { FoldedChatUnread } from './chat-unread.mjs';
 import { COMPACT_BALL_SIZE, compactSizeAction } from './compact-size.mjs';
 import { WorkOverviewView } from './work-overview.mjs';
 import { MeetingStatus, renderMeetingStatus } from './meeting-state.mjs';
+import { VisibleTextPresentation } from './visible-text-receipt.mjs';
 const $ = id => document.getElementById(id);
 const label = (id, text) => { $(id).querySelector('.label').textContent = text; };
 const status = text => {
@@ -62,6 +63,11 @@ if (!window.clowderCompanion) {
 } else {
   nativeTravel.start();
   const client = createCompanionClient(window.clowderCompanion);
+  const visibleText = new VisibleTextPresentation({
+    document,
+    report: observation => client.observePresentation(observation),
+    transcript, callTranscript, bubble, callBubble,
+  });
   const controls = bindPetControls(client, {
     error: (error, context) => status(context?.panel === 'settings' && error?.code === 'invalid_request' ? '这个 Host 版本还不支持猫旁设置。原来的设置入口会继续保留。' : explainError(error)),
     moved: (dx, dy) => {
@@ -74,6 +80,7 @@ if (!window.clowderCompanion) {
       setTimeout(() => motion.setDockedEdge(detectDockedEdge(window, $('pet').getBoundingClientRect())), 100);
     },
     changed: panel => {
+      visibleText.retry();
       if (panel === 'chat') foldedChatUnread.open();
       else if (previousControlPanel === 'chat' && conversation?.active) foldedChatUnread.fold();
       previousControlPanel = panel;
@@ -147,10 +154,8 @@ if (!window.clowderCompanion) {
         callTranscript.appendTyped(event);
         void readHistory(); void readCallTranscript();
       } else {
-        transcript.append(event.role, event.text, true);
-        callTranscript.appendLive(event);
         const speaker = event.role === 'assistant' ? conversation.identity?.displayName ?? '猫猫' : '语音';
-        bubble.append(event.role, event.text, speaker); callBubble.append(event.role, event.text, speaker);
+        visibleText.appendLive(event, speaker);
         void controls.setAmbient('actions');
       }
     },
@@ -167,7 +172,7 @@ if (!window.clowderCompanion) {
       const receiveOnly = value.audioMode === 'receive_only';
       const canReceiveOnly = value.identity?.audio?.supportedModes?.includes('receive_only') === true;
       const retryReceiveOnly = value.failed && value.retryMode === 'receive_only' && canReceiveOnly;
-      callTranscript.setCall(value.callId);
+      visibleText.setCall(value.callId);
       void controls.setAmbient(ambientPanel(active));
       $('begin').hidden = active; $('begin').disabled = !value.identity;
       $('listen').hidden = active || !canReceiveOnly; $('listen').disabled = !value.identity;
@@ -305,9 +310,8 @@ if (!window.clowderCompanion) {
     try {
       const reply = await client.readTranscript();
       if (!conversation.active || conversation.callId !== callId) return;
-      callTranscript.load(reply);
+      if (!visibleText.loadTranscript(callId, reply, conversation.identity?.displayName)) return;
       foldedChatUnread.receiveMany(reply.rows);
-      callBubble.loadTranscript(reply.rows, conversation.identity?.displayName);
       $('call-transcript-status').textContent = reply.hasMore ? '这里只显示这次通话最近的内容' : '';
     } catch {
       if (conversation.active && conversation.callId === callId) $('call-transcript-status').textContent = '字幕暂未更新 · 实时内容仍会继续显示';
@@ -340,6 +344,6 @@ if (!window.clowderCompanion) {
   void conversation.refresh(); void readHistory(); void decisionPanel.read(); void settingsView.controller.load(); void controls.show('none');
   window.addEventListener('beforeunload', () => {
     clearInterval(statusMonitor); clearInterval(historyMonitor); clearInterval(transcriptMonitor); clearInterval(decisionMonitor); clearInterval(workMonitor);
-    unsubscribe(); nativeTravel.close(); motion.close(); void conversation.end();
+    unsubscribe(); visibleText.close(); nativeTravel.close(); motion.close(); void conversation.end();
   });
 }

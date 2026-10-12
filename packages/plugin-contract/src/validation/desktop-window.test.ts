@@ -59,6 +59,10 @@ test('renderer declarations cannot inject execution identity, Host origin or Ele
 });
 
 test('surface integrity, bridge version and initial bounds are closed', () => {
+  const visibleObservationBridge = manifest();
+  visibleObservationBridge.contributions[0]!.bridgeVersion = '1.4.0';
+  assert.equal(validateManifest(visibleObservationBridge).valid, true,
+    'bridge 1.4 admits the renderer-to-Host visible-text observation');
   const badIntegrity = manifest();
   badIntegrity.contributions[0]!.surface.integrity = 'trust-me';
   assert.equal(validateManifest(badIntegrity).valid, false);

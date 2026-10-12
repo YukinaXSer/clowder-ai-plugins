@@ -20,6 +20,7 @@ export class TranscriptView {
     }
     row.textContent = (row.textContent + text).slice(-16000);
     if (pinned) this.container.scrollTop = this.container.scrollHeight;
+    return row;
   }
   finish({ role, transcript, turnId }) {
     if (!['user', 'assistant'].includes(role) || (turnId && this.completed.has(turnId))) return;

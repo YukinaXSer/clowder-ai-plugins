@@ -45,9 +45,10 @@ test('a reused legacy row clears saved identity instead of borrowing another mes
 test('history refresh preserves the unfinished voice caption and its following chunks', () => {
   const { view, container } = fixture();
   view.load([message('old')]);
-  view.append('assistant', '正在', true);
+  const live = view.append('assistant', '正在', true);
+  assert.equal(live, container.children.at(-1), 'the caller receives the exact row written in this surface');
   view.load([message('old'), message('new')]);
-  view.append('assistant', '说话', true);
+  assert.equal(view.append('assistant', '说话', true), live);
   assert.deepEqual(container.children.map(row => row.textContent), ['old', 'new', '正在说话']);
   assert.equal(container.children.at(-1).dataset.live, 'true');
 });

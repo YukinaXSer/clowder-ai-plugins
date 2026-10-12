@@ -191,8 +191,10 @@ export class CallTranscriptView {
       this.container.scrollTop = this.container.scrollHeight;
       this.setUnread(0);
     } else if (isNew) this.setUnread(this.unread + 1);
-    return true;
+    return row;
   }
+
+  rowForMessage(messageId) { return this.durableRows.get(messageId); }
 
   appendTyped({ receipt, text }) {
     if (!this.callId || receipt?.delivery !== 'accepted' || receipt.callId !== this.callId) return false;

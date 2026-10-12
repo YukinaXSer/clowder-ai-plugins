@@ -24,7 +24,7 @@ after(async () => {
   await new Promise((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
 });
 
-async function openPreview(viewport = { width: 600, height: 800 }) {
+async function openPreview(viewport = { width: 600, height: 800 }, { autoTranscript = true } = {}) {
   const page = await browser.newPage({ viewport });
   await page.addInitScript(() => {
     let bridge;
@@ -43,14 +43,16 @@ async function openPreview(viewport = { width: 600, height: 800 }) {
       },
     });
   });
-  await page.goto(`${origin}/index.html?skin=xianxian-codex&pending=1`);
+  await page.goto(`${origin}/index.html?skin=xianxian-codex&pending=1&autoTranscript=${autoTranscript ? '1' : '0'}`);
   await page.waitForLoadState('networkidle');
   await page.evaluate(() => {
     window.__layoutRequests = [];
+    window.__presentationObservations = [];
     const bridge = window.clowderCompanion;
     const original = bridge.request.bind(bridge);
     bridge.request = command => {
       if (command.kind === 'view.layout') window.__layoutRequests.push({ ...command });
+      if (command.kind === 'presentation.observe') window.__presentationObservations.push({ ...command });
       return original(command);
     };
   });
@@ -328,6 +330,48 @@ test('subtitle return is visible and restores the same shared call at compact an
       assert.equal(await page.locator('#call-share-target').textContent(), '共享中：Blender · 窄屏验收窗口');
       assert.equal(await page.inputValue('#call-message'), '未发送的草稿');
     }
+  } finally {
+    await page.close();
+  }
+});
+
+test('first subtitle observation waits for a real visible panel and remains single-shot', async () => {
+  const page = await openPreview({ width: 460, height: 620 }, { autoTranscript: false });
+  try {
+    await page.click('#pet');
+    await page.click('#begin');
+    await page.waitForFunction(() => document.getElementById('call-state')?.textContent === '通话中');
+    await page.click('#pet');
+    await page.waitForFunction(() => !document.getElementById('menu').hidden);
+
+    await page.evaluate(() => window.__emitAudio({
+      kind: 'audio', type: 'transcript',
+      callId: '11111111-1111-4111-8111-111111111111',
+      role: 'assistant', text: '这条字幕先写入隐藏面板。', itemId: 'hidden-output-1',
+    }));
+    await page.waitForTimeout(100);
+    assert.equal(await page.evaluate(() => window.__presentationObservations.length), 0);
+
+    await page.click('#pet');
+    await page.waitForFunction(() => !document.getElementById('actions').hidden);
+    await page.waitForFunction(() => window.__presentationObservations.length === 1, null, { timeout: 1_500 });
+    const observation = await page.evaluate(() => window.__presentationObservations[0]);
+    assert.equal(Number.isSafeInteger(observation.observedAt) && observation.observedAt > 0, true);
+    const { observedAt: _observedAt, ...bounded } = observation;
+    assert.deepEqual(bounded, {
+      kind: 'presentation.observe',
+      event: 'first_text_visible',
+      callId: '11111111-1111-4111-8111-111111111111',
+      reference: { kind: 'native-item', nativeItemId: 'hidden-output-1' },
+    });
+
+    await page.evaluate(() => window.__emitAudio({
+      kind: 'audio', type: 'transcript',
+      callId: '11111111-1111-4111-8111-111111111111',
+      role: 'assistant', text: '重复内容不会再报。', itemId: 'hidden-output-1',
+    }));
+    await page.waitForTimeout(100);
+    assert.equal(await page.evaluate(() => window.__presentationObservations.length), 1);
   } finally {
     await page.close();
   }

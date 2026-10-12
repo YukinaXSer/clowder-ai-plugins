@@ -1,9 +1,16 @@
 /** A compact projection of Host history plus the current unsaved voice caption. */
+function referenceKey(reference) {
+  if (reference?.kind === 'message') return `message:${reference.messageId}`;
+  if (reference?.kind === 'native-item') return `native-item:${reference.nativeItemId}`;
+  return null;
+}
+
 export class RecentBubble {
   constructor(rows) {
     this.rows = rows;
     this.history = [];
     this.live = new Map();
+    this.rowReferences = new WeakMap();
   }
   load(messages) {
     this.history = messages.slice(-2);
@@ -14,13 +21,16 @@ export class RecentBubble {
       role: row.role,
       text: row.text,
       name: row.source?.kind === 'typed' ? '你' : row.role === 'assistant' ? companionName : '语音',
+      reference: { kind: 'message', messageId: row.messageId },
     })));
   }
-  append(role, text, name = role === 'user' ? '你' : '猫猫') {
+  append(role, text, name = role === 'user' ? '你' : '猫猫', reference) {
     if (!['user', 'assistant'].includes(role) || typeof text !== 'string') return;
     const previous = this.live.get(role);
-    this.live.set(role, { name, text: `${previous?.text ?? ''}${text}`.slice(-240) });
+    this.live.set(role, { name, text: `${previous?.text ?? ''}${text}`.slice(-240),
+      reference: reference ?? previous?.reference });
     this.render();
+    return reference ? this.rowsForReference(reference)[0] : this.rows.find(row => row.dataset?.role === role);
   }
   finish(role) {
     this.live.delete(role);
@@ -37,6 +47,10 @@ export class RecentBubble {
   }
   hasContent() {
     return this.history.length > 0 || this.live.size > 0;
+  }
+  rowsForReference(reference) {
+    const key = referenceKey(reference);
+    return key ? this.rows.filter(row => this.rowReferences.get(row) === key) : [];
   }
   render() {
     const live = [...this.live].map(([role, value]) => ({ role, ...value }));
@@ -69,6 +83,9 @@ export class RecentBubble {
       }
       row.dataset ??= {};
       row.dataset.role = entry?.role ?? '';
+      const key = referenceKey(entry?.reference);
+      if (key) this.rowReferences.set(row, key);
+      else this.rowReferences.delete(row);
     }
   }
 }

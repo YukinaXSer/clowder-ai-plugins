@@ -260,7 +260,7 @@ export type DesktopWindowContribution = {
     readonly entrypoint: PackageRelativePath & `${string}.html`;
     readonly integrity: string;
   };
-  readonly bridgeVersion: '1.0.0' | '1.1.0' | '1.2.0' | '1.3.0';
+  readonly bridgeVersion: '1.0.0' | '1.1.0' | '1.2.0' | '1.3.0' | '1.4.0';
   readonly presentation: {
     readonly width: number;
     readonly height: number;
@@ -823,6 +823,13 @@ export type DocxMaterializationResponse = {
 export type CompanionSelectionId = string;
 export type CompanionCallId = string;
 export type CompanionClientMessageId = string;
+export type CompanionPresentationReference = {
+  readonly kind: 'message';
+  readonly messageId: string;
+} | {
+  readonly kind: 'native-item';
+  readonly nativeItemId: string;
+};
 export type CompanionScreenFrame = {
   readonly image: string;
   readonly width: number;
@@ -869,6 +876,12 @@ export type CompanionCommand = {
   readonly kind: 'screen.close';
 } | {
   readonly kind: 'conversation.open';
+} | {
+  readonly kind: 'presentation.observe';
+  readonly event: 'first_text_visible';
+  readonly observedAt: number;
+  readonly callId: CompanionCallId;
+  readonly reference: CompanionPresentationReference;
 } | {
   readonly kind: 'work.read';
 } | {

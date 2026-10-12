@@ -49,6 +49,23 @@ test('passive bubble layout stays a bounded presentation request', async () => {
   assert.deepEqual(calls, [{ kind: 'view.layout', panel: 'bubble', width: 240, height: 80 }]);
 });
 
+test('presentation observation relays only the visible-text event, call fence, time and source reference', async () => {
+  const calls: CompanionCommand[] = [];
+  const client = createCompanionClient({ request: async command => {
+    calls.push(command); return { kind: 'ok' };
+  }, subscribe: () => () => {} });
+  const observation = {
+    event: 'first_text_visible' as const,
+    observedAt: 1_791_804_000_000,
+    callId: '863adf11-9fa3-4156-93af-94f7d6022d85',
+    reference: { kind: 'native-item' as const, nativeItemId: 'output-item-1' },
+  };
+
+  await client.observePresentation(observation);
+
+  assert.deepEqual(calls, [{ kind: 'presentation.observe', ...observation }]);
+});
+
 test('decision reading requests a page without a writer or owner selector', async () => {
   const calls: CompanionCommand[] = [];
   const client = createCompanionClient({ request: async command => {

@@ -61,6 +61,42 @@ test('call transcript is a Host-bound read with stable source identity', () => {
   ] }), false, 'the whole transcript reply stays inside the 24000-character budget');
 });
 
+test('visible-text observations expose only a current call fence and one correlatable reference', () => {
+  const callId = '863adf11-9fa3-4156-93af-94f7d6022d85';
+  const observedAt = 1_791_804_000_000;
+  const voice = {
+    kind: 'presentation.observe', event: 'first_text_visible', observedAt, callId,
+    reference: { kind: 'native-item', nativeItemId: 'output-item-1' },
+  };
+  const durable = {
+    kind: 'presentation.observe', event: 'first_text_visible', observedAt, callId,
+    reference: { kind: 'message', messageId: 'message-1' },
+  };
+
+  assert.equal(validateCompanionCommand(voice), true);
+  assert.equal(validateCompanionCommand(durable), true);
+  for (const field of ['text', 'realtimeSessionId', 'generation', 'ownerId', 'audio']) {
+    assert.equal(validateCompanionCommand({ ...voice, [field]: 'renderer-claim' }), false, field);
+  }
+  assert.equal(validateCompanionCommand({ ...voice, callId: 'not-a-call' }), false);
+  assert.equal(validateCompanionCommand({ ...voice, observedAt: -1 }), false);
+  assert.equal(validateCompanionCommand({ ...voice, event: 'painted' }), false);
+  assert.equal(validateCompanionCommand({ ...voice, reference: {
+    kind: 'native-item', nativeItemId: 'output-item-1', messageId: 'message-1',
+  } }), false, 'one observation cannot claim two source identities');
+  assert.equal(validateCompanionCommand({ ...durable, reference: {
+    kind: 'message', messageId: 'message-1', text: 'private subtitle',
+  } }), false, 'the correlation reference is closed and carries no content');
+  for (const value of ['   ', 'item\nforged', 'x'.repeat(257)]) {
+    assert.equal(validateCompanionCommand({ ...voice, reference: {
+      kind: 'native-item', nativeItemId: value,
+    } }), false, 'native item references are bounded single-line opaque values');
+    assert.equal(validateCompanionCommand({ ...durable, reference: {
+      kind: 'message', messageId: value,
+    } }), false, 'message references are bounded single-line opaque values');
+  }
+});
+
 test('typed delivery receipts preserve retry and durable message identities', () => {
   const callId = '863adf11-9fa3-4156-93af-94f7d6022d85';
   const clientMessageId = '6d01d254-1e3b-4588-a352-756449e95025';

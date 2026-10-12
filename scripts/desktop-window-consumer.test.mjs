@@ -41,7 +41,7 @@ test('packed desktop window contract and SDK work in a consumer without workspac
       import { validateCompanionCommand, validateCompanionReply } from '@clowder-ai/plugin-contract';
       assert.equal(validateManifest(companion).valid, true);
       assert.equal(companion.pluginId, 'official.companion');
-      assert.equal(companion.contributions[0].bridgeVersion, '1.3.0');
+      assert.equal(companion.contributions[0].bridgeVersion, '1.4.0');
       assert.equal(validateCompanionCommand({ kind: 'view.layout', panel: 'menu', width: 204, height: 250 }), true);
       assert.equal(validateCompanionCommand({ kind: 'conversation.read', threadId: 'forged' }), false);
       const window = {
@@ -71,11 +71,21 @@ test('packed desktop window contract and SDK work in a consumer without workspac
       assert.equal(registered, 1);
       assert.equal(disposed, 1);
       assert.equal(validateCompanionCommand({ kind: 'prepare', catId: 'forged' }), false);
+      const observation = { event: 'first_text_visible', observedAt: 1791804000123,
+        callId: '11111111-1111-4111-8111-111111111111',
+        reference: { kind: 'native-item', nativeItemId: 'output-item-1' } };
+      assert.equal(validateCompanionCommand({ kind: 'presentation.observe', ...observation }), true);
       assert.equal(validateCompanionReply({ kind: 'navigation', delivery: 'requested' }), true);
+      const companionCommands = [];
       const client = createCompanionClient({ request: async command => {
-        assert.deepEqual(command, { kind: 'stop' }); return { kind: 'ok' };
+        companionCommands.push(command); return { kind: 'ok' };
       }, subscribe: () => () => {} });
       assert.deepEqual(await client.stop(), { kind: 'ok' });
+      assert.deepEqual(await client.observePresentation(observation), { kind: 'ok' });
+      assert.deepEqual(companionCommands, [
+        { kind: 'stop' },
+        { kind: 'presentation.observe', ...observation },
+      ]);
     `;
     await writeFile(join(consumer, 'probe.mjs'), probe);
     run(process.execPath, ['probe.mjs'], consumer);

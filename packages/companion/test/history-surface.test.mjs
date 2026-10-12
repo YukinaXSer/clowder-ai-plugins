@@ -15,6 +15,7 @@ import { FoldedChatUnread } from '../src/chat-unread.mjs';
 import { COMPACT_BALL_SIZE, compactSizeAction } from '../src/compact-size.mjs';
 import { WorkOverviewView } from '../src/work-overview.mjs';
 import { MeetingStatus, meetingPresentation, renderMeetingStatus } from '../src/meeting-state.mjs';
+import { VisibleTextPresentation } from '../src/visible-text-receipt.mjs';
 
 const source = readFileSync(process.env.COMPANION_SURFACE_TEST_FILE ?? new URL('../src/surface.mjs', import.meta.url), 'utf8');
 const flush = () => new Promise(resolve => setImmediate(resolve));
@@ -94,6 +95,7 @@ function fixture() {
       return settingUpdate(field, value);
     },
     resetPosition: async () => { calls.push('position-reset'); return { kind: 'ok' }; },
+    observePresentation: async observation => { calls.push(['presentation-observe', observation]); return { kind: 'ok' }; },
     disableCompanion: async () => { calls.push('companion-disable'); return { kind: 'companion-lifecycle', action: 'disable', outcome: 'disabled' }; } };
   class VoicePeer { constructor(callback) { onVoice = callback; }
     async connect(mode) { calls.push(['connect', mode]); onVoice({ type: 'connected', callId: CALL_A }); }
@@ -117,6 +119,7 @@ function fixture() {
     CompanionConversation, TranscriptView, CallTranscriptView, SettingsView, RecentBubble, PetMotion, LivingBody, NativeWindowTravel, VoicePeer, ScreenShare,
     DecisionPanel, decisionBadge, decisionPresentation, decisionRows, normalizeNativeWork, nativeWorkLabel, currentCompanionIdentity,
     FoldedChatUnread, COMPACT_BALL_SIZE, compactSizeAction, WorkOverviewView, MeetingStatus, meetingPresentation, renderMeetingStatus,
+    VisibleTextPresentation,
     explainError: () => '未更新',
     setInterval: callback => { monitors.push(callback); }, clearInterval() {}, crypto: { randomUUID: () => 'fixture' } });
   return { calls, motionCalls, nodes, controls, action: kind => onControls.action(kind), start: () => onControls.action('begin'), voice: event => onVoice(event),

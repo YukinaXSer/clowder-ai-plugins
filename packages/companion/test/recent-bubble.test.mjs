@@ -27,3 +27,26 @@ test('the glance clips long content and clears when there is no conversation', (
   assert.equal(bubble.hasContent(), false);
   assert.ok(rows.every(row => row.hidden));
 });
+
+test('call glances preserve only source identity needed to observe their rendered row', () => {
+  const rows = [{}, {}];
+  const bubble = new RecentBubble(rows);
+  bubble.loadTranscript([{
+    messageId: 'message-1', role: 'assistant', text: 'durable answer', source: { kind: 'voice' },
+  }], '宪宪');
+  assert.deepEqual(
+    bubble.rowsForReference({ kind: 'message', messageId: 'message-1' }),
+    [rows[0]],
+  );
+
+  const live = bubble.append('assistant', 'live answer', '宪宪', {
+    kind: 'native-item', nativeItemId: 'output-item-1',
+  });
+  assert.equal(live.textContent, '宪宪：live answer');
+  assert.deepEqual(
+    bubble.rowsForReference({ kind: 'native-item', nativeItemId: 'output-item-1' }),
+    [live],
+  );
+  assert.equal(JSON.stringify(rows).includes('output-item-1'), false,
+    'correlation metadata does not become public DOM content');
+});

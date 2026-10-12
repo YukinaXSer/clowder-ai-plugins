@@ -17,6 +17,11 @@ export class CompanionRequestError extends Error {
   constructor(readonly code: CompanionErrorCode) { super(code); this.name = 'CompanionRequestError'; }
 }
 
+export type CompanionPresentationObservation = Omit<
+  Extract<CompanionCommand, { kind: 'presentation.observe' }>,
+  'kind'
+>;
+
 /** Browser-safe client: no Node imports, credentials, second transcript store or transport fallback. */
 export function createCompanionClient(bridge: CompanionSurfaceBridge) {
   async function invoke<K extends CompanionReply['kind']>(command: CompanionCommand, kind: K): Promise<Extract<CompanionReply, { kind: K }>> {
@@ -46,6 +51,8 @@ export function createCompanionClient(bridge: CompanionSurfaceBridge) {
       invoke({ kind: 'screen.frame', selectionId, frame }, 'ok'),
     screenClose: () => invoke({ kind: 'screen.close' }, 'ok'),
     openConversation: () => invoke({ kind: 'conversation.open' }, 'navigation'),
+    observePresentation: (observation: CompanionPresentationObservation) =>
+      invoke({ kind: 'presentation.observe', ...observation }, 'ok'),
     readWork: () => invoke({ kind: 'work.read' }, 'work'),
     openWork: (entryRef: string) => invoke({ kind: 'work.open', entryRef }, 'navigation'),
     readDecisions: (offset = 0, limit = 20) => invoke({ kind: 'decisions.read', offset, limit }, 'decisions'),

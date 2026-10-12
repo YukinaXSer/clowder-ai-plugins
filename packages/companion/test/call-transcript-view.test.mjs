@@ -79,8 +79,9 @@ test('durable transcript keeps Host order and source identity without pairing ro
 test('live captions reconcile by native item id while repeated text remains distinct', () => {
   const { view, container } = fixture();
   view.setCall(CALL_A);
-  view.appendLive({ type: 'transcript', callId: CALL_A, role: 'user', text: 'same', itemId: 'input-1', turnId: 'turn-1' });
+  const first = view.appendLive({ type: 'transcript', callId: CALL_A, role: 'user', text: 'same', itemId: 'input-1', turnId: 'turn-1' });
   view.appendLive({ type: 'transcript', callId: CALL_A, role: 'user', text: 'same', itemId: 'input-2', turnId: 'turn-2' });
+  assert.equal(first, container.children[0], 'the caller can test the exact row that received the DOM write');
   const survivingLive = container.children[1];
 
   view.load({ kind: 'transcript', scope: scope(CALL_A), hasMore: false, rows: [
@@ -92,6 +93,16 @@ test('live captions reconcile by native item id while repeated text remains dist
   assert.equal(container.children[0].dataset.messageId, 'm1');
   assert.equal(container.children[1].dataset.itemId, 'input-2');
   assert.equal(container.children[1].dataset.live, 'true');
+});
+
+test('durable rows expose their exact message identity for presentation observation', () => {
+  const { view, container } = fixture();
+  view.setCall(CALL_A);
+  view.load({ kind: 'transcript', scope: scope(CALL_A), hasMore: false, rows: [
+    voice('m1', 'assistant', 'visible answer', 'output-1'),
+  ] });
+  assert.equal(view.rowForMessage('m1'), container.children[0]);
+  assert.equal(view.rowForMessage('foreign'), undefined);
 });
 
 test('unkeyed live captions stay distinct and remain visible through turn completion', () => {
