@@ -1,8 +1,58 @@
 # Validation record
 
+## Layout increment — 2026-10-14
+
+Core export: `e562a37b517deb56c958926f5cae39ed6070efaa`.
+PR #80 remains an open development PR; the operator explicitly asked for updates
+without merging. The wider installed-plugin and cat-dispatch journey is still open.
+
+The operator reported that the multi-source layout buried the actual work. Gemini's
+layout proposal (`thread_mucwsgsjtlbabfcq#0001791977175417-000134-05d89882`)
+is implemented as a compact header, queue, independently scrolling reading pane,
+and persistent investigation/save pane. At 1050px, reading/investigation switch
+beside the queue; at 390px, queue/reading/investigation switch within one viewport.
+Drafts survive these switches and the investigation view retains the issue identity.
+Source settings are grouped in an expandable panel; errors and synthetic-source
+identification stay visible. Comments and secondary evidence fields start folded.
+Markdown reuses the existing DOMPurify/URL-validation renderer.
+
+Design adjustments: use the existing semantic controls and source selector; do not
+add decorative badges, invented confidence percentages, unimplemented shortcuts or
+nonfunctional candidate-adoption buttons. The label seed remains a separate proposal;
+model-generated suggestions and accept/reject persistence are not implemented.
+
+Author journey: the packed package configures a source, opens a long Markdown issue,
+keeps the save action inside the first viewport, saves evidence, links issues,
+reloads, switches between issues/views without losing drafts, then handles one
+source failing and its grant being revoked. Source closure and local verification
+remain independent. A malicious Markdown event handler does not execute. Desktop,
+1050px, mobile and dark screenshots were inspected. The follow-up check also verifies
+that mobile settings fit the viewport and notes retain source/number/title.
+The new Markdown heading assertion was observed red against the prior artifact;
+it now passes. No page errors or horizontal viewport overflow were observed.
+
+Checks this increment: build, typecheck/boundary/hash lint, 5 sync + 18 source/port +
+15 existing UI cases, both packed browser journeys and the clean Node consumer all
+passed. After the mobile identity/settings adjustment, affected browser/artifact
+checks, build/lint and exact Core export check passed again (`changed: []`).
+Screenshots are generated under ignored `artifacts/coordination-*`.
+
+Risk: presentation/navigation and safe text rendering; no store schema, permission,
+Host port, external dependency or source-platform write changes. Ownership remains
+Core business/UI export and Plugins packaging/acceptance Host; architecture map
+change: none. The Core ownership checker is unavailable in this checkout (missing
+script), not a passing check. Capability-tips check passed with 17 unrelated existing
+anchor warnings. Fallback scan flags nullable presentation values (missing body,
+base URL, loaded-comment count): these are empty-state defaults within the same
+source response, not alternate data sources or layered recovery. Authorization and
+request-generation guards are unchanged. No root media artifacts were added.
+
+This is author validation, not a new independent approval. Earlier approval of
+`dfd0161d` does not cover this increment. No merge or release was performed.
+
 ## Multi-source increment — 2026-10-14
 
-Current Core export: `228630decccdbbb7e33db159947d924d51074c16`.
+Historical Core export: `228630decccdbbb7e33db159947d924d51074c16`.
 The original single-source validation below is historical. New checks run for this
 increment: typecheck/boundary/hash lint, 5 sync + 18 source/port + 15 existing UI
 cases, manifest validation, and the actual packed multi-source browser journey.

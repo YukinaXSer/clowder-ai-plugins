@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
 import type { CoordinationDetail, CoordinationHost, IssueRef } from '../model/issue-coordination.js';
+import { useEffect, useRef, useState } from 'react';
 import styles from './coordination.module.css';
+import { IssueContent } from './IssueDiscussion';
 
 /** Parent keys this view by full issue identity. Late pages cannot enter another reading. */
 export function CoordinationReading({ host, issue }: { host: CoordinationHost; issue: IssueRef }) {
@@ -55,33 +56,38 @@ export function CoordinationReading({ host, issue }: { host: CoordinationHost; i
   }, [host, issue.sourceId, issue.issueId]);
   return (
     <>
-      <button onClick={() => void read()} disabled={busy}>
-        {busy ? '正在读取正文…' : '重新读取正文'}
-      </button>
-      <details className={styles.discussion} open>
-        <summary>来源正文与讨论</summary>
+      <div className={styles.readingTools}>
+        <h3>来源正文与讨论</h3>
+        <button onClick={() => void read()} disabled={busy}>
+          {busy ? '正在读取正文…' : '重新读取正文'}
+        </button>
+      </div>
+      <section className={styles.discussion}>
         {!detail ? (
           <p>正在按需读取…</p>
         ) : (
           <>
             {detail.error && <p role="status">{detail.error}</p>}
-            <div className={styles.prose}>{detail.fact?.body ?? '暂无正文'}</div>
-            {detail.fact?.comments?.map((c) => (
-              <article key={c.id}>
-                <p className={styles.muted}>
-                  {c.author} · {c.createdAt}
-                </p>
-                <div className={styles.prose}>{c.body}</div>
-              </article>
-            ))}
+            <IssueContent body={detail.fact?.body ?? '暂无正文'} url={detail.fact?.url ?? ''} />
+            <details className={styles.comments}>
+              <summary>讨论 · 已读取 {detail.fact?.comments?.length ?? 0} 条</summary>
+              {detail.fact?.comments?.map((c) => (
+                <article key={c.id}>
+                  <p className={styles.muted}>
+                    {c.author} · {c.createdAt}
+                  </p>
+                  <IssueContent body={c.body} url={detail.fact?.url ?? ''} />
+                </article>
+              ))}
+              {detail.nextOffset != null && (
+                <button disabled={busy} onClick={() => void read(true)}>
+                  加载更多评论
+                </button>
+              )}
+            </details>
           </>
         )}
-      </details>
-      {detail?.nextOffset != null && (
-        <button disabled={busy} onClick={() => void read(true)}>
-          加载更多评论
-        </button>
-      )}
+      </section>
     </>
   );
 }

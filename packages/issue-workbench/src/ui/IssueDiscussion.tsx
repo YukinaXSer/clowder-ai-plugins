@@ -108,7 +108,7 @@ export function sanitizeIssueHtml(html: string, sourceUrl: string): string {
   return holder.innerHTML;
 }
 
-function IssueContent({ body, html, url }: { body: string; html?: string; url: string }) {
+export function IssueContent({ body, html, url }: { body: string; html?: string; url: string }) {
   const sanitized = useMemo(
     () => sanitizeIssueHtml(html ?? marked.parse(body, { async: false, gfm: true }), url),
     [body, html, url],

@@ -1,20 +1,20 @@
 'use client';
-import { useEffect, useRef, useState } from 'react';
 import {
+  type CoordinationHost,
+  type CoordinationSnapshot,
+  type IssueInvestigation,
+  type IssueSourceFact,
   issueRef,
   issueRefKey,
   newInvestigation,
   safeIssueUrl,
-  type CoordinationHost,
-  type CoordinationSnapshot,
-  type IssueInvestigation,
   type Versioned,
-  type IssueSourceFact,
 } from '../model/issue-coordination.js';
-import { CoordinationReading } from './CoordinationReading';
+import { useEffect, useRef, useState } from 'react';
 import { CoordinationEditor } from './CoordinationEditor';
-import { CoordinationSources } from './CoordinationSources';
 import { CoordinationLinks, type RelationCandidate } from './CoordinationLinks';
+import { CoordinationReading } from './CoordinationReading';
+import { CoordinationSources, CoordinationSourceStatus } from './CoordinationSources';
 import styles from './coordination.module.css';
 
 const verified = { pending: '待验证', failed: '仍可复现', passed: '已记录验证通过' };
@@ -24,6 +24,7 @@ export function CoordinationWorkbench({ host }: { host: CoordinationHost }) {
   const [selected, setSelected] = useState(''),
     [filter, setFilter] = useState('all'),
     [query, setQuery] = useState('');
+  const [view, setView] = useState<'queue' | 'reading' | 'notes'>('queue');
   const [localOnly, setLocalOnly] = useState(false),
     [busy, setBusy] = useState(false),
     [error, setError] = useState('');
@@ -41,7 +42,7 @@ export function CoordinationWorkbench({ host }: { host: CoordinationHost }) {
       const next = await host.load(refresh);
       if (id !== loadId.current) return;
       setSnapshot(next);
-      setReceipt(refresh ? '已分别检查各来源；读取结果见下方时间行。未保存的输入仍保留。' : '');
+      setReceipt(refresh ? '已分别检查各来源；点击来源可查看检查时间。未保存的输入仍保留。' : '');
     } catch (e) {
       if (id === loadId.current) {
         setError((e as Error).message);
@@ -145,50 +146,53 @@ export function CoordinationWorkbench({ host }: { host: CoordinationHost }) {
     }
   }
   return (
-    <main className={styles.shell} data-testid="issue-coordination" data-preview-revision="issue-coordination-v1">
+    <main
+      className={styles.shell}
+      data-testid="issue-coordination"
+      data-preview-revision="issue-coordination-v2"
+      data-view={view}
+    >
       <header className={styles.header}>
-        <div>
-          <p className={styles.eyebrow}>ISSUE WORKBENCH</p>
-          <h1>一起研判，分别验证</h1>
-          <p className={styles.muted}>将相关问题放在一起，保留每个仓库自己的事实与修复记录。</p>
+        <div className={styles.brand}>
+          <h1>Issue 工作台</h1>
+          <span className={styles.muted}>{rows.length} 个问题</span>
         </div>
-        <button disabled={busy} onClick={() => void load(true)}>
-          {busy ? '正在读取…' : '更新来源'}
-        </button>
+        <div className={styles.actions}>
+          <button disabled={busy} onClick={() => void load(true)}>
+            {busy ? '正在读取…' : '更新来源'}
+          </button>
+          <CoordinationSources sources={snapshot.sources} host={host} reload={() => load()} />
+        </div>
       </header>
-      {snapshot.sources.some((s) => s.profile.synthetic) && (
-        <p className={styles.notice}>试用环境含明确标记的合成测试源。真实内源平台尚待接入，不会调用其接口。</p>
-      )}
       <div className={styles.sources}>
-        {snapshot.sources.map((s) => (
-          <div key={s.profile.id}>
-            <span>
-              {s.preference.value.name} ·{' '}
-              {s.profile.synthetic ? '合成测试' : s.profile.visibility === 'public' ? '公开' : '内部'}
-            </span>
-            <span className={styles.muted}>
-              {!s.preference.value.enabled
-                ? '已暂停读取'
-                : s.checkedAt
-                  ? `上次完整检查 ${new Date(s.checkedAt).toLocaleString()}`
-                  : '尚未完整检查'}
-            </span>
-            {s.error && <span role="status">{s.error}</span>}
-            {s.retryAt && <span>可重试时间 {new Date(s.retryAt).toLocaleString()}</span>}
-          </div>
+        {snapshot.sources.map((source) => (
+          <CoordinationSourceStatus key={source.profile.id} source={source} />
         ))}
+        {snapshot.sources.some((s) => s.profile.synthetic) && (
+          <span className={styles.muted}>内源为合成示例，尚未接入真实平台</span>
+        )}
       </div>
-      <CoordinationSources sources={snapshot.sources} host={host} reload={() => load()} />
-      {host.legacyUrl && (
-        <p>
-          <a href={host.legacyUrl} target="_blank" rel="noreferrer">
-            打开原单仓工作台与旧记录
-          </a>
-          <span className={styles.muted}> · 原有方案和标签批次仍保留在原入口</span>
+      {receipt && (
+        <p className={styles.receipt} role="status">
+          {receipt}
         </p>
       )}
-      <p role="status">{receipt}</p>
-      {error && <p role="alert">{error}</p>}
+      {error && (
+        <p className={styles.notice} role="alert">
+          {error}
+        </p>
+      )}
+      <nav className={styles.viewNav} aria-label="工作视图">
+        <button className={styles.queueView} aria-pressed={view === 'queue'} onClick={() => setView('queue')}>
+          队列
+        </button>
+        <button aria-pressed={view === 'reading'} onClick={() => setView('reading')}>
+          正文
+        </button>
+        <button aria-pressed={view === 'notes'} onClick={() => setView('notes')}>
+          研判{current?.dirty && <span aria-hidden="true"> ·</span>}
+        </button>
+      </nav>
       <div className={styles.layout}>
         <aside className={styles.queue} aria-label="聚合问题队列">
           <div className={styles.filters}>
@@ -219,6 +223,7 @@ export function CoordinationWorkbench({ host }: { host: CoordinationHost }) {
                 aria-pressed={selected === r.key}
                 onClick={() => {
                   setSelected(r.key);
+                  setView('reading');
                   setSaveError('');
                 }}
               >
@@ -237,76 +242,86 @@ export function CoordinationWorkbench({ host }: { host: CoordinationHost }) {
             {!visible.length && <p>当前筛选没有可读取的问题。</p>}
           </div>
         </aside>
-        <section className={styles.detail}>
+        <div className={styles.detail}>
           {row && current ? (
             <>
-              <div className={styles.actions}>
-                <span className={styles.muted}>
-                  {row.source.preference.value.name} · #{row.fact.number}
-                </span>
-                {safeIssueUrl(row.fact.url) && (
-                  <a href={safeIssueUrl(row.fact.url)} target="_blank" rel="noreferrer">
-                    打开原平台 ↗
-                  </a>
+              <section className={styles.reading} aria-label="问题正文">
+                <div className={styles.actions}>
+                  <span className={styles.muted}>
+                    {row.source.preference.value.name} · #{row.fact.number}
+                  </span>
+                  {safeIssueUrl(row.fact.url) && (
+                    <a href={safeIssueUrl(row.fact.url)} target="_blank" rel="noreferrer">
+                      打开原平台 ↗
+                    </a>
+                  )}
+                </div>
+                <h2>{row.fact.title}</h2>
+                {row.fact.unavailable && (
+                  <p className={styles.notice}>来源暂不可用；这不表示已删除。本地记录仍保留。</p>
                 )}
-              </div>
-              <h2>{row.fact.title}</h2>
-              {row.fact.unavailable && <p className={styles.notice}>来源暂不可用；这不表示已删除。本地记录仍保留。</p>}
-              {current.value.sourceVersion !== version(row.fact) && (
-                <p className={styles.notice}>
-                  来源发生变化，本仓依据可能需复核。
-                  <button
-                    onClick={() =>
-                      setDrafts((d) => ({
-                        ...d,
-                        [row.key]: {
-                          ...current,
-                          value: { ...current.value, sourceVersion: version(row.fact) },
-                          dirty: true,
-                        },
-                      }))
-                    }
-                  >
-                    已核对当前来源
-                  </button>
-                </p>
-              )}
-              <CoordinationReading key={`reading:${row.key}`} host={host} issue={row.ref} />
-              {current.dirty && row.saved && row.saved.revision !== current.revision && (
-                <details className={styles.notice} open>
-                  <summary>其他页面已保存新版本，请核对差异</summary>
-                  <pre className={styles.prose}>{JSON.stringify(row.saved.value, null, 2)}</pre>
-                  <button
-                    onClick={() =>
-                      setDrafts((d) => ({ ...d, [row.key]: { ...current, revision: row.saved!.revision } }))
-                    }
-                  >
-                    已核对，保留我的输入并再次保存
-                  </button>
-                </details>
-              )}
-              <CoordinationEditor
-                value={current.value}
-                change={(value) => setDrafts((d) => ({ ...d, [row.key]: { ...current, value, dirty: true } }))}
-                save={save}
-                busy={saving}
-                dirty={current.dirty}
-                error={saveError}
-              />
-              <CoordinationLinks
-                key={`relations:${row.key}`}
-                current={candidates.find((c) => issueRefKey(c.ref) === row.key)!}
-                candidates={candidates}
-                relations={snapshot.relations}
-                host={host}
-                reload={() => load()}
-                select={setSelected}
-              />
+                {current.value.sourceVersion !== version(row.fact) && (
+                  <p className={styles.notice}>
+                    来源发生变化，本仓依据可能需复核。
+                    <button
+                      onClick={() =>
+                        setDrafts((d) => ({
+                          ...d,
+                          [row.key]: {
+                            ...current,
+                            value: { ...current.value, sourceVersion: version(row.fact) },
+                            dirty: true,
+                          },
+                        }))
+                      }
+                    >
+                      已核对当前来源
+                    </button>
+                  </p>
+                )}
+                <CoordinationReading key={`reading:${row.key}`} host={host} issue={row.ref} />
+                <CoordinationLinks
+                  key={`relations:${row.key}`}
+                  current={candidates.find((c) => issueRefKey(c.ref) === row.key)!}
+                  candidates={candidates}
+                  relations={snapshot.relations}
+                  host={host}
+                  reload={() => load()}
+                  select={(key) => {
+                    setSelected(key);
+                    setView('reading');
+                  }}
+                />
+              </section>
+              <section className={styles.inspector} aria-label="本仓研判">
+                {current.dirty && row.saved && row.saved.revision !== current.revision && (
+                  <details className={styles.notice} open>
+                    <summary>其他页面已保存新版本，请核对差异</summary>
+                    <pre className={styles.prose}>{JSON.stringify(row.saved.value, null, 2)}</pre>
+                    <button
+                      onClick={() =>
+                        setDrafts((d) => ({ ...d, [row.key]: { ...current, revision: row.saved!.revision } }))
+                      }
+                    >
+                      已核对，保留我的输入并再次保存
+                    </button>
+                  </details>
+                )}
+                <CoordinationEditor
+                  subject={`${row.source.preference.value.name} #${row.fact.number} · ${row.fact.title}`}
+                  value={current.value}
+                  change={(value) => setDrafts((d) => ({ ...d, [row.key]: { ...current, value, dirty: true } }))}
+                  save={save}
+                  busy={saving}
+                  dirty={current.dirty}
+                  error={saveError}
+                />
+              </section>
             </>
           ) : (
             <p>请选择一个可读取的问题。</p>
           )}
-        </section>
+        </div>
       </div>
     </main>
   );

@@ -1,7 +1,7 @@
 {
   "version": 1,
   "sourceRepository": "https://github.com/zts212653/clowder-ai",
-  "sourceCommit": "228630decccdbbb7e33db159947d924d51074c16",
+  "sourceCommit": "e562a37b517deb56c958926f5cae39ed6070efaa",
   "files": [
     {
       "source": "packages/shared/src/issue-coordination.ts",
@@ -24,20 +24,20 @@
     {
       "source": "packages/web/src/components/settings/issue-workbench/CoordinationWorkbench.tsx",
       "target": "src/ui/CoordinationWorkbench.tsx",
-      "sourceHash": "90f37d846d1b320720c8cbca8e582ef208ebcb78d812152a0786606046f237b4",
-      "targetHash": "14ce1de7a2aba1bdd21f7acc943a5dd23019f51645b3b22e11cb0582e7fe09f9"
+      "sourceHash": "44a0c247d69afa5428d9fa41a97ce20045b2aef4061c0c2d5719daffdcb3d424",
+      "targetHash": "5a84be0d99e8e9c2a9f263cfe8d83e8c9f8e80eac5409e327e1d4278e7bab098"
     },
     {
       "source": "packages/web/src/components/settings/issue-workbench/CoordinationSources.tsx",
       "target": "src/ui/CoordinationSources.tsx",
-      "sourceHash": "9b9bc5c2bc1d6b12b7ba271e6589ace9d02e7020be0b5ff3cf9720c891ec38c2",
-      "targetHash": "e404652b3f29e07c2d5d7c1101de1dc9b6b3ecf9713c972cab3f912e5ba685be"
+      "sourceHash": "23feece65428ea180561c4c8249e37cf5431370d97b01dffebf0708431e704b9",
+      "targetHash": "9fd5802d4b94e8c7a7b1e170cc8c570213aba7b54ff7be0ee817910252399efc"
     },
     {
       "source": "packages/web/src/components/settings/issue-workbench/CoordinationEditor.tsx",
       "target": "src/ui/CoordinationEditor.tsx",
-      "sourceHash": "1a17107e4dcb9da3b139b1171304dbe27d25e7e567386145eaef3c562ea8ea54",
-      "targetHash": "942f5d043bb726c6244b570aa4dc659db5b0e050d6f3a552bf6bae197f5f2491"
+      "sourceHash": "f5e966ea8c708f93cc8d3a193d964ca188dfd0b8a27aa2d1f55355733e0c8cac",
+      "targetHash": "e3cf20fc5f34f8c3f59043efcb07403a19662b83cc9cb70b55e26009a308a318"
     },
     {
       "source": "packages/web/src/components/settings/issue-workbench/CoordinationLinks.tsx",
@@ -48,14 +48,14 @@
     {
       "source": "packages/web/src/components/settings/issue-workbench/CoordinationReading.tsx",
       "target": "src/ui/CoordinationReading.tsx",
-      "sourceHash": "55613f4e23a981202aa1556bb24c11c7f6be65a67ae5a65e6c8747fa88bb8c08",
-      "targetHash": "389ce930025d91b1066f9c54f3ad13f2785be507f787ee1a0f92ebd2997400f9"
+      "sourceHash": "4983e2171702075614a395035567bc8396a6d72c54b9dc1f7578f0e50420ca08",
+      "targetHash": "a40598c813bcb0fc12740946140d32498dffa156cf75103eef140d0560aa9d44"
     },
     {
       "source": "packages/web/src/components/settings/issue-workbench/coordination.module.css",
       "target": "src/ui/coordination.module.css",
-      "sourceHash": "28ee486aa10fc6ad2c64c85665b40fd94a46172f29d068025b5c81cb7eadd2c1",
-      "targetHash": "28ee486aa10fc6ad2c64c85665b40fd94a46172f29d068025b5c81cb7eadd2c1"
+      "sourceHash": "fdaebcba416daeb80538a704522363bf178c87eb916540a8dba5cd5dee444c77",
+      "targetHash": "fdaebcba416daeb80538a704522363bf178c87eb916540a8dba5cd5dee444c77"
     },
     {
       "source": "packages/api/test/issue-coordination.test.ts",
@@ -102,8 +102,8 @@
     {
       "source": "packages/web/src/components/settings/issue-workbench/IssueDiscussion.tsx",
       "target": "src/ui/IssueDiscussion.tsx",
-      "sourceHash": "766fa684dc52110fad41d6e1c1a6672d4de663b4829db516b0597211247b44b3",
-      "targetHash": "766fa684dc52110fad41d6e1c1a6672d4de663b4829db516b0597211247b44b3"
+      "sourceHash": "eaddc32324d9942c6312c254518614b9c4b77521294c37266f4543134c58fd19",
+      "targetHash": "eaddc32324d9942c6312c254518614b9c4b77521294c37266f4543134c58fd19"
     },
     {
       "source": "packages/web/src/components/settings/issue-workbench/IssueList.tsx",

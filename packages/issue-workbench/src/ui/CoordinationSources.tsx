@@ -1,5 +1,5 @@
-import { useState } from 'react';
 import type { CoordinationHost, CoordinationSource, SourcePreference } from '../model/issue-coordination.js';
+import { useState } from 'react';
 import styles from './coordination.module.css';
 
 export function CoordinationSources({
@@ -14,15 +14,22 @@ export function CoordinationSources({
   return (
     <details className={styles.configuration}>
       <summary>管理来源与代码基线</summary>
-      <p>选择宿主已授权的仓库，分别填写目标分支及基线。添加新站点需先由宿主配置连接；这里不保存令牌。</p>
-      {sources.map((source) => (
-        <SourceForm
-          key={source.profile.id + ':' + source.preference.revision}
-          source={source}
-          host={host}
-          reload={reload}
-        />
-      ))}
+      <div className={styles.configurationPanel}>
+        <p>选择宿主已授权的仓库，分别填写目标分支及基线。添加新站点需先由宿主配置连接；这里不保存令牌。</p>
+        {sources.map((source) => (
+          <SourceForm
+            key={source.profile.id + ':' + source.preference.revision}
+            source={source}
+            host={host}
+            reload={reload}
+          />
+        ))}
+        {host.legacyUrl && (
+          <a href={host.legacyUrl} target="_blank" rel="noreferrer">
+            原单仓工作台与旧记录 ↗
+          </a>
+        )}
+      </div>
     </details>
   );
 }
@@ -76,5 +83,35 @@ function SourceForm({
       <button disabled={busy}>{busy ? '保存中…' : '保存来源配置'}</button>
       {error && <p role="alert">{error}</p>}
     </form>
+  );
+}
+
+export function CoordinationSourceStatus({ source: s }: { source: CoordinationSource }) {
+  return (
+    <details className={styles.sourceStatus}>
+      <summary>
+        {s.preference.value.name} ·{' '}
+        {s.profile.synthetic ? '合成测试' : s.profile.visibility === 'public' ? '公开' : '内部'}
+        {s.error ? (
+          <span className={styles.sourceError} role="status">
+            {s.error}
+          </span>
+        ) : !s.preference.value.enabled ? (
+          ' · 已暂停'
+        ) : (
+          ''
+        )}
+      </summary>
+      <div className={styles.sourceStatusBody}>
+        <span>
+          {!s.preference.value.enabled
+            ? '已暂停读取'
+            : s.checkedAt
+              ? `上次完整检查 ${new Date(s.checkedAt).toLocaleString()}`
+              : '尚未完整检查'}
+        </span>
+        {s.retryAt && <span>可重试时间 {new Date(s.retryAt).toLocaleString()}</span>}
+      </div>
+    </details>
   );
 }
