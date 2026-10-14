@@ -3,13 +3,13 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { IssueCoordinationStore } from '../../src/source/IssueCoordinationStore.js';
-import {
-  IssueCoordinationService,
-  type CoordinationBinding,
-} from '../../src/source/IssueCoordinationService.js';
-import { newInvestigation, issueRef } from '../../src/model/issue-coordination.js';
+import { issueRef, newInvestigation } from '../../src/model/issue-coordination.js';
 import type { IssueSourceFact, IssueSourceSnapshot } from '../../src/model/issue-source.js';
+import {
+  type CoordinationBinding,
+  IssueCoordinationService,
+} from '../../src/source/IssueCoordinationService.js';
+import { IssueCoordinationStore } from '../../src/source/IssueCoordinationStore.js';
 
 test('durable isolated partitions survive a new Host and stale/concurrent edits cannot overwrite', async (t) => {
   const root = await mkdtemp(join(tmpdir(), 'issue-coordination-'));
@@ -128,4 +128,75 @@ test('two sources: failure, revocation, restart and independent verification nev
   const providerDenied = await service.load();
   assert.deepEqual(providerDenied.sources[1].work, []);
   assert.deepEqual(providerDenied.relations, []);
+});
+
+test('classification results require full source identity, a readable issue and current grant', async (t) => {
+  const root = await mkdtemp(join(tmpdir(), 'issue-classification-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  let grant = true;
+  const profile = {
+    id: 'repo',
+    provider: 'github',
+    instance: 'https://github.com',
+    repositoryId: 'stable-repo',
+    repository: 'team/repo',
+    name: 'Repo',
+    visibility: 'public' as const,
+  };
+  const fact = {
+    id: 'issue-id',
+    number: 7,
+    title: 'Image attachment missing',
+    state: 'OPEN',
+    labels: [],
+    url: '',
+    updatedAt: '2026-10-14T00:00:00Z',
+  };
+  const candidate = {
+    id: 'batch:issue-id',
+    model: 'test-model',
+    generatedAt: fact.updatedAt,
+    source: {
+      provider: profile.provider,
+      instance: profile.instance,
+      repositoryId: profile.repositoryId,
+      issueId: fact.id,
+      number: fact.number,
+      updatedAt: fact.updatedAt,
+      bodySha256: 'test-body',
+    },
+    labels: { area: ['Agent 运行'], kind: ['缺陷'], symptom: ['内容缺失'], environment: ['ACP'] },
+    evidence: 'Image blocks are missing',
+  };
+  const binding = {
+    profile,
+    authorize: async () => grant,
+    catalog: async () => ({
+      repo: profile.repository,
+      revision: 1,
+      fetchedAt: fact.updatedAt,
+      issues: [fact],
+      failures: [],
+      summary: { added: 0, changed: 0, closed: 0, reopened: 0 },
+    }),
+    detail: async () => ({ fact }),
+    classifications: [
+      candidate,
+      { ...candidate, id: 'foreign-instance', source: { ...candidate.source, instance: 'https://private.test' } },
+      { ...candidate, id: 'foreign-repo', source: { ...candidate.source, repositoryId: 'another-repo' } },
+      { ...candidate, id: 'same-number', source: { ...candidate.source, issueId: 'another-id' } },
+    ],
+  };
+  const service = new IssueCoordinationService(new IssueCoordinationStore(root), [binding], 'owner');
+  assert.deepEqual(
+    (await service.load()).sources[0].classifications?.map((c) => c.id),
+    [candidate.id],
+  );
+  grant = false;
+  const denied = await service.load();
+  assert.equal(denied.sources[0].classifications?.length ?? 0, 0);
+  assert.ok(!JSON.stringify(denied).includes(candidate.evidence));
+  grant = true;
+  await service.savePreference(profile.id, { enabled: false, name: 'Repo', branch: '', base: '' }, 0);
+  assert.equal((await service.load()).sources[0].classifications?.length ?? 0, 0);
 });

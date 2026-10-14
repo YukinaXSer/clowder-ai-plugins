@@ -49,6 +49,29 @@ It does not connect an internal service. The `?legacy=1` trial link exposes the 
 5192 workbench; old browser plans and label batches stay there, untouched. SDK cutover
 must include an explicit data migration; it is not performed by this increment.
 
+### Inspect initial classifications
+
+Click **分类结果 · 12** in the GitHub preview header, or open
+`http://localhost:5196/?legacy=1&classifications=1` to show the overview immediately.
+The overview shows the 12 initial candidates, issue titles, four label dimensions
+and supporting excerpts. Select an issue to open its candidate card. Click
+**加入本地标记草稿**, edit the tags if needed, then **保存本仓记录** to retain them.
+Existing tags are preserved; copying a candidate alone does not save or write to GitHub.
+
+The versioned public seed lives in [data/initial-classification.v0.json](data/initial-classification.v0.json),
+ships inside the tgz and is loaded by the example Host only for the matching public
+repository. Other Host bindings may supply `classifications`; results must match
+provider, instance, stable repository ID and a currently readable issue. Revoked
+sources and their derived suggestions are hidden. A changed source timestamp flags
+review; this is not continuous content-hash verification. The browser bundle does
+not embed the seed. Hosts can pass `{ showClassifications: true }` as the optional
+third argument to `mountCoordination` for this entry.
+
+These 12 GPT-6-astra title/body suggestions are a deliberately selected sample,
+not a full-corpus automated classifier, a measured accuracy result, or preaccepted
+labels. Empty facets mean no evidence was extracted. The default synthetic trial
+has no classifications; it does not impersonate these real public results.
+
 Run `pnpm test:coordination` for the actual packed artifact browser journey. As with
 `test:browser`, `PLAYWRIGHT_CHROMIUM_EXECUTABLE` can select an installed Chrome.
 

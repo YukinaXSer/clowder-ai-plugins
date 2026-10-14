@@ -1,8 +1,18 @@
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
+import { readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { IssueCoordinationService, IssueCoordinationStore } from '../dist/index.js';
+
+// Public, evidence-backed seed shipped with this plugin; never injected into another source.
+const initialSeed = JSON.parse(readFileSync(new URL('../data/initial-classification.v0.json', import.meta.url), 'utf8'));
+export const initialClassifications = initialSeed.suggestions.map(suggestion => ({
+  id: initialSeed.schema + ':' + suggestion.source.issueId,
+  model: initialSeed.method.model, generatedAt: initialSeed.createdAt, source: suggestion.source,
+  labels: Object.fromEntries(Object.entries(suggestion.labels).map(([facet, ids]) => [facet, ids.map(id => initialSeed.taxonomy[facet][id])])),
+  evidence: suggestion.evidence.excerpt,
+}));
 
 const syntheticIssue = (id, number, title, state = 'OPEN') => ({ id, number, title, state,
   url: 'https://example.invalid/issues/' + number, labels: [], updatedAt: '2026-10-14T10:00:00Z',
@@ -29,6 +39,7 @@ export function githubPreviewBinding() {
     profile: { id: 'github.com:R_kgDORlB5aQ', provider: 'github', instance: 'https://github.com', repositoryId: 'R_kgDORlB5aQ', repository: 'zts212653/clowder-ai', name: 'GitHub · clowder-ai', visibility: 'public' },
     // Public data ONLY. A production Host must replace this with its current grant resolver.
     authorize: async () => true,
+    classifications: initialClassifications,
     catalog: async refresh => (await read(refresh ? '/refresh' : '', refresh)).snapshot,
     detail: async (ref, offset = 0, version) => {
       const result = offset ? await read('/issues/' + ref.number, false, '&offset=' + offset + '&version=' + encodeURIComponent(version)) : await read('/issues/' + ref.number + '/refresh', true);

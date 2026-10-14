@@ -25,6 +25,7 @@
   },
   "files": [
     "dist",
+    "data",
     "assets",
     "integration.json",
     "sync-state.json",

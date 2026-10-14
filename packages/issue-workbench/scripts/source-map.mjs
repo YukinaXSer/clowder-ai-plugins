@@ -41,7 +41,7 @@ export const mappings = [
   { source: 'packages/shared/src/issue-coordination.ts', target: 'src/model/issue-coordination.ts', transform: x => x },
   ...['IssueCoordinationStore.ts','IssueCoordinationService.ts'].map(name => ({ source: api + name, target: 'src/source/' + name,
     transform: text => text.replaceAll("'../../../../shared/src/issue-coordination.js'", "'../model/issue-coordination.js'").replaceAll("'@cat-cafe/shared'", "'../model/issue-source.js'") })),
-  ...['CoordinationWorkbench.tsx','CoordinationSources.tsx','CoordinationEditor.tsx','CoordinationLinks.tsx','IssueRelationPicker.tsx','CoordinationReading.tsx','coordination.module.css'].map(name => ({ source: web + name, target: 'src/ui/' + name,
+  ...['IssueClassifications.tsx','classifications.module.css','CoordinationWorkbench.tsx','CoordinationSources.tsx','CoordinationEditor.tsx','CoordinationLinks.tsx','IssueRelationPicker.tsx','CoordinationReading.tsx','coordination.module.css'].map(name => ({ source: web + name, target: 'src/ui/' + name,
     transform: text => text.replaceAll("'@cat-cafe/shared'", "'../model/issue-coordination.js'") })),
   { source: 'packages/api/test/issue-coordination.test.ts', target: 'test/source/issue-coordination.test.ts', transform: text => text
     .replaceAll("'../src/domains/community/", "'../../src/source/").replaceAll("'../../shared/src/", "'../../src/model/") },

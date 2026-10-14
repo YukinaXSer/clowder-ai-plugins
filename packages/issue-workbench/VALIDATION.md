@@ -1,5 +1,52 @@
 # Validation record
 
+## Visible classification results — 2026-10-14
+
+Core export: `5517539aa1e80a789775c470c2517486150a9d5d`.
+Accepted source: `thread_mucwsgsjtlbabfcq#0001791981133558-000152-e727fe85`:
+the operator could not see the classification results and asked for the dataset
+beside the plugin code. The immutable 12-result JSON now ships in `data/`, not
+`docs/evidence`; the plan holds method/future work, not a duplicate sample table.
+Gemini's current design is source `0001791981588832-000167-ea9eabec`.
+
+Journey: header **分类结果** (or `?classifications=1`) → overview of all readable
+candidates with four facets/excerpts/model/date → select issue → inspect candidate
+beside the original body → append to local tag draft → explicitly save → reload.
+The desktop drawer uses two columns for comparison, mobile one column; this widens
+Gemini's narrow drawer without changing its overview/issue/adoption sequence.
+Empty facets say not extracted; no fabricated scope/severity/confidence is shown.
+
+Author validation: service test observed RED without results, then GREEN with full
+provider/instance/repository/issue identity and per-load grant filtering. The packed
+browser test observed RED without the overview, then GREEN across entry, evidence,
+stale timestamp notice, preservation of manual tags, no write before save, persisted
+reload, mobile selection, Escape, and disappearance after grant withdrawal. The tgz
+consumer asserts the 12 unaccepted proposals ship with the package. The browser
+bundle does not embed the public seed; only the example Host loads it.
+
+Build and typecheck/export-boundary lint passed. Five sync, 19 source/port and 15
+existing UI tests passed; all three packed browser journeys and the clean Node
+consumer passed. Exact Core export check reports `changed: []`. Real public-data
+dogfood rendered 12 results across 799 readable issues, selected #1591, loaded its
+body and checked its installation/build + plugin classification at 1440 and 390px.
+Desktop/mobile/dark screenshots were inspected; no page errors or horizontal
+mobile overflow, no local work writes or remote mutations. Evidence is in ignored
+`artifacts/classification-live-*`; synthetic save/reload uses a temporary store.
+
+Risk: new candidate display and explicit draft action; no store migration, remote
+write, grant policy, production configuration, external dependency or SDK change.
+Ownership stays in the existing Core business/UI export and Plugins Host/package.
+Architecture checker remains unavailable (missing script); capability-tips passed
+with existing unrelated anchor warnings. Fallback scan's new nullish cases are
+empty optional result collections / absent cached catalog / absent facet text;
+they preserve one source of truth and add no new recovery path. Existing grant and
+cached-read checks remain intact. No root media artifacts were added.
+
+This fixes visible delivery of the initial sample, not full-corpus model generation,
+accuracy validation, structured acceptance/rejection history or installed-plugin
+acceptance. The broader feature and PR remain open. This is author evidence; no new
+independent approval, merge or release is claimed.
+
 ## Related-issue search — 2026-10-14
 
 Core export: `2408d14ac01714dbe1be3641ea7a3a70223e4158`.

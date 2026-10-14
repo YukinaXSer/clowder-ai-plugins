@@ -1,9 +1,12 @@
-import { type IssueInvestigation, safeIssueUrl } from '../model/issue-coordination.js';
+import { type IssueClassification, type IssueInvestigation, safeIssueUrl } from '../model/issue-coordination.js';
 import styles from './coordination.module.css';
+import { IssueClassificationCandidate } from './IssueClassifications';
 
 export function CoordinationEditor({
   value,
   subject,
+  classification,
+  sourceUpdatedAt,
   change,
   save,
   busy,
@@ -12,6 +15,8 @@ export function CoordinationEditor({
 }: {
   value: IssueInvestigation;
   subject: string;
+  classification?: IssueClassification;
+  sourceUpdatedAt: string;
   change: (value: IssueInvestigation) => void;
   save: () => Promise<void>;
   busy: boolean;
@@ -53,6 +58,12 @@ export function CoordinationEditor({
         <p className={styles.muted}>本地记录 · 来源状态独立，修复进展由你确认。</p>
       </div>
       <div className={styles.editorBody}>
+        <IssueClassificationCandidate
+          result={classification}
+          sourceUpdatedAt={sourceUpdatedAt}
+          tags={value.tags}
+          changeTags={(tags) => change({ ...value, tags })}
+        />
         <h4>分类与标记</h4>
         <div className={styles.fields}>
           <label>

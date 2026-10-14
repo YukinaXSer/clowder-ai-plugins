@@ -14,12 +14,19 @@ import { useEffect, useRef, useState } from 'react';
 import { CoordinationEditor } from './CoordinationEditor';
 import { CoordinationLinks, type RelationCandidate } from './CoordinationLinks';
 import { CoordinationReading } from './CoordinationReading';
-import { CoordinationSources, CoordinationSourceStatus } from './CoordinationSources';
+import { CoordinationSourceStatus, CoordinationSources } from './CoordinationSources';
 import styles from './coordination.module.css';
+import { IssueClassificationResults } from './IssueClassifications';
 
 const verified = { pending: '待验证', failed: '仍可复现', passed: '已记录验证通过' };
 const version = (f: IssueSourceFact) => f.reviewVersion ?? f.contentVersion ?? f.updatedAt;
-export function CoordinationWorkbench({ host }: { host: CoordinationHost }) {
+export function CoordinationWorkbench({
+  host,
+  showClassifications = false,
+}: {
+  host: CoordinationHost;
+  showClassifications?: boolean;
+}) {
   const [snapshot, setSnapshot] = useState<CoordinationSnapshot>({ sources: [], relations: [] });
   const [selected, setSelected] = useState(''),
     [filter, setFilter] = useState('all'),
@@ -158,6 +165,15 @@ export function CoordinationWorkbench({ host }: { host: CoordinationHost }) {
           <span className={styles.muted}>{rows.length} 个问题</span>
         </div>
         <div className={styles.actions}>
+          <IssueClassificationResults
+            sources={snapshot.sources}
+            initialOpen={showClassifications}
+            select={(key) => {
+              setSelected(key);
+              setView('notes');
+              setSaveError('');
+            }}
+          />
           <button disabled={busy} onClick={() => void load(true)}>
             {busy ? '正在读取…' : '更新来源'}
           </button>
@@ -309,6 +325,10 @@ export function CoordinationWorkbench({ host }: { host: CoordinationHost }) {
                 )}
                 <CoordinationEditor
                   subject={`${row.source.preference.value.name} #${row.fact.number} · ${row.fact.title}`}
+                  classification={row.source.classifications?.find(
+                    (result) => result.source.issueId === row.fact.id && result.source.number === row.fact.number,
+                  )}
+                  sourceUpdatedAt={row.fact.updatedAt}
                   value={current.value}
                   change={(value) => setDrafts((d) => ({ ...d, [row.key]: { ...current, value, dirty: true } }))}
                   save={save}

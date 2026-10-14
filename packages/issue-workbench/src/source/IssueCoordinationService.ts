@@ -1,17 +1,18 @@
+import { type IssueSourceFact, type IssueSourceSnapshot, issueCatalogFact } from '../model/issue-source.js';
 import {
+  type CoordinationDetail,
   type CoordinationSnapshot,
   type CoordinationSource,
-  type CoordinationDetail,
-  type IssueSourceProfile,
-  type IssueRef,
-  type SourcePreference,
+  type IssueClassification,
   type IssueInvestigation,
+  type IssueRef,
   type IssueRelation,
+  type IssueSourceProfile,
   issueRefKey,
   relationKey,
+  type SourcePreference,
   safeIssueUrl,
 } from '../model/issue-coordination.js';
-import { issueCatalogFact, type IssueSourceSnapshot, type IssueSourceFact } from '../model/issue-source.js';
 import { IssueCoordinationStore } from './IssueCoordinationStore.js';
 
 export interface CoordinationBinding {
@@ -20,6 +21,16 @@ export interface CoordinationBinding {
   authorize(): Promise<boolean>;
   catalog(refresh: boolean): Promise<IssueSourceSnapshot>;
   detail(ref: IssueRef, offset?: number, version?: string): Promise<CoordinationDetail>;
+  classifications?: IssueClassification[];
+}
+function readableClassifications(binding: CoordinationBinding, issues: IssueSourceFact[]): IssueClassification[] {
+  return (binding.classifications ?? []).filter(
+    ({ source }) =>
+      source.provider === binding.profile.provider &&
+      source.instance === binding.profile.instance &&
+      source.repositoryId === binding.profile.repositoryId &&
+      issues.some((issue) => issue.id === source.issueId && issue.number === source.number),
+  );
 }
 export class CoordinationDenied extends Error {
   readonly status = 403;
@@ -68,6 +79,7 @@ export class IssueCoordinationService {
           return {
             ...empty,
             issues: snapshot.issues.filter((f) => f.id).map(issueCatalogFact),
+            classifications: readableClassifications(b, snapshot.issues),
             work,
             checkedAt: snapshot.lastCompleteAt,
             retryAt: snapshot.retryAt,
@@ -93,6 +105,7 @@ export class IssueCoordinationService {
             return {
               ...empty,
               issues: old?.issues.filter((f) => f.id).map(issueCatalogFact) ?? [],
+              classifications: readableClassifications(b, old?.issues ?? []),
               work,
               checkedAt: old?.lastCompleteAt,
               error: old ? '更新失败，保留上次可读取内容' : '来源暂不可用，本地记录仍保留',

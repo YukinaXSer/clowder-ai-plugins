@@ -11,11 +11,14 @@ test('exact tgz installs outside the monorepo and persists source without runtim
   const dir = mkdtempSync(join(tmpdir(),'issue-packed-consumer-')); t.after(()=>rmSync(dir,{recursive:true,force:true}));
   const [pack] = JSON.parse(run(process.execPath,['scripts/pack-publish-artifact.mjs','packages/issue-workbench',dir],root));
   const tar = join(dir,pack.filename); const entries = run('tar',['-tzf',tar],dir);
-  for (const path of ['dist/index.js','dist/browser.js','dist/browser.css','dist/demo.js','dist/index.html','plugin.candidate.yaml','integration.json','LICENSE','sync-state.json','THIRD_PARTY_NOTICES.md','dist/licenses/react/LICENSE','dist/licenses/react-dom/LICENSE','dist/licenses/scheduler/LICENSE','dist/licenses/marked/LICENSE.md','dist/licenses/dompurify/LICENSE']) assert.ok(entries.includes('package/'+path));
+  for (const path of ['data/initial-classification.v0.json','dist/index.js','dist/browser.js','dist/browser.css','dist/demo.js','dist/index.html','plugin.candidate.yaml','integration.json','LICENSE','sync-state.json','THIRD_PARTY_NOTICES.md','dist/licenses/react/LICENSE','dist/licenses/react-dom/LICENSE','dist/licenses/scheduler/LICENSE','dist/licenses/marked/LICENSE.md','dist/licenses/dompurify/LICENSE']) assert.ok(entries.includes('package/'+path));
   assert.doesNotMatch(entries,/node_modules|\.env|issue-snapshot|\/src\/|\/test\//);
   const consumer = join(dir,'consumer'); mkdirSync(consumer); writeFileSync(join(consumer,'package.json'),'{"type":"module"}');
   const npm = process.env.CLOWDER_ARTIFACT_NPM_CLI;
   run(npm ? process.execPath : 'npm', [...(npm ? [npm] : []),'install','--ignore-scripts','--omit=dev','--no-audit','--no-fund','--package-lock=false',tar],consumer);
+  const seed = JSON.parse(readFileSync(join(consumer, 'node_modules/@clowder-ai/issue-workbench/data/initial-classification.v0.json'), 'utf8'));
+  assert.equal(seed.suggestions.length, 12);
+  assert.ok(seed.suggestions.every(item => item.status === 'proposed' && item.humanAcceptance === null));
   run(process.execPath,['--input-type=module','--eval',`
     import assert from 'node:assert/strict';
     import { FileIssueSourceStore, IssueSourceService, createGhIssueSourceReader, emptyWork, acceptWork } from '@clowder-ai/issue-workbench';

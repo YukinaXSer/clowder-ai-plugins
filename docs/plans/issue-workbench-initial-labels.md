@@ -1,14 +1,15 @@
 # Initial issue labels — candidate v0
 
-Status: sample proposal, not an installed classifier or confirmed taxonomy.
+Status: the initial sample is visible in the packaged workbench; automated generation and taxonomy validation remain open.
 
 ## Purpose and delivery boundary
 
 Help the operator find related issues by subject and reported behavior, then revise
 and adopt useful labels locally. The operator's 2026-10-14 direction is to keep
 updating PR #80; do not merge it. A separate reviewer must review before any merge.
-This increment adds a concrete label seed for discussion. It does not change the
-running workbench, existing user records or any source-platform labels.
+The initial sample now ships under the plugin package and is displayed in the
+workbench. This plan describes the method and remaining generation work; it is
+not the result dataset. Existing records change only after explicit local save.
 
 ## Observed corpus
 
@@ -23,7 +24,7 @@ and `feature:F…` is an existing project reference. These are context, not auto
 correct training targets. In particular, a model must not invent `accepted`,
 `resolved`, severity, ownership or an unverified Feature assignment.
 
-See [the machine-readable sample](../evidence/issue-workbench-label-seed-v0.json).
+See [the machine-readable sample](../../packages/issue-workbench/data/initial-classification.v0.json).
 Its 12 issues were deliberately selected for different subjects, sparse evidence,
 multi-problem reports and a feature request. They are not a random evaluation set
 and cannot establish corpus coverage or accuracy. Candidate assignments were made
@@ -43,26 +44,17 @@ Readable names are shown in the product; stable IDs live in the seed. Topic
 similarity is only a discovery aid. It does not prove that two reports share a
 root cause, require the same fix, or can be closed together.
 
-## Concrete sample
+## Current product result
 
-| Public issue | Proposed area | Kind / symptom | Reported environment |
-| --- | --- | --- | --- |
-| [#1598](https://github.com/zts212653/clowder-ai/issues/1598) | Agent 运行、工具与连接器 | 缺陷 / 内容缺失 | ACP |
-| [#1591](https://github.com/zts212653/clowder-ai/issues/1591) | 安装与构建、插件生命周期 | 缺陷 / 构建失败、安装失败 | Windows |
-| [#1588](https://github.com/zts212653/clowder-ai/issues/1588) | 界面交互 | 缺陷 / 布局溢出 | Windows; report also describes a shared sizing algorithm |
-| [#1580](https://github.com/zts212653/clowder-ai/issues/1580) | Agent 运行、上下文与记忆 | 缺陷 / 状态显示不符 | Windows、Codex |
-| [#1555](https://github.com/zts212653/clowder-ai/issues/1555) | 工具与连接器、插件生命周期 | 缺陷 / 启动或调用失败 | Windows |
-| [#1548](https://github.com/zts212653/clowder-ai/issues/1548) | Agent 运行 | 缺陷 / 启动或调用失败 | OpenCode |
-| [#1541](https://github.com/zts212653/clowder-ai/issues/1541) | 上下文与记忆 | 缺陷 / 检索异常 | Windows |
-| [#1498](https://github.com/zts212653/clowder-ai/issues/1498) | 工具与连接器 | 缺陷 / 消息接收中断 | 桌面端 |
-| [#965](https://github.com/zts212653/clowder-ai/issues/965) | 猫猫协作 | 缺陷 / 协作唤醒失败 | Windows; root cause is not established by this short report |
-| [#746](https://github.com/zts212653/clowder-ai/issues/746) | 上下文与记忆 | 缺陷 / 检索异常 | Unknown |
-| [#1582](https://github.com/zts212653/clowder-ai/issues/1582) | 代码与交付 | 功能需求 / no failure label | Unknown; proposed internal platform is not a tested environment |
-| [#1566](https://github.com/zts212653/clowder-ai/issues/1566) | 配置同步 | 缺陷 / 配置丢失 | Unknown OS |
-
-These are labels for the reported problem, not independently verified diagnoses.
-The JSON keeps exact source identity, update time, body hash, a short supporting
-excerpt, the assistant model and `proposed` status. Human acceptance is still null.
+The dataset and provenance live with the plugin:
+[data/initial-classification.v0.json](../../packages/issue-workbench/data/initial-classification.v0.json).
+The package README explains the **分类结果** entry. Its overview shows the 12
+current readable results, four dimensions and supporting excerpts; choosing an
+issue opens its candidate card. **加入本地标记草稿** preserves existing tags and
+requires a separate **保存本仓记录** action to persist. It never changes remote labels.
+Source updates flag the candidate for review. Revoked sources are removed from
+both the overview and candidate display. This is not a trained classifier or
+structured accept/reject history; the initial JSON remains a proposed baseline.
 
 ## Recommended extraction path
 
@@ -87,7 +79,7 @@ rules and the direct model baseline. Report unsupported suggestions, missed usef
 labels, abstentions and operator edits, along with time/call cost. Do not invent a
 confidence percentage from model self-report, or report this 12-case seed as a pass.
 
-## Product behavior to implement after the design pass
+## Remaining generation and review workflow
 
 1. An explicit generation action creates a local suggestion batch for selected,
    authorized issues. Show input scope, progress, failures and the model used.
@@ -106,9 +98,10 @@ confidence percentage from model self-report, or report this 12-case seed as a p
 6. Adopting a local label makes no GitHub/internal-platform write. Any future
    platform-label submission remains a separate, reviewed outbound operation.
 
-Current code only has the existing local `tags` string and label-change draft.
-It does not yet have structured candidate batches or accept/reject controls. Do not
-load this seed into those fields in a way that pretends the operator accepted it.
+Current code renders initial candidates separately from the existing local `tags`
+string and label-change draft. Explicit copying to a draft and local save work;
+structured batch generation, persisted accept/reject decisions and regeneration
+that preserves those decisions are still unimplemented.
 
 ## Source audit
 
@@ -119,6 +112,6 @@ load this seed into those fields in a way that pretends the operator accepted it
 | Representative documents can supply LLM topic names | BERTopic official representation guide, read 2026-10-14 | Use for capability only; project-authored docs, no independent superiority claim |
 | This pipeline is better than direct extraction or rules here | No comparison yet | Not established; no model/dependency choice, speed or accuracy claim |
 
-The next useful artifact is a reviewed taxonomy and a real candidate-review
+The next useful evidence is operator review of the visible taxonomy and candidate
 interaction. Additional model infrastructure is conditional on evidence from that
 journey, not a prerequisite for exploring this seed.

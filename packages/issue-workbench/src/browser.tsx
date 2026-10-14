@@ -7,9 +7,9 @@ import { CoordinationWorkbench } from './ui/CoordinationWorkbench';
 import type { CoordinationHost } from './model/issue-coordination';
 export type { CoordinationHost } from './model/issue-coordination';
 export { createCoordinationClient } from './ports/coordination';
-export function mountCoordination(element: HTMLElement, host: CoordinationHost) {
+export function mountCoordination(element: HTMLElement, host: CoordinationHost, options: { showClassifications?: boolean } = {}) {
   const root = createRoot(element);
-  root.render(<CoordinationWorkbench host={host} />);
+  root.render(<CoordinationWorkbench host={host} showClassifications={options.showClassifications} />);
   return { unmount: () => root.unmount() };
 }
 export type { WorkbenchHost, ConfirmOptions } from './ports/host';

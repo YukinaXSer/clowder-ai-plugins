@@ -1,4 +1,5 @@
 import type { IssueSourceFact } from './issue-source.js';
+
 export type { IssueSourceFact } from './issue-source.js';
 
 /** Transitional application contract; credentials and authorization stay in the Host. */
@@ -62,9 +63,27 @@ export interface CoordinationSource {
   preference: Versioned<SourcePreference>;
   issues: IssueSourceFact[];
   work: Versioned<IssueInvestigation>[];
+  /** Initial model proposals, filtered to this authorized source and its readable issues. */
+  classifications?: IssueClassification[];
   checkedAt?: string;
   retryAt?: string;
   error?: string;
+}
+export interface IssueClassification {
+  id: string;
+  model: string;
+  generatedAt: string;
+  source: {
+    provider: string;
+    instance: string;
+    repositoryId: string;
+    issueId: string;
+    number: number;
+    updatedAt: string;
+    bodySha256: string;
+  };
+  labels: Record<'area' | 'kind' | 'symptom' | 'environment', string[]>;
+  evidence: string;
 }
 export interface CoordinationSnapshot {
   sources: CoordinationSource[];
