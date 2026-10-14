@@ -53,6 +53,7 @@ test('packed multi-source journey: save, link, reload, independent verification,
   assert.equal(await page.getByLabel('本仓验证', { exact: true }).inputValue(), 'pending');
   await page.getByLabel('本仓方案', { exact: true }).fill('内部仍需移植');
   await openPublic(); await openInternal();
+  assert.equal(await page.getByText('来源正文与讨论', { exact: true }).count(), 1);
   assert.equal(await page.getByLabel('本仓方案', { exact: true }).inputValue(), '内部仍需移植');
   await page.getByRole('button', { name: '更新来源', exact: true }).click();
   await page.getByRole('button', { name: '更新来源', exact: true }).waitFor();

@@ -271,7 +271,7 @@ export function CoordinationWorkbench({ host }: { host: CoordinationHost }) {
                   </button>
                 </p>
               )}
-              <CoordinationReading key={row.key} host={host} issue={row.ref} />
+              <CoordinationReading key={`reading:${row.key}`} host={host} issue={row.ref} />
               {current.dirty && row.saved && row.saved.revision !== current.revision && (
                 <details className={styles.notice} open>
                   <summary>其他页面已保存新版本，请核对差异</summary>
@@ -294,7 +294,7 @@ export function CoordinationWorkbench({ host }: { host: CoordinationHost }) {
                 error={saveError}
               />
               <CoordinationLinks
-                key={row.key}
+                key={`relations:${row.key}`}
                 current={candidates.find((c) => issueRefKey(c.ref) === row.key)!}
                 candidates={candidates}
                 relations={snapshot.relations}

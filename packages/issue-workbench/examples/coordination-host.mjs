@@ -42,11 +42,14 @@ export function coordinationPreview({ dataRoot, dist, bindings = fixtureBindings
   const assets = { '/': ['coordination.html', 'text/html'], '/coordination.js': ['coordination.js','text/javascript'], '/browser.js': ['browser.js','text/javascript'], '/browser.css': ['browser.css','text/css'] };
   const server = createServer(async (req, res) => {
     res.setHeader('cache-control', 'no-store'); res.setHeader('x-content-type-options', 'nosniff');
-    res.setHeader('content-security-policy', "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self'; frame-ancestors 'self' http://localhost:4100 http://127.0.0.1:4100");
     const port = server.address()?.port, host = req.headers.host, origin = req.headers.origin;
     const hosts = [`127.0.0.1:${port}`, `localhost:${port}`, ...allowedHosts];
     const origins = [`http://127.0.0.1:${port}`, `http://localhost:${port}`, ...allowedOrigins];
     if (!hosts.includes(host) || (origin && !origins.includes(origin))) { res.writeHead(403); res.end('Origin not allowed'); return; }
+    // The approved local Preview Gateway injects its inline attestation bridge.
+    // This exception is confined to that acceptance hostname, never the production Host.
+    const scriptPolicy = host === `preview-${port}.localhost:4100` ? "'self' 'unsafe-inline'" : "'self'";
+    res.setHeader('content-security-policy', `default-src 'self'; script-src ${scriptPolicy}; style-src 'self'; img-src 'self'; connect-src 'self'; frame-ancestors 'self' http://localhost:4100 http://127.0.0.1:4100`);
     const url = new URL(req.url, 'http://' + host), asset = assets[url.pathname];
     try {
       if (asset && req.method === 'GET') { res.setHeader('content-type', asset[1] + '; charset=utf-8'); res.end(await readFile(join(dist, asset[0]))); return; }

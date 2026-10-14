@@ -2,7 +2,7 @@
 
 ## Multi-source increment — 2026-10-14
 
-Current Core export: `7a528d841ced44422d7f563ad95df8d7056f19a6`.
+Current Core export: `228630decccdbbb7e33db159947d924d51074c16`.
 The original single-source validation below is historical. New checks run for this
 increment: typecheck/boundary/hash lint, 5 sync + 18 source/port + 15 existing UI
 cases, manifest validation, and the actual packed multi-source browser journey.
@@ -21,6 +21,9 @@ replacement/revision locking. The orphan-work assertion was observed red when bo
 live and cached catalogs failed, then green after separating unavailable data from
 revoked access. Browser labels failed when restored textarea content entered the
 implicit accessible name; explicit labels corrected the real packed journey.
+An additional rendered-DOM assertion reproduced duplicate reading panels after
+navigation (18 instead of 1): sibling reading and relation views had the same React
+key. Distinct prefixes fix the reconciliation failure; the regression is retained.
 
 Risk: authored local data and application ports changed; no SDK/contract, production
 data, remote issue write or automatic task dispatch changed. Business implementation
