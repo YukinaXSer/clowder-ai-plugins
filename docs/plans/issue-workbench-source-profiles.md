@@ -1,8 +1,34 @@
 # Issue workbench: configurable public and internal sources
 
-Status: design for the next development increment; the configuration journey below
-is not implemented by PR #80. The existing pre-SDK package and source-export policy
-remain the baseline. No real internal repository, credential or user data was read.
+Status (2026-10-14 update): the owner approved the expanded multi-source MVP after
+the original single-source plan. PR #80 now adds `mountCoordination`: approved source
+selection and per-source branch/base preferences, lightweight aggregate queue,
+manual reversible relations and independent repository investigation/verification.
+The following original single-source design is historical input, superseded by this
+increment where it says aggregation is not required. No real internal platform has
+been connected: its API contract and repository address are still required.
+
+Implementation ownership stays Core-export for business types/service/UI. Plugins
+owns the mounting/transport ports, isolated example Host and packed consumer tests.
+The Host supplies stable source IDs derived from provider instance + canonical repo,
+an isolated owner storage root and a current authorization callback for every binding.
+Each binding owns its catalog/cache/cooldown and detail reader. This is a transitional
+application port, not a new SDK contract or a grant encoded in profile configuration.
+
+The new file store separates source work, preferences and relation records; relation
+conclusions require both grants. It uses revision checks and an exclusive per-record
+file lock followed by atomic replacement. There is no automatic stale-lock deletion:
+after a Host crash an operator must confirm no writer remains before removing that
+specific `.lock` file. Authored JSON records never expire or get deleted on disable.
+The preview serves synthetic sources or the existing isolated public GitHub reader;
+it is loopback only, rejects foreign Origin/Host and is not a production auth server.
+
+Acceptance: packed-browser journey covers configure/read/edit/link/reopen, unsaved
+input retention, separate verification, partial failure and revoked access. Store tests
+exercise two writer instances, restart, same-number isolation and stale revisions.
+The old workbench/browser records remain available at their original entry; no silent
+copy or migration to the new Host store occurs. Fixed-SDK installation and migration
+remain separate from this pre-SDK delivery.
 
 Owner request: 2026-10-14, continue usability/testing and support public and internal
 team repositories through configuration. Discussion: 砚砚 + 多多. Implementation

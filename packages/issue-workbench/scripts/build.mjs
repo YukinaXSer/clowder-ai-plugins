@@ -1,6 +1,6 @@
 import { build } from 'esbuild';
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, copyFileSync, existsSync, readdirSync, rmSync } from 'node:fs';
+import { mkdirSync, copyFileSync, existsSync, readdirSync, rmSync, readFileSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -11,6 +11,9 @@ execFileSync('pnpm', ['exec','tsc'], { stdio: 'inherit' });
 await build({ entryPoints: ['src/index.ts'], outfile: 'dist/index.js', bundle: true, platform: 'node', format: 'esm', target: 'node22', legalComments: 'linked' });
 await build({ entryPoints: ['src/browser.tsx'], outfile: 'dist/browser.js', bundle: true, platform: 'browser', format: 'esm', target: 'es2022', jsx: 'automatic', minify: true, define: { 'process.env.NODE_ENV': '"production"' }, legalComments: 'linked' });
 await build({ entryPoints: ['examples/demo.ts'], outfile: 'dist/demo.js', bundle: true, platform: 'browser', format: 'esm', target: 'es2022', external: ['./browser.js'] });
+await build({ entryPoints: ['examples/coordination.ts'], outfile: 'dist/coordination.js', bundle: true, platform: 'browser', format: 'esm', target: 'es2022', external: ['./browser.js'] });
+copyFileSync('examples/coordination.html','dist/coordination.html');
+writeFileSync('dist/coordination-host.mjs', readFileSync('examples/coordination-host.mjs','utf8').replace("'../dist/index.js'", "'./index.js'").replace("new URL('../dist', import.meta.url)", "new URL('.', import.meta.url)"));
 mkdirSync('dist', { recursive: true }); copyFileSync('examples/index.html','dist/index.html');
 
 // Ship complete upstream license texts as well as esbuild's linked comments.

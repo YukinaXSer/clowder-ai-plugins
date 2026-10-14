@@ -3,6 +3,15 @@ import { WorkbenchProvider } from './ports/context';
 import type { WorkbenchHost } from './ports/host';
 import { IssueWorkbenchPreview } from './ui/IssueWorkbenchPreview';
 import './theme.css';
+import { CoordinationWorkbench } from './ui/CoordinationWorkbench';
+import type { CoordinationHost } from './model/issue-coordination';
+export type { CoordinationHost } from './model/issue-coordination';
+export { createCoordinationClient } from './ports/coordination';
+export function mountCoordination(element: HTMLElement, host: CoordinationHost) {
+  const root = createRoot(element);
+  root.render(<CoordinationWorkbench host={host} />);
+  return { unmount: () => root.unmount() };
+}
 export type { WorkbenchHost, ConfirmOptions } from './ports/host';
 /** Mount one isolated pre-SDK workbench; the caller owns the supplied Host ports. */
 export function mountWorkbench(element: HTMLElement, host: WorkbenchHost): { unmount: () => void } {

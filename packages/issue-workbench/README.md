@@ -13,6 +13,46 @@ manifest or advertise an installable plugin until the fixed SDK adapter is verif
 
 ## What is in the artifact
 
+### Multi-source investigation (pre-SDK)
+
+`mountCoordination(element, host)` adds an aggregate lightweight queue, independently
+configured source preferences, manual issue relations and per-repository remediation
+records. Source open/closed, local investigation and manually recorded verification
+are separate; closing an upstream issue never verifies its downstream counterpart.
+Label suggestions remain local drafts. There are no automatic remote writes, model
+requests, code merges or cat dispatches. Internal evidence is not copied into public
+tasks. Source prose is shown as text without fetching remote images.
+
+`IssueCoordinationService` takes approved bindings (stable provider-instance/repository
+identity, current grant callback, catalog and detail readers) and an owner-specific
+`IssueCoordinationStore`. The same stable IDs must survive renames and credential
+rotation. Do not share storage roots between tenants or cache roots across effective
+authorization scopes. Every binding must recheck current grants, including cached
+reads. Internal adapters must supply stable issue IDs and complete/partial read facts;
+a GitHub-like interface does not prove GitHub API compatibility.
+
+For a synthetic local trial after `pnpm build`:
+
+```sh
+ISSUE_COORDINATION_DATA_DIR=/absolute/isolated/issue-coordination PORT=5196 pnpm preview:coordination
+```
+
+Open `http://localhost:5196`. Manage the two clearly marked synthetic sources, select
+an issue, save a per-repo plan, link its counterpart, and record baseline + verification
+evidence independently. Reload to recover the saved work. The supplied loopback Host
+is for acceptance only; production installation must provide real owner authorization.
+Its source registry is supplied by the Host, not an arbitrary URL/token form.
+
+`ISSUE_COORDINATION_GITHUB=1` explicitly replaces the public fixture with the existing
+isolated Clowder GitHub READ preview at port 3192 for `zts212653/clowder-ai`.
+It does not connect an internal service. The `?legacy=1` trial link exposes the original
+5192 workbench; old browser plans and label batches stay there, untouched. SDK cutover
+must include an explicit data migration; it is not performed by this increment.
+
+Run `pnpm test:coordination` for the actual packed artifact browser journey. As with
+`test:browser`, `PLAYWRIGHT_CHROMIUM_EXECUTABLE` can select an installed Chrome.
+
+
 - `dist/index.js`: source reader (injected `GhQuery`), refresh service, durable
   source archive store, model and label-draft operations. Node built-ins only.
 - `dist/browser.js` and `dist/browser.css`: self-contained React workbench, with

@@ -1,0 +1,230 @@
+.shell {
+  max-width: 1440px;
+  margin: auto;
+  padding: 32px;
+  color: var(--cafe-text);
+  font-size: 14px;
+  line-height: 1.55;
+}
+.shell * {
+  box-sizing: border-box;
+}
+.shell h1 {
+  font:
+    400 28px / 1.2 Georgia,
+    "Songti SC",
+    serif;
+  margin: 4px 0 12px;
+}
+.shell h2 {
+  font-size: 22px;
+  font-weight: 400;
+  margin: 12px 0 24px;
+}
+.shell h3 {
+  font-size: 16px;
+  font-weight: 500;
+}
+.shell p {
+  margin: 8px 0;
+}
+.shell button,
+.shell input,
+.shell select,
+.shell textarea {
+  font: inherit;
+  color: inherit;
+  border: 1px solid var(--cafe-border);
+  border-radius: 5px;
+  background: var(--cafe-surface);
+  padding: 8px 12px;
+  max-width: 100%;
+}
+.shell button {
+  cursor: pointer;
+}
+.shell button:hover {
+  background: var(--cafe-surface-sunken);
+}
+.shell button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.shell :focus-visible {
+  outline: 2px solid var(--cafe-accent);
+  outline-offset: 2px;
+}
+.shell a {
+  color: var(--cafe-accent);
+  text-decoration: none;
+}
+.shell label {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+.shell textarea {
+  resize: vertical;
+  width: 100%;
+}
+.shell summary {
+  cursor: pointer;
+}
+.header {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  align-items: center;
+}
+.eyebrow {
+  font-size: 11px;
+  letter-spacing: 0.6px;
+  color: var(--cafe-text-muted);
+}
+.muted {
+  color: var(--cafe-text-muted);
+  font-size: 12px;
+}
+.notice {
+  padding: 12px 16px;
+  background: var(--cafe-surface-sunken);
+  border-left: 2px solid var(--cafe-accent);
+}
+.sources {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+  margin: 24px 0;
+  border-block: 1px solid var(--cafe-border-subtle);
+  padding: 16px 0;
+}
+.sources > div {
+  display: grid;
+  gap: 4px;
+  flex: 1 1 240px;
+}
+.configuration {
+  margin: 16px 0;
+}
+.sourceForm {
+  display: grid;
+  gap: 12px;
+  margin: 20px 0;
+  padding-block: 12px;
+  border-bottom: 1px solid var(--cafe-border-subtle);
+}
+.sourceForm > label {
+  display: flex;
+  align-items: center;
+}
+.sourceForm > button {
+  justify-self: start;
+}
+.layout {
+  display: grid;
+  grid-template-columns: minmax(240px, 320px) minmax(0, 1fr);
+  gap: 32px;
+  border-top: 1px solid var(--cafe-border-subtle);
+  padding-top: 24px;
+}
+.queue {
+  min-width: 0;
+}
+.filters {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.filters .check {
+  display: flex;
+  align-items: center;
+  font-size: 12px;
+}
+.list {
+  display: grid;
+  max-height: 70vh;
+  overflow-y: auto;
+  align-content: start;
+}
+.list button {
+  border: 0;
+  border-bottom: 1px solid var(--cafe-border-subtle);
+  border-radius: 0;
+  display: grid;
+  gap: 6px;
+  text-align: left;
+  padding: 16px 12px;
+}
+.list button[aria-pressed="true"] {
+  background: var(--cafe-surface-sunken);
+  box-shadow: inset 2px 0 var(--cafe-accent);
+}
+.detail {
+  min-width: 0;
+}
+.fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 16px;
+}
+.editor,
+.links form {
+  display: grid;
+  gap: 16px;
+}
+.editor {
+  padding: 24px 0;
+  border-block: 1px solid var(--cafe-border-subtle);
+  margin-top: 24px;
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+}
+.actions span {
+  font-size: 12px;
+  color: var(--cafe-text-muted);
+}
+.prose {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 14px;
+  margin-block: 16px;
+}
+.discussion {
+  max-height: 480px;
+  overflow: auto;
+}
+.discussion article {
+  border-top: 1px solid var(--cafe-border-subtle);
+}
+.related {
+  padding: 16px 0;
+  border-bottom: 1px solid var(--cafe-border-subtle);
+  margin-bottom: 16px;
+}
+.related button {
+  text-align: left;
+}
+@media (max-width: 720px) {
+  .shell {
+    padding: 16px;
+  }
+  .header {
+    align-items: start;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .layout {
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+  .list {
+    max-height: 280px;
+  }
+  .sources {
+    gap: 12px;
+  }
+}

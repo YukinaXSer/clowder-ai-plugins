@@ -45,6 +45,8 @@
     "test:ui": "node scripts/test-ui.mjs",
     "test:artifact": "node --test test/artifact.test.mjs",
     "test:browser": "node --test test/browser.test.mjs",
+    "test:coordination": "node --test test/coordination-browser.test.mjs",
+    "preview:coordination": "node dist/coordination-host.mjs",
     "sync:core": "node scripts/sync-from-core.mjs",
     "sync:verify": "node scripts/sync-from-core.mjs --verify",
     "preview": "node scripts/preview.mjs",

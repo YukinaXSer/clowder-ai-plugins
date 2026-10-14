@@ -1,5 +1,37 @@
 # Validation record
 
+## Multi-source increment — 2026-10-14
+
+Current Core export: `7a528d841ced44422d7f563ad95df8d7056f19a6`.
+The original single-source validation below is historical. New checks run for this
+increment: typecheck/boundary/hash lint, 5 sync + 18 source/port + 15 existing UI
+cases, manifest validation, and the actual packed multi-source browser journey.
+The existing packed single-source browser and clean Node consumer also passed.
+
+The new journey configures a source branch, edits and saves, rejects verification
+without evidence, switches without losing drafts, updates without changing drafts,
+manually links two issues, reloads, and observes upstream passed/internal pending.
+It then fails one source and revokes that source: authorized old data survives
+network failure; revoked content and shared relation conclusions disappear.
+Foreign Origin and headerless POST are rejected by the isolated example Host.
+Screenshots are kept in ignored package `artifacts/coordination-*`.
+
+The store test was observed red before durable persistence, then green after atomic
+replacement/revision locking. The orphan-work assertion was observed red when both
+live and cached catalogs failed, then green after separating unavailable data from
+revoked access. Browser labels failed when restored textarea content entered the
+implicit accessible name; explicit labels corrected the real packed journey.
+
+Risk: authored local data and application ports changed; no SDK/contract, production
+data, remote issue write or automatic task dispatch changed. Business implementation
+is exported from Core; package mounting, same-origin transport and acceptance Host
+remain Plugins-owned. Internal adapters and fixed-SDK installation are not proven.
+New local records are stored in the explicitly isolated Host directory. Existing
+single-source browser records and label batches remain at their original entry.
+
+This is author validation for an unmerged development trial; it is not a release or
+independent reviewer approval. Real internal acceptance awaits its API/repository.
+
 Validated 2026-10-14 on macOS arm64. Scope: independent pre-SDK package and
 repeatable extraction. This does not claim Plugin Manager installation, official
 release, migration of real user data or real cat dispatch.
