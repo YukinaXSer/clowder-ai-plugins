@@ -8,6 +8,7 @@ import {
   type Versioned,
 } from '../model/issue-coordination.js';
 import styles from './coordination.module.css';
+import { IssueRelationPicker } from './IssueRelationPicker';
 
 export interface RelationCandidate {
   ref: IssueRef;
@@ -41,6 +42,8 @@ export function CoordinationLinks({
   const related = relations.filter(
     (r) => r.value.active && r.value.refs.some((ref) => issueRefKey(ref) === issueRefKey(current.ref)),
   );
+  const available = candidates.filter((candidate) => issueRefKey(candidate.ref) !== issueRefKey(current.ref));
+  const targetCandidate = available.find((candidate) => issueRefKey(candidate.ref) === target);
   async function persist(value: IssueRelation, revision: number) {
     setBusy(true);
     setError('');
@@ -90,7 +93,7 @@ export function CoordinationLinks({
       <form
         onSubmit={(e) => {
           e.preventDefault();
-          const other = candidates.find((c) => issueRefKey(c.ref) === target);
+          const other = targetCandidate;
           if (!other) return;
           const refs: IssueRelation['refs'] = [current.ref, other.ref];
           const old = relations.find((r) => relationKey(r.value.refs) === relationKey(refs));
@@ -109,19 +112,7 @@ export function CoordinationLinks({
         }}
       >
         <div className={styles.fields}>
-          <label>
-            关联问题
-            <select aria-label="关联问题" required value={target} onChange={(e) => setTarget(e.target.value)}>
-              <option value="">选择另一个问题</option>
-              {candidates
-                .filter((c) => issueRefKey(c.ref) !== issueRefKey(current.ref))
-                .map((c) => (
-                  <option key={issueRefKey(c.ref)} value={issueRefKey(c.ref)}>
-                    {c.source} #{c.ref.number} · {c.title}
-                  </option>
-                ))}
-            </select>
-          </label>
+          <IssueRelationPicker candidates={available} value={target} change={setTarget} />
           <label>
             关系
             <select aria-label="关系" value={kind} onChange={(e) => setKind(e.target.value as IssueRelation['kind'])}>
@@ -139,7 +130,9 @@ export function CoordinationLinks({
           共享研判结论（仅本地，不自动公开）
           <textarea value={conclusion} onChange={(e) => setConclusion(e.target.value)} rows={3} />
         </label>
-        <button disabled={busy || !target}>{busy ? '保存中…' : '保存关联'}</button>
+        <button type="submit" disabled={busy || !targetCandidate}>
+          {busy ? '保存中…' : '保存关联'}
+        </button>
       </form>
       {error && <p role="alert">{error}</p>}
     </section>

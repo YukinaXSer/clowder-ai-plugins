@@ -16,6 +16,14 @@ test('packed multi-source journey: save, link, reload, independent verification,
   const { coordinationPreview, fixtureBindings } = await import(pathToFileURL(join(directory, 'package/dist/coordination-host.mjs')).href);
   let grant = true, offline = false;
   const bindings = fixtureBindings(), internalRead = bindings[1].catalog;
+  const publicCatalog = bindings[0].catalog;
+  bindings[0].catalog = async (...args) => {
+    const catalog = await publicCatalog(...args);
+    return { ...catalog, issues: [...catalog.issues, ...Array.from({ length: 800 }, (_, n) => ({
+      ...catalog.issues[0], id: 'search-fixture-' + n, number: 10000 + n,
+      title: n === 799 ? 'Windows 插件同步故障' : '合成搜索样本 ' + n,
+    }))] };
+  };
   const publicDetail = bindings[0].detail;
   bindings[0].detail = async (...args) => {
     const result = await publicDetail(...args);
@@ -76,7 +84,34 @@ test('packed multi-source journey: save, link, reload, independent verification,
   assert.equal(await page.getByLabel('本仓方案', { exact: true }).inputValue(), '内部仍需移植');
   await page.getByRole('button', { name: '保存本仓记录' }).click();
   await page.waitForFunction(() => document.querySelector('form button')?.textContent !== '保存中…');
-  await page.getByLabel('关联问题', { exact: true }).selectOption({ label: '公开测试仓 #88 · 上游修复：重复加载问题' });
+  const relationSearch = page.getByRole('combobox', { name: '关联问题', exact: true });
+  await relationSearch.fill('');
+  await relationSearch.focus();
+  assert.equal(await page.getByRole('listbox', { name: '关联问题候选' }).getByRole('option').count(), 30, 'large result sets are bounded');
+  await relationSearch.fill('WINDOWS 同步');
+  assert.equal(await page.getByRole('listbox', { name: '关联问题候选' }).getByRole('option').count(), 1);
+  await page.getByRole('listbox', { name: '关联问题候选' }).getByRole('option', { name: /#10799.*Windows/ }).click();
+  await relationSearch.fill('没有对应问题的查询');
+  await page.getByText('没有匹配的问题，请更换关键词。', { exact: true }).waitFor();
+  assert.ok(await page.getByRole('button', { name: '保存关联', exact: true }).isDisabled(), 'editing a selection clears the old relation target');
+  await relationSearch.press('Escape');
+  assert.equal(await relationSearch.getAttribute('aria-expanded'), 'false');
+  await page.getByRole('button', { name: '清除关联问题选择' }).click();
+  assert.equal(await relationSearch.inputValue(), '');
+  await relationSearch.fill('88');
+  const numberMatches = await page.getByRole('listbox', { name: '关联问题候选' }).getByRole('option').allTextContents();
+  assert.ok(numberMatches.slice(0, 2).every(text => text.includes('#88')), 'exact numbers precede partial number matches');
+  await relationSearch.fill('#88');
+  assert.equal(await page.getByRole('listbox', { name: '关联问题候选' }).getByRole('option').count(), 2, 'same issue number in different sources stays distinct');
+  await relationSearch.fill('重复 加载');
+  assert.equal(await page.getByRole('listbox', { name: '关联问题候选' }).getByRole('option').count(), 1, 'query matches separate title fragments and excludes the current issue');
+  await relationSearch.fill('公开 #88');
+  await relationSearch.press('ArrowDown');
+  await relationSearch.dispatchEvent('keydown', { key: 'Enter', isComposing: true });
+  assert.equal(await relationSearch.getAttribute('aria-expanded'), 'true', 'IME confirmation does not select or submit');
+  await relationSearch.press('Enter');
+  assert.equal(await relationSearch.inputValue(), '公开测试仓 #88 · 上游修复：重复加载问题');
+  assert.equal(await relationSearch.getAttribute('aria-expanded'), 'false');
   await page.getByLabel('关系', { exact: true }).selectOption('port');
   await page.getByLabel('关联依据', { exact: true }).fill('内部旧版本仍复现');
   await page.getByLabel('共享研判结论（仅本地，不自动公开）').fill('需要适配后再测');
@@ -89,7 +124,7 @@ test('packed multi-source journey: save, link, reload, independent verification,
   offline = true;
   await page.getByRole('button', { name: '更新来源', exact: true }).click();
   await page.getByText('更新失败，保留上次可读取内容', { exact: true }).waitFor();
-  assert.equal(await queue.getByRole('button').count(), 3);
+  assert.equal(await queue.getByRole('button').count(), 803);
   await mkdir('artifacts', { recursive: true });
   await page.screenshot({ path: 'artifacts/coordination-desktop.png', fullPage: true });
   await page.setViewportSize({ width: 1050, height: 800 });
@@ -120,12 +155,28 @@ test('packed multi-source journey: save, link, reload, independent verification,
   await page.screenshot({ path: 'artifacts/coordination-mobile-editor.png' });
   await page.emulateMedia({ colorScheme: 'dark' });
   await page.screenshot({ path: 'artifacts/coordination-dark.png', fullPage: true });
+  await page.getByRole('button', { name: '队列', exact: true }).click();
+  await openPublic();
+  await relationSearch.fill('内源 #88');
+  await page.getByRole('listbox', { name: '关联问题候选' }).scrollIntoViewIfNeeded();
+  assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+  await page.screenshot({ path: 'artifacts/coordination-relation-search-mobile.png' });
+  await page.getByRole('listbox', { name: '关联问题候选' }).getByRole('option', { name: /内源合成测试仓 #88/ }).click();
+  assert.ok(!(await page.getByRole('button', { name: '保存关联', exact: true }).isDisabled()));
   grant = false;
   await page.getByRole('button', { name: '更新来源', exact: true }).click();
   await page.getByText('来源未授权，内容不可读取', { exact: true }).waitFor();
+  assert.equal(await relationSearch.inputValue(), '', 'revocation hides the selected target label');
+  assert.ok(await page.getByRole('button', { name: '保存关联', exact: true }).isDisabled(), 'revoked target cannot be submitted');
   await page.getByRole('button', { name: '队列', exact: true }).click();
-  assert.equal(await queue.getByRole('button').count(), 1);
+  assert.equal(await queue.getByRole('button').count(), 801);
   assert.ok(!(await page.locator('body').textContent()).includes('需要适配后再测'));
+  grant = true; offline = false;
+  await page.getByRole('button', { name: '更新来源', exact: true }).click();
+  await page.waitForFunction(() => document.body.textContent.includes('803 个问题'));
+  await page.getByRole('button', { name: '正文', exact: true }).click();
+  assert.equal(await relationSearch.inputValue(), '', 'restoring source access never silently restores the revoked choice');
+  assert.ok(await page.getByRole('button', { name: '保存关联', exact: true }).isDisabled());
   assert.deepEqual(errors, []);
   console.log('Coordination packed journey', pack.integrity);
 });

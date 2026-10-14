@@ -1,5 +1,38 @@
 # Validation record
 
+## Related-issue search — 2026-10-14
+
+Core export: `2408d14ac01714dbe1be3641ea7a3a70223e4158`.
+Operator request: `thread_mucwsgsjtlbabfcq#0001791979112333-000149-a8f89545`.
+Replace the unsearchable related-issue select with a searchable combobox. Partial
+text matching covers title, source name and issue number; space-separated terms
+must all match. Matching normalizes character width/case and ranks exact numbers
+before partial numbers. This is local text filtering, not semantic similarity or
+typo correction. Search covers all currently readable candidates, while the list
+renders at most 30 with an explicit count/narrow-query hint. Current issue is excluded.
+
+The full source/issue identity remains the saved target. Editing the input clears
+the prior choice; no arbitrary text can become a relation. Results show source,
+number and title; arrows/Enter select, Escape closes, and clear resets the query.
+IME confirmation cannot select or submit. Revocation removes the choice and label;
+restoring access does not silently reinstate it. Relation persistence and existing
+source permissions are unchanged; no new dependency or remote search is added.
+
+RED: the new packed browser journey failed because the old select was not editable.
+A second regression reproduced automatic reselection after grant restoration;
+clearing an inaccessible selection fixes it. GREEN: the packed journey now uses
+803 synthetic issues, finds an item beyond the initial result window, tests multiword
+and number/source queries, exact-number ordering, same-number isolation, keyboard,
+IME, empty results, clear, save/reload and revoke/restore. Mobile dark rendering was
+inspected with no horizontal overflow. Build, typecheck/boundary/hash lint, five
+sync tests, exact Core export (`changed: []`), both packed browser journeys and the
+clean Node consumer passed. Unchanged source/model unit evidence remains historical.
+
+Ownership stays in the existing Core UI export; Plugins owns the consumer journey
+and export mapping. Fallback scanner flags keyboard OR/else-if predicates and the
+clear-button visibility condition, not recovery layers or alternate sources.
+This is author validation for the same open PR, with no merge or release.
+
 ## Layout increment — 2026-10-14
 
 Core export: `e562a37b517deb56c958926f5cae39ed6070efaa`.

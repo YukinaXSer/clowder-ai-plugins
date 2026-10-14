@@ -188,3 +188,12 @@ with the tested executable `plugin.yaml`, and set `sync-policy.json.mode` to
 changes thereafter originate here; Core consumes exact packages and only changes
 for generic Host behavior. Retire the old business copy after migration acceptance.
 There is no permanent bidirectional file synchronizer.
+
+### Find an issue to relate
+
+In the multi-source entry, type part of a title, `#number`, or source name in
+**关联问题**. Combine fragments with spaces, for example `公开 #88` or `重复 加载`.
+Select the result (or use arrow keys and Enter), enter the relation/evidence and
+save. Search covers all readable issues; only the first 30 matches are shown until
+you narrow the query. Editing the query clears the previous choice. Saving creates
+a local relation and never changes the source platforms.
