@@ -1,7 +1,7 @@
 {
   "version": 1,
   "sourceRepository": "https://github.com/zts212653/clowder-ai",
-  "sourceCommit": "afa6e76ae9f0e34878100aa8d0627e540be0f642",
+  "sourceCommit": "b6c608a672ae06d477490efe2d77718d60947c72",
   "files": [
     {
       "source": "packages/shared/src/issue-coordination.ts",
@@ -12,14 +12,14 @@
     {
       "source": "packages/api/src/domains/community/IssueCoordinationStore.ts",
       "target": "src/source/IssueCoordinationStore.ts",
-      "sourceHash": "7d3049b6f2fc0572847de94eb1a3132e952c2b7bd38e054be5fe6ca9e26aedb5",
-      "targetHash": "785566c3a559b23eca6a5bb7c308b8fa0b6748fa0d8426b2595281e1ce99d338"
+      "sourceHash": "fd54fe47cbc7b8a39d3eb9e214fa59d8fd1f55e03ba9c8da19d48d5cfb74b880",
+      "targetHash": "8ee92568dddc6b06803d5ae1b4897ce7d33831ee13cd9af682056702b6411676"
     },
     {
       "source": "packages/api/src/domains/community/IssueCoordinationService.ts",
       "target": "src/source/IssueCoordinationService.ts",
-      "sourceHash": "5c384413600b86bb0a2677463c3074360d0f5b79557aa6e94fc4f8308ee8f719",
-      "targetHash": "74e7cb3122bdf9c875e2d0768a6a54be3815a2861c970f73e92112596243f022"
+      "sourceHash": "4693cf2fd3869433ebfed0af1c1f77d17ceb13271af5bb233ddb2ce60e571739",
+      "targetHash": "53b21818c77909c9b0c078d8edbd9b041cef4f0bc50ccf6eab31a8f352e7d98e"
     },
     {
       "source": "packages/web/src/components/settings/issue-workbench/IssueSourceState.tsx",

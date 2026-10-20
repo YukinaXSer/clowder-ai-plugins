@@ -29,7 +29,8 @@ Why：各成员拥有独立 Host，跨成员真相不能只存在分配者浏览
 现行公开 SDK `0.2.0-beta.21`：
 `config/storage/threads/messaging/tasks`，工具调用的独立 `PluginActionContext`。
 旧 `ownerThreads/participantRoster` 已退役，不复活。
-当前 Core 工位依赖 SDK `0.1.0-beta.17`，不能据新 SDK 合成测试宣称已安装。
+旧 Core 工位依赖 SDK `0.1.0-beta.17`；远端 main 已更新到 `0.2.0-beta.21`，
+必须基于最新真实 Host 验证，不能据旧工位判断当前宿主不支持，也不能据合成测试宣称已安装。
 候选模块、打包闭包、隔离 Host 验收与实际 Host 安装分别记录。
 
 现有 `github-operations` 首次注册只建基线。团队接收需要首次也完整补收
@@ -84,10 +85,20 @@ GitHub 访问走固定 `gh api --hostname github.com`，不接受任意 URL、sh
 `packages/api/src/domains/plugin/manager/builtin-contribution-supervisor.ts`
 的 `requestedContributions()` 仅接受 MCP stdio；其他贡献抛出
 `UNSUPPORTED_CONTRIBUTION`。该 checkout 没有公开 SDK 的 module Host adapter。
-这证明当前已核实的 Core 基线不能直接运行本候选，不证明所有部署都不支持。
-现行公共 SDK 本身可以执行模块，已用于隔离模块旅程测试。
+这是旧工位事实，**不再作为当前接入阻塞依据**。随后通过 `gh api` 与 `git fetch`
+核实远端 main `c086765ddb7181722f03f9f53c7a7ee17a29f147` 已合入 F202 C1：
+`builtin-runtime/carriers/module-plugin-runtime.ts` 实现公开模块加载，
+`official-plugin-host-policies.ts` 提供安装授权。当前精确缺口是
+`dev.clowder.issue-workbench` 原先无 Host policy；未知插件的有效 grants 为空。
+接入应复用现有载体与授权流程，不另造一套 Host。
 
-已写入 `integration.json` 的剩余项包括 installed-host-module-support、
+已在原 Core 工位整理独立配套分支 `feat/issue-workbench-host-grants`，
+`9819504e04897144b5464d202dd574bb826f6750`：专属策略与回归已通过；
+真实 Host 的隔离制品准入、加载、GitHub READ、停用与重新启用通过。
+原源导出分支保留，插件镜像钉在 `b6c608a672ae06d477490efe2d77718d60947c72`。
+用户实例仍未安装；完整对话/派工/界面旅程继续在同一任务中完成。
+
+已写入 `integration.json` 的剩余项包括 installed-host-admission、
 team-workbench-ui-binding、real-cat-dispatch-and-acceptance、two-account-dogfood。
 `hostInstallable` 保持 false，未新增目录/安装宣告，未改变生产 Host。
 搜索未找到可核验的 F202 owner thread；不猜测跨线程收件人或发礼貌 ACK。

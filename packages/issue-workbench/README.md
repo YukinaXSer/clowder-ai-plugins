@@ -36,12 +36,16 @@ execution verdict. Unknown comment publication outcomes are not retried with a
 blind POST. Analysis/feedback counts are descriptive statistics, not trained
 weights, measured classifier accuracy or automatic human acceptance.
 
-The source of this new extension is `src/team/`, owned by the plugin; the existing
-Core export remains unchanged. See [the implementation plan](../../docs/plans/issue-workbench-team.md).
+The source of this new extension is `src/team/`, owned by the plugin. The Core
+export is pinned to `b6c608a672ae06d477490efe2d77718d60947c72`; its coordination
+services now consume the built shared contract. See [the implementation plan](../../docs/plans/issue-workbench-team.md).
 Remaining acceptance: compatible installed Host, workbench UI binding, lifecycle
-and grants, safe migration, and two real accounts/teams. The checked local Core
-main still has an MCP-stdio-only builtin contribution supervisor; package-module
-support must be resolved before promoting this candidate to an installable plugin.
+and grants, safe migration, and two real accounts/teams. Core main
+`c086765ddb7181722f03f9f53c7a7ee17a29f147` supports public modules and the matching
+SDK. [Core companion #1639](https://github.com/zts212653/clowder-ai/pull/1639)
+adds its declared grant policy. The prepared candidate passes isolated real Host
+admission/loading, GitHub READ, disable/refusal and re-enable/read checks. User
+installation, live-cat invocation and the remaining product journey are still pending.
 
 ## What is in the artifact
 

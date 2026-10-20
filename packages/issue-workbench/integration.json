@@ -6,5 +6,5 @@
   "candidateManifest": "plugin.candidate.yaml",
   "sdkVersion": "0.2.0-beta.21",
   "implemented": ["read-source-engine", "versioned-archives", "standalone-workbench", "browser-draft-storage", "source-sync", "team-module-candidate", "conversation-analysis-protocol", "configured-assignment", "durable-inbox", "explicit-feedback-statistics"],
-  "pending": ["installed-host-module-support", "team-workbench-ui-binding", "host-lifecycle-and-grants", "durable-work-migration", "real-cat-dispatch-and-acceptance", "two-account-dogfood", "catalog-publication"]
+  "pending": ["installed-host-admission", "team-workbench-ui-binding", "host-lifecycle-and-grants", "durable-work-migration", "real-cat-dispatch-and-acceptance", "two-account-dogfood", "catalog-publication"]
 }

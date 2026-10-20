@@ -1,4 +1,3 @@
-import { type IssueSourceFact, type IssueSourceSnapshot, issueCatalogFact } from '../model/issue-source.js';
 import {
   type CoordinationDetail,
   type CoordinationSnapshot,
@@ -7,13 +6,16 @@ import {
   type IssueInvestigation,
   type IssueRef,
   type IssueRelation,
+  type IssueSourceFact,
   type IssueSourceProfile,
+  type IssueSourceSnapshot,
+  issueCatalogFact,
   issueFeatureBindings,
   issueRefKey,
   relationKey,
   type SourcePreference,
   safeIssueUrl,
-} from '../model/issue-coordination.js';
+} from '../model/index.js';
 import { IssueCoordinationStore } from './IssueCoordinationStore.js';
 
 export interface CoordinationBinding {

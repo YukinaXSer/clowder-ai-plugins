@@ -19,7 +19,9 @@
   不冒充 Host 执行或本仓已验收。读取同时返回当前 GitHub 状态及历史记录。
 - 反馈必须关联研判之后的新 owner 消息。原请求、猫自评、旧 hold 来源不能当作采纳。
   修改保留历史，重试不重复计数；统计不宣称经过训练或测得模型准确率。
-- 原三栏 UI、分类数据和 Core export 未改。当前预览尚未绑定新团队工具。
+- 原三栏 UI 与分类数据未改。Core export 已对齐当前构建边界
+  `b6c608a672ae06d477490efe2d77718d60947c72`，只调整协调服务的共享契约导入。
+  当前预览尚未绑定新团队工具。
 
 ## 已观察的验证
 
@@ -46,12 +48,32 @@ B 启动后补收 → B 回报接手 → A 读回 → B 重启无重复通知。
 日志目录：`packages/issue-workbench/artifacts/team-2026-10-20/`。
 最终门禁与提交坐标记录在该目录的 `acceptance.json`。
 
+## 真实 Host 载体检查
+
+Core 配套分支 `feat/issue-workbench-host-grants`，提交
+`9819504e04897144b5464d202dd574bb826f6750`，以远端 main 为基线，只包含
+Issue 专属授权策略、2 项授权/安装身份保留回归及制品验收脚本。
+[配套草稿 PR #1639](https://github.com/zts212653/clowder-ai/pull/1639) 保持未合入；
+原 Core 工位已切回 `feat/issue-workbench`，没有新建或更改生产工位。
+授权回归先观察到有效 grants 为空、reconciliation 无变化的失败，再补策略转绿。
+Core API build、对应定向测试通过；原开发入口保留测试也通过。
+
+`packages/api/scripts/check-issue-workbench-artifact.mjs <candidate.tgz>` 使用实际
+`LocalPluginPackageAdmission`、文件 inventory、已验证包 locator 和 `ModulePluginRuntime`：
+候选准备（补 Host manifest）→ 准入 → 从磁盘恢复 inventory → 加载 → 无身份调用拒绝 →
+读取真实 `zts212653/clowder-ai#1628` → 未授权仓库拒绝 → 停用后拒绝 →
+重新启用后再次读取，已通过。日志保留原 tgz 和 prepared tgz 两份摘要。
+
+检查隔离在临时目录，没有连接生产存储或修改生产配置。Host 调用身份来自明确的验收
+fixture，因此这证明真实载体与 provider 接线，**不证明在线猫已调用或用户已安装**。
+
 ## 未完成与接入依赖
 
-1. **真实宿主安装与猫调用**：核对的本地 Core main `466d4549fe2d75c9cc5c96b9497f47e464d13cf2`
-   的 builtin supervisor 仅接受 MCP stdio，其余贡献抛出 `UNSUPPORTED_CONTRIBUTION`。
-   运行进程 cwd 位于同一 Core 的 `packages/api`；健康响应没有 deployment revision，
-   因此不能由此宣称精确部署 HEAD。需要可验证的 module Host 接入基线。
+1. **真实宿主安装与猫调用**：最初读取的本地 Core main `466d4549fe2d75c9cc5c96b9497f47e464d13cf2`
+   已过时。后续拉取核实远端 main `c086765ddb7181722f03f9f53c7a7ee17a29f147`
+   已支持公开 module Host，并消费同版 SDK。Issue 专属 grants 和隔离准入/启停/READ
+   已在上述配套分支实现并验证；用户实例安装与在线猫调用仍未完成。
+   运行健康响应没有 deployment revision，未宣称精确部署 HEAD。
 2. **工作台入口**：新研判/优先级/成员/统计仍需接入现有三栏与 Host 授权动作。
    当前 UI 不能触发新模块，不能把原界面截图当成本轮联动证据。
 3. **真实双账号验收**：成员 GitHub 用户名/分工与接收端配置尚未提供；没有代猜账号、

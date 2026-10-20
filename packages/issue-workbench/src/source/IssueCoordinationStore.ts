@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { mkdir, readFile, rename, readdir, open, unlink } from 'node:fs/promises';
+import { mkdir, open, readdir, readFile, rename, unlink } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { Versioned } from '../model/issue-coordination.js';
+import type { Versioned } from '../model/index.js';
 
 export class CoordinationConflict extends Error {
   readonly status = 409;
