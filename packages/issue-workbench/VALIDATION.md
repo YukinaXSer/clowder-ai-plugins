@@ -1,5 +1,23 @@
 # Validation record
 
+## Classification overview wording — 2026-10-20
+
+Source: `thread_mucwsgsjtlbabfcq#0001792486161119-000170-f4dd06d2`.
+The operator considers **随 Feature 处理** a classification and does not need
+a classification-result total. The entry and heading now say **分类结果** without
+a headline count. The overview description includes issue categories and Feature
+groups; per-category counts, filtering and pagination remain available.
+Feature-bound issue notes describe their existing classification.
+
+The existing packed browser journey reproduced an incorrect empty-results message
+when all semantic suggestions were replaced by Feature bindings. It now passes:
+both Feature-classified issues remain browsable without an empty-results message,
+and access withdrawal still removes their source content. No classification corpus,
+source labels, authored records, API or permission changes.
+Core export: `afa6e76ae9f0e34878100aa8d0627e540be0f642`.
+Final validation and live-preview evidence: `artifacts/classification-copy-2026-10-20/`.
+PR #80 remains open and unmerged.
+
 ## Main compatibility update — 2026-10-20
 
 The PR conflict notification was verified against GitHub and a local merge of

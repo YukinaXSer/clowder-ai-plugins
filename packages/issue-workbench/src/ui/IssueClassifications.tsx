@@ -44,7 +44,7 @@ export function IssueClassificationCandidate({
   featureBindings?: string[];
 }) {
   if (featureBindings.length)
-    return <p className={styles.explanation}>已绑定 {featureBindings.join('、')}，随 Feature 处理，不参与特征分类。</p>;
+    return <p className={styles.explanation}>已按 {featureBindings.join('、')} 归类，随 Feature 处理。</p>;
   if (!result) return <p className={styles.meta}>这条问题尚无本批分类结果。</p>;
   const existing = new Set(tags.split(/[,，;；\n]/).map((tag) => tag.trim()));
   const missing = tagsFor(result).filter((tag) => !existing.has(tag));
@@ -94,7 +94,7 @@ export function IssueClassificationResults({
         features: issueFeatureBindings(fact),
       })),
   );
-  const results = rows.filter((row) => row.result);
+  const hasClassifications = rows.some((row) => row.result || row.features.length);
   const scoped = rows.filter(
     ({ fact, source }) =>
       matchesSourceState(fact, state) &&
@@ -118,16 +118,13 @@ export function IssueClassificationResults({
   return (
     <>
       <button type="button" onClick={() => dialog.current?.showModal()}>
-        分类结果 · {results.length}
+        分类结果
       </button>
       <dialog ref={dialog} className={styles.overview} aria-labelledby={heading} data-testid="classification-results">
         <header className={styles.heading}>
           <div>
-            <h2 id={heading}>初始分类结果</h2>
-            <p className={styles.meta}>
-              {results.length} 条分类候选 · {rows.filter((row) => row.features.length).length} 条随 Feature 处理 ·
-              当前可读 {rows.length} 个问题
-            </p>
+            <h2 id={heading}>分类结果</h2>
+            <p className={styles.meta}>按问题类别或已绑定的 Feature 查看。</p>
           </div>
           <button type="button" onClick={() => dialog.current?.close()} aria-label="关闭分类结果">
             关闭
@@ -191,7 +188,7 @@ export function IssueClassificationResults({
           </p>
         </div>
         <div className={styles.resultsBody}>
-          {!results.length && <p>当前可读取的来源还没有分类结果。</p>}
+          {!hasClassifications && <p>当前可读取的来源还没有分类结果。</p>}
           <div className={styles.results}>
             {visible.slice(0, limit).map(({ source, fact, result, features }) => (
               <article key={issueRefKey(issueRef(source.profile.id, fact))} className={styles.result}>
