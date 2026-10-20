@@ -53,6 +53,15 @@ must include an explicit data migration; it is not performed by this increment.
 
 ### Inspect initial classifications
 
+Source status is visible on each queue row, classification card and issue detail:
+**green Open · 开放**, **purple Closed · 已关闭**, each with a distinct icon and
+text. Unknown/unavailable sources have neutral labels. The single-source view uses
+the same badges. In the multi-source queue, **全部 / Open / Closed** filters include
+counts within the current category, source and search; **其他状态** appears when
+needed. Switching state preserves investigation drafts.
+These are source-platform states. A Closed issue does not imply this repository's
+fix has been verified; local verification remains separately labeled **本仓**.
+
 Use **按类别查看** in the issue queue, or click **分类结果 · 708** in the GitHub preview header. Open
 `http://localhost:5196/?legacy=1&classifications=1` to show the overview immediately.
 The first full pass observed **813 issues: 288 open, 525 closed** on 2026-10-20.

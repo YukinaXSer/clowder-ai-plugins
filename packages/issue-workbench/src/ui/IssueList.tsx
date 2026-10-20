@@ -1,6 +1,7 @@
 'use client';
 
 import styles from './workbench.module.css';
+import { IssueSourceState } from './IssueSourceState';
 import { emptyWork, type IssueFact, type LocalWork, type Stage, stageNames } from './workbench-model';
 
 export function IssueList({
@@ -59,12 +60,10 @@ export function IssueList({
                 }}
               >
                 <span className={styles.rowMeta}>
-                  <span>
-                    #{item.number}
-                    {item.unavailable ? ' · 来源暂不可用' : item.state === 'CLOSED' ? ' · 已关闭' : ''}
-                  </span>
+                  <span>#{item.number}</span>
                   <span>{stageNames[local.stage]}</span>
                 </span>
+                <IssueSourceState fact={item} />
                 <span className={styles.rowTitle}>{item.title}</span>
                 {local.tags.length > 0 && <span className={styles.localTagText}>{local.tags.join(' · ')}</span>}
               </button>

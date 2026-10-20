@@ -101,7 +101,7 @@ it('refreshes real source facts while preserving focused unsaved edits and local
   await act(async () => button('更新').click());
   expect(input.value).toBe('half written');
   expect(document.activeElement).toBe(input);
-  expect(container.textContent).toContain('GitHub · 已关闭');
+  expect(container.textContent).toContain('Closed · 已关闭');
   expect(container.textContent).toContain('来源有更新');
   expect(JSON.parse(localStorage.getItem(STORAGE_KEY)!).records[first.number]).toEqual(records[first.number]);
   expect(fetcher.mock.calls.some(([url]) => url.includes('/refresh'))).toBe(true);

@@ -51,6 +51,22 @@ test('packed multi-source journey: save, link, reload, independent verification,
   const queue = page.getByRole('complementary', { name: '聚合问题队列' });
   const openPublic = () => queue.getByRole('button', { name: /公开测试仓.*上游修复/ }).click();
   const openInternal = () => queue.getByRole('button', { name: /内源合成测试仓.*内部适配/ }).click();
+  const closedBadge = queue.getByText('Closed · 已关闭', { exact: true }).first();
+  const openBadge = queue.getByText('Open · 开放', { exact: true }).first();
+  await closedBadge.waitFor(); await openBadge.waitFor();
+  assert.notEqual(await closedBadge.evaluate(el => getComputedStyle(el).color), await openBadge.evaluate(el => getComputedStyle(el).color));
+  const states = page.getByRole('group', { name: '来源状态筛选', exact: true });
+  await states.getByRole('button', { name: 'Open · 2', exact: true }).click();
+  assert.equal(await queue.getByText('Closed · 已关闭', { exact: true }).count(), 0);
+  await openInternal();
+  await page.getByRole('region', { name: '问题正文', exact: true }).getByText('Open · 开放', { exact: true }).waitFor();
+  await page.getByLabel('本地标记', { exact: true }).fill('状态筛选间保留草稿');
+  await states.getByRole('button', { name: 'Closed · 801', exact: true }).click();
+  assert.equal(await queue.getByText('Open · 开放', { exact: true }).count(), 0);
+  await page.getByRole('region', { name: '问题正文', exact: true }).getByText('Closed · 已关闭', { exact: true }).waitFor();
+  await states.getByRole('button', { name: 'Open · 2', exact: true }).click();
+  assert.equal(await page.getByLabel('本地标记', { exact: true }).inputValue(), '状态筛选间保留草稿');
+  await states.getByRole('button', { name: '全部 · 803', exact: true }).click();
   await openPublic();
   await page.getByRole('heading', { name: '复现说明', exact: true }).waitFor();
   assert.equal(await page.evaluate(() => window.markdownExecuted), undefined);
@@ -124,7 +140,7 @@ test('packed multi-source journey: save, link, reload, independent verification,
   offline = true;
   await page.getByRole('button', { name: '更新来源', exact: true }).click();
   await page.getByText('更新失败，保留上次可读取内容', { exact: true }).waitFor();
-  assert.equal(await queue.getByRole('button').count(), 803);
+  assert.equal(await queue.locator('button').filter({ has: page.locator('[data-source-state]') }).count(), 803);
   await mkdir('artifacts', { recursive: true });
   await page.screenshot({ path: 'artifacts/coordination-desktop.png', fullPage: true });
   await page.setViewportSize({ width: 1050, height: 800 });
@@ -169,7 +185,7 @@ test('packed multi-source journey: save, link, reload, independent verification,
   assert.equal(await relationSearch.inputValue(), '', 'revocation hides the selected target label');
   assert.ok(await page.getByRole('button', { name: '保存关联', exact: true }).isDisabled(), 'revoked target cannot be submitted');
   await page.getByRole('button', { name: '队列', exact: true }).click();
-  assert.equal(await queue.getByRole('button').count(), 801);
+  assert.equal(await queue.locator('button').filter({ has: page.locator('[data-source-state]') }).count(), 801);
   assert.ok(!(await page.locator('body').textContent()).includes('需要适配后再测'));
   grant = true; offline = false;
   await page.getByRole('button', { name: '更新来源', exact: true }).click();
@@ -198,7 +214,8 @@ test('packed classification results: overview, evidence, explicit local save and
     const result = await catalog(...args);
     return { ...result, issues: [
       { ...result.issues[0], labels: featureAdded ? ['feature:F999'] : ['feature'] },
-      { ...result.issues[0], id: 'public-90', number: 90, title: '已绑定 Feature 的问题', labels: ['feature:F128', 'feature:f070'] },
+      { ...result.issues[0], id: 'public-90', number: 90, title: '已绑定 Feature 的问题', state: 'UNKNOWN', labels: ['feature:F128', 'feature:f070'] },
+      { ...result.issues[0], id: 'public-91', number: 91, title: '来源暂不可用的问题', unavailable: true },
     ] };
   };
   bindings[0].classifications.push({ ...bindings[0].classifications[0], id: 'obsolete-candidate',
@@ -215,17 +232,25 @@ test('packed classification results: overview, evidence, explicit local save and
   await overview.waitFor();
   await overview.getByRole('button', { name: '界面交互 · 1', exact: true }).click();
   assert.equal(await overview.locator('article').count(), 1);
+  await overview.locator('article').getByText('Closed · 已关闭', { exact: true }).waitFor();
   await overview.getByRole('button', { name: '随 Feature 处理 · 1', exact: true }).click();
   await overview.getByLabel('Feature 分组', { exact: true }).selectOption('feature:F070');
   assert.equal(await overview.locator('article').count(), 1);
+  await overview.locator('article').getByText('Unknown · 未知', { exact: true }).waitFor();
   assert.ok(!(await overview.textContent()).includes('SHOULD_NOT_APPEAR'));
   await overview.getByRole('button', { name: /#90.*已绑定 Feature/ }).click();
   await page.getByText('已绑定 F070、F128，随 Feature 处理，不参与特征分类。', { exact: true }).waitFor();
   const queue = page.getByRole('complementary', { name: '聚合问题队列' });
+  const states = page.getByRole('group', { name: '来源状态筛选', exact: true });
+  await states.getByRole('button', { name: '其他状态 · 2', exact: true }).click();
+  assert.equal(await queue.getByText('Unknown · 未知', { exact: true }).count(), 1);
+  assert.equal(await queue.locator('[data-source-state="UNAVAILABLE"]').textContent(), '来源暂不可用');
+  assert.equal(await queue.getByText('Closed · 已关闭', { exact: true }).count(), 0);
+  await states.getByRole('button', { name: '全部 · 5', exact: true }).click();
   await queue.getByLabel('问题类别', { exact: true }).selectOption('area:界面交互');
-  assert.equal(await queue.getByRole('button').count(), 1);
+  assert.equal(await queue.locator('button').filter({ has: page.locator('[data-source-state]') }).count(), 1);
   await queue.getByLabel('问题类别', { exact: true }).selectOption('feature');
-  assert.equal(await queue.getByRole('button').count(), 1);
+  assert.equal(await queue.locator('button').filter({ has: page.locator('[data-source-state]') }).count(), 1);
   await queue.getByLabel('问题类别', { exact: true }).selectOption('all');
   await page.getByRole('button', { name: '分类结果 · 1', exact: true }).click();
   await overview.getByRole('button', { name: '界面交互 · 1', exact: true }).click();

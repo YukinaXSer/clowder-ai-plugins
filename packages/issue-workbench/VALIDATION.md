@@ -1,5 +1,34 @@
 # Validation record
 
+## Visible Open / Closed distinction — 2026-10-20
+
+Source: `thread_mucwsgsjtlbabfcq#0001792479863843-000114-15c85d76`.
+Source state previously appeared as muted text. A shared icon/text badge now shows
+green **Open · 开放** and purple **Closed · 已关闭** in multi-source queues,
+classification cards and reading headers, plus the original single-source
+list/detail. Unknown and unavailable sources use neutral labels. Light/dark
+styles retain the text/icon distinction instead of relying on color alone.
+
+Queue **全部 / Open / Closed** buttons show counts within the category/source/search
+scope; **其他状态** appears for unknown/unavailable records. State switches select
+a matching issue while retaining per-issue drafts. **本仓** verification stays
+separate; source closure does not mark a local fix verified.
+
+The packed browser journey first failed waiting for the missing Closed badge.
+It then passed with distinct computed colors, Open/Closed filtering and counts,
+matching detail state, draft retention, classification badges and neutral
+unknown/unavailable handling. Existing fuzzy-linking, save/reload, grant withdrawal
+and mobile journeys remain covered. Build/typecheck/export checks and the 5 sync,
+19 source/port, 15 UI and corpus tests passed; the legacy refresh test now checks
+the new Closed label while preserving its unsaved-input/local-acceptance assertions.
+
+Core cut: `97d096227dc5fa4133dd34ab65810315384bd680`.
+Package export explicitly includes the shared badge/filter component and stylesheet.
+The classification dataset, service/store contract and remote issue state are not
+changed by this UI increment. Final packed preview screenshots and local-record
+preservation evidence are recorded under `artifacts/source-state-2026-10-20/`.
+PR #80 remains open for independent review; this is author validation only.
+
 ## First full classification and category browsing — 2026-10-20
 
 Accepted source: `thread_mucwsgsjtlbabfcq#0001792467519190-000035-6016964e`;

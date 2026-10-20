@@ -5,6 +5,7 @@ import { issueReviewContent } from '../model/issue-source.js';
 import { useEffect, useState } from 'react';
 import { IssueDiscussion } from './IssueDiscussion';
 import { IssueStageFlow } from './IssueStageFlow';
+import { IssueSourceState } from './IssueSourceState';
 import { SourceEvidence } from './SourceEvidence';
 import { loadDiscussionPages } from './source-client';
 import styles from './workbench.module.css';
@@ -136,7 +137,7 @@ export function IssueDetail({
         ← 返回问题列表
       </button>
       <div className={styles.eyebrow}>
-        ISSUE #{fact.number} <span className={styles.pill}>GitHub · {fact.state === 'CLOSED' ? '已关闭' : '开放'}</span>
+        GitHub · ISSUE #{fact.number} <IssueSourceState fact={fact} />
       </div>
       <h2 className={styles.issueTitle}>{fact.title}</h2>
       <div className={styles.row}>

@@ -22,6 +22,7 @@ import { CoordinationReading } from './CoordinationReading';
 import { CoordinationSourceStatus, CoordinationSources } from './CoordinationSources';
 import styles from './coordination.module.css';
 import { IssueClassificationResults } from './IssueClassifications';
+import { IssueSourceState, IssueSourceStateFilter, matchesSourceState } from './IssueSourceState';
 
 const verified = { pending: '待验证', failed: '仍可复现', passed: '已记录验证通过' };
 const version = (f: IssueSourceFact) => f.reviewVersion ?? f.contentVersion ?? f.updatedAt;
@@ -38,6 +39,7 @@ export function CoordinationWorkbench({
     [query, setQuery] = useState('');
   const [view, setView] = useState<'queue' | 'reading' | 'notes'>('queue');
   const [category, setCategory] = useState('all');
+  const [sourceState, setSourceState] = useState('all');
   const [localOnly, setLocalOnly] = useState(false),
     [busy, setBusy] = useState(false),
     [error, setError] = useState('');
@@ -112,7 +114,8 @@ export function CoordinationWorkbench({
         .toLowerCase()
         .includes(query.toLowerCase()),
   );
-  const visible = scoped.filter((r) => matchesIssueCategory(r, category));
+  const categorized = scoped.filter((r) => matchesIssueCategory(r, category));
+  const visible = categorized.filter((r) => matchesSourceState(r.fact, sourceState));
   const groups = issueCategoryCounts(scoped);
   const row = rows.find((r) => r.key === selected);
   useEffect(() => {
@@ -220,6 +223,15 @@ export function CoordinationWorkbench({
       <div className={styles.layout}>
         <aside className={styles.queue} aria-label="聚合问题队列">
           <div className={styles.filters}>
+            <IssueSourceStateFilter
+              facts={categorized.map((r) => r.fact)}
+              value={sourceState}
+              change={(value) => {
+                setSourceState(value);
+                const first = categorized.find((r) => matchesSourceState(r.fact, value));
+                if (first) setSelected(first.key);
+              }}
+            />
             <label>
               来源
               <select aria-label="来源" value={filter} onChange={(e) => setFilter(e.target.value)}>
@@ -238,7 +250,9 @@ export function CoordinationWorkbench({
                 value={category}
                 onChange={(e) => {
                   setCategory(e.target.value);
-                  const first = scoped.find((r) => matchesIssueCategory(r, e.target.value));
+                  const first = scoped.find(
+                    (r) => matchesIssueCategory(r, e.target.value) && matchesSourceState(r.fact, sourceState),
+                  );
                   if (first) setSelected(first.key);
                 }}
               >
@@ -274,14 +288,14 @@ export function CoordinationWorkbench({
                   {r.source.preference.value.name} · #{r.fact.number}
                   {r.source.profile.synthetic ? ' · 合成' : ''}
                 </span>
+                <IssueSourceState fact={r.fact} />
                 <span>{r.fact.title}</span>
                 <span className={styles.categoryLabel}>
                   {issueCategory(r).label}
                   {issueCategory(r).key === 'feature' ? ` · ${issueFeatureBindings(r.fact).join('、')}` : ''}
                 </span>
                 <span className={styles.muted}>
-                  {r.fact.unavailable ? '来源暂不可用' : r.fact.state === 'CLOSED' ? '来源已关闭' : '来源开放'} ·{' '}
-                  {verified[r.saved?.value.verification ?? 'pending']}
+                  本仓 · {verified[r.saved?.value.verification ?? 'pending']}
                   {drafts[r.key]?.dirty ? ' · 未保存' : ''}
                 </span>
               </button>
@@ -297,6 +311,7 @@ export function CoordinationWorkbench({
                   <span className={styles.muted}>
                     {row.source.preference.value.name} · #{row.fact.number}
                   </span>
+                  <IssueSourceState fact={row.fact} />
                   {safeIssueUrl(row.fact.url) && (
                     <a href={safeIssueUrl(row.fact.url)} target="_blank" rel="noreferrer">
                       打开原平台 ↗

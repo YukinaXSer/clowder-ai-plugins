@@ -1,7 +1,7 @@
 {
   "version": 1,
   "sourceRepository": "https://github.com/zts212653/clowder-ai",
-  "sourceCommit": "21c6f12e9bcc3d1308f92d0b2584835b1071eb5b",
+  "sourceCommit": "97d096227dc5fa4133dd34ab65810315384bd680",
   "files": [
     {
       "source": "packages/shared/src/issue-coordination.ts",
@@ -22,10 +22,22 @@
       "targetHash": "74e7cb3122bdf9c875e2d0768a6a54be3815a2861c970f73e92112596243f022"
     },
     {
+      "source": "packages/web/src/components/settings/issue-workbench/IssueSourceState.tsx",
+      "target": "src/ui/IssueSourceState.tsx",
+      "sourceHash": "6c7b6b4d499b288594778b8746ff270116007369da1659929a11c4ba96f0f0b8",
+      "targetHash": "9136ee09d87ff57fa02c661503c5edad9cb35a05dcc56102d1771b35e887ef86"
+    },
+    {
+      "source": "packages/web/src/components/settings/issue-workbench/issue-source-state.module.css",
+      "target": "src/ui/issue-source-state.module.css",
+      "sourceHash": "70cc367d416b5fd5568373bf7576612b022e997cbff9b25becfe5f76a389cde6",
+      "targetHash": "70cc367d416b5fd5568373bf7576612b022e997cbff9b25becfe5f76a389cde6"
+    },
+    {
       "source": "packages/web/src/components/settings/issue-workbench/IssueClassifications.tsx",
       "target": "src/ui/IssueClassifications.tsx",
-      "sourceHash": "371ada484e73eb7d65dcba6a161dbf58e642776da387a149f881bcafbb235ead",
-      "targetHash": "2013572e933c629370a7920558792ff86001eb157a2a8871025fb2051423bf16"
+      "sourceHash": "d8a6f2e64f68c10735ea0bda210b322ceb232954a0eb93f90cd33e40be1a63ed",
+      "targetHash": "eed67b5fc3fead6ca16d7b8acb069d16be8e73d9ad1cba1d3240f1f166675bb2"
     },
     {
       "source": "packages/web/src/components/settings/issue-workbench/classifications.module.css",
@@ -36,8 +48,8 @@
     {
       "source": "packages/web/src/components/settings/issue-workbench/CoordinationWorkbench.tsx",
       "target": "src/ui/CoordinationWorkbench.tsx",
-      "sourceHash": "b7450d30b6f3448f0a279e787ad24ea5cc5f72418a6b721d706047a6fdbf7740",
-      "targetHash": "9fc30a8e0e1f40140452b6fa880664ad11d05450c243c4e66dd939b38feef367"
+      "sourceHash": "aec898fb392bc7d80d407329ea94390138c98fbb9217cf63a8967370a126faf1",
+      "targetHash": "39460159c392e097e28d1ea6ed8e78b08e0eb659768e457ceafe3f874ebfba14"
     },
     {
       "source": "packages/web/src/components/settings/issue-workbench/CoordinationSources.tsx",
@@ -114,8 +126,8 @@
     {
       "source": "packages/web/src/components/settings/issue-workbench/IssueDetail.tsx",
       "target": "src/ui/IssueDetail.tsx",
-      "sourceHash": "7bfd45f17df48583fb2eb0bebf84471c845de11e2d481d6929966165dcf2a6b4",
-      "targetHash": "4076353aba22313eccbf528d82676fdeeb9163bb938f95cd3db176f2fd772e6b"
+      "sourceHash": "7864f32c39ef790aa170598b572328015ef2d9e3e00c11a409388134c85e29db",
+      "targetHash": "9748dcab2c8d90ea062ca9a30cb58f5718c836e112d71cc5087fae32bfa342c0"
     },
     {
       "source": "packages/web/src/components/settings/issue-workbench/IssueDiscussion.tsx",
@@ -126,8 +138,8 @@
     {
       "source": "packages/web/src/components/settings/issue-workbench/IssueList.tsx",
       "target": "src/ui/IssueList.tsx",
-      "sourceHash": "09d06905945cb378cfa9670a80092f9859a96db145c06774c843019e3f31b841",
-      "targetHash": "09d06905945cb378cfa9670a80092f9859a96db145c06774c843019e3f31b841"
+      "sourceHash": "32c257029a87cdd27a407213300055d48658b76f5e7ba63decc96fdf395dfa91",
+      "targetHash": "32c257029a87cdd27a407213300055d48658b76f5e7ba63decc96fdf395dfa91"
     },
     {
       "source": "packages/web/src/components/settings/issue-workbench/IssueStageFlow.tsx",
@@ -198,8 +210,8 @@
     {
       "source": "packages/web/src/components/settings/issue-workbench/__tests__/issue-source-refresh.test.tsx",
       "target": "test/ui/issue-source-refresh.test.tsx",
-      "sourceHash": "c7ddba8898d8fbc8220a6fe004e23329d10ee3586fde5c16af06980737f4d018",
-      "targetHash": "e7f3f839277369f5249dcb2a8d25cabdcf948f97ac8e3612d303fdadb9ebe52a"
+      "sourceHash": "9786532fae2c9f727bc6a71dc035a0cdc4acca3f7638418de6732672d812b1d2",
+      "targetHash": "45f57546fdde183addb32f36d1117d9345db4a7fbb89020e8d5598e04f0ddbe1"
     },
     {
       "source": "packages/web/src/components/settings/issue-workbench/__tests__/detail-races.test.tsx",

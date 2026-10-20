@@ -10,6 +10,7 @@ import {
 } from '../model/issue-coordination.js';
 import { useEffect, useId, useRef, useState } from 'react';
 import styles from './classifications.module.css';
+import { IssueSourceState, matchesSourceState } from './IssueSourceState';
 
 const facets = { area: '模块', kind: '类型', symptom: '表现', environment: '环境' } as const;
 const facetKeys = Object.keys(facets) as (keyof typeof facets)[];
@@ -96,7 +97,7 @@ export function IssueClassificationResults({
   const results = rows.filter((row) => row.result);
   const scoped = rows.filter(
     ({ fact, source }) =>
-      (state === 'all' || fact.state === state) &&
+      matchesSourceState(fact, state) &&
       `${fact.title} #${fact.number} ${source.preference.value.name}`
         .toLowerCase()
         .includes(query.toLowerCase().trim()),
@@ -155,8 +156,9 @@ export function IssueClassificationResults({
               }}
             >
               <option value="all">全部状态</option>
-              <option value="OPEN">来源开放</option>
-              <option value="CLOSED">来源已关闭</option>
+              <option value="OPEN">Open · 开放</option>
+              <option value="CLOSED">Closed · 已关闭</option>
+              {rows.some((row) => matchesSourceState(row.fact, 'OTHER')) && <option value="OTHER">其他状态</option>}
             </select>
           </div>
           <nav className={styles.categories} aria-label="分类分组">
@@ -196,8 +198,8 @@ export function IssueClassificationResults({
                 <p className={styles.meta}>
                   {source.preference.value.name}
                   {source.profile.synthetic ? ' · 合成测试' : ''}
-                  {fact.state === 'CLOSED' ? ' · 来源已关闭' : ' · 来源开放'}
                 </p>
+                <IssueSourceState fact={fact} />
                 <h3>
                   <button
                     type="button"
