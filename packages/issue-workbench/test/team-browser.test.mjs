@@ -18,6 +18,7 @@ test('packed workbench: owner click, cat result, feedback, stale source and deni
   const { coordinationPreview, fixtureBindings } = await import(pathToFileURL(join(directory, 'package/dist/coordination-host.mjs')).href);
   const s = setup();
   s.config.analysisThreadId = 'analysis'; s.config.automaticAssignment = false;
+  s.issues[0].author = 'alice';
   const active = await createIssueTeamModule(s.provider).create({ pluginId: 'dev.clowder.issue-workbench', runtime: { entrypoint: 'dist/team-plugin.js' } }).start({
     ...s.context, dataPath: directory,
     messaging: { ...s.context.messaging, send: ({ threadId, ...draft }) => s.context.messaging.send(threadId, draft) },
@@ -34,7 +35,7 @@ test('packed workbench: owner click, cat result, feedback, stale source and deni
   const server = coordinationPreview({ dataRoot: join(directory, 'data'), dist: join(directory, 'package/dist'), bindings: [binding],
     teamAction: async (method, payload, confirmed) => {
       if (!granted) throw Object.assign(new Error('来源未授权'), { status: 403 });
-      if (method === 'republish' && !confirmed) throw Object.assign(new Error('Confirm first'), { status: 400 });
+      if (['republish', 'assign'].includes(method) && !confirmed) throw Object.assign(new Error('Confirm first'), { status: 400 });
       return active.actions['issue.workbench.' + method]({ input: { payload: JSON.stringify(payload) } }, undefined, {
         kind: 'owner-operation', pluginInstanceId: 'isolated-test', userId: 'owner', operationKey: 'teamWorkbench',
         actionId: method, requestId: 'browser-' + ++operations, signal: new AbortController().signal,
@@ -57,6 +58,29 @@ test('packed workbench: owner click, cat result, feedback, stale source and deni
   await active.actions['issue.team.submit']({ id: job.id, analysis: s.analysis }, s.caller());
   await page.getByRole('button', { name: '刷新团队结果', exact: true }).click();
   await page.getByText('9 / 10', { exact: true }).waitFor();
+  const member = page.getByLabel('指派给组员', { exact: true });
+  assert.equal(await member.inputValue(), 'alice', 'member reporter is the first choice');
+  assert.deepEqual(await member.locator('option').evaluateAll(options => options.map(option => option.value).filter(Boolean)), ['alice', 'bob']);
+  await page.getByText('建议合入前邀请 @alice 参与验收', { exact: true }).waitFor();
+  assert.deepEqual(s.writes, [], 'reading classification cannot assign');
+  await page.getByRole('button', { name: '指派任务', exact: true }).click();
+  assert.deepEqual(s.writes, [], 'opening confirmation cannot assign');
+  await mkdir('artifacts/team-group-2026-10-20', { recursive: true });
+  await page.getByRole('button', { name: '确认指派', exact: true }).scrollIntoViewIfNeeded();
+  await page.screenshot({ path: 'artifacts/team-group-2026-10-20/confirm-desktop.png', fullPage: true });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole('button', { name: /^研判/ }).click();
+  await page.getByRole('button', { name: '确认指派', exact: true }).scrollIntoViewIfNeeded();
+  await page.screenshot({ path: 'artifacts/team-group-2026-10-20/confirm-mobile.png', fullPage: true });
+  assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.getByRole('button', { name: '确认指派', exact: true }).click();
+  await page.getByText('分配与公开记录已写入 GitHub', { exact: true }).waitFor();
+  assert.deepEqual(s.writes, ['alice']);
+  assert.equal(s.dispatches[0].acceptanceSuggestedFor, 'alice');
+  await page.reload();
+  await page.getByText('分配与公开记录已写入 GitHub', { exact: true }).waitFor();
+  assert.deepEqual(s.writes, ['alice'], 'reloading the persisted result cannot assign twice');
   await page.getByLabel('反馈理由', { exact: true }).fill('已人工复现，启动受阻');
   await page.getByRole('button', { name: '采纳研判', exact: true }).click();
   await page.getByText('反馈已保存', { exact: true }).waitFor();
@@ -64,7 +88,7 @@ test('packed workbench: owner click, cat result, feedback, stale source and deni
   await page.getByRole('button', { name: '反馈统计', exact: true }).click();
   await page.getByText('已反馈 1', { exact: true }).waitFor();
   await page.keyboard.press('Escape');
-  s.login('alice'); s.issues[0].assignees = ['alice']; s.config.shareProgress = true;
+  s.login('alice'); s.config.shareProgress = true;
   const received = (await active.actions['issue.team.receive']({}, s.caller('receiver', 'inbox'))).data;
   const inbox = received.find(row => row.kind === 'inbox');
   const publications = [];
@@ -104,5 +128,5 @@ test('packed workbench: owner click, cat result, feedback, stale source and deni
   await page.getByText('团队操作未获授权，请在插件设置中检查授权', { exact: true }).waitFor();
   assert.equal(await page.getByText('9 / 10', { exact: true }).count(), 0);
   assert.deepEqual(errors, []);
-  assert.equal(s.writes.length, 0, 'no real or fixture GitHub assignment enabled by opening the workbench');
+  assert.deepEqual(s.writes, ['alice'], 'only the explicit confirmation assigns in the fixture; no real GitHub writes');
 });

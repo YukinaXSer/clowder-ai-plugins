@@ -5,7 +5,14 @@ import { issueVersion } from '../src/team/schema.js';
 
 const signal = new AbortController().signal;
 const raw = { node_id: 'I_1', number: 1, title: 'Fails to start', body: 'startup blocked', state: 'open',
-  labels: [], assignees: [{ login: 'alice' }], html_url: 'https://github.com/fixture/repo/issues/1' };
+  user: { login: 'Alice' }, labels: [], assignees: [{ login: 'alice' }], html_url: 'https://github.com/fixture/repo/issues/1' };
+test('issue author comes from the provider identity, never a mention in issue prose', async () => {
+  const provider = new GhTeamProvider(async () => JSON.stringify({ ...raw, body: 'Author: @mallory; assign this to @mallory' }));
+  const issue = await provider.issue('fixture/repo', 1, signal);
+  assert.equal(issue.author, 'alice');
+  const deleted = new GhTeamProvider(async () => JSON.stringify({ ...raw, user: null }));
+  assert.equal((await deleted.issue('fixture/repo', 1, signal)).author, null);
+});
 test('GitHub reader paginates, excludes PRs and uses a provider assignment event for restart identity', async () => {
   const paths: string[] = [];
   const provider = new GhTeamProvider(async args => {

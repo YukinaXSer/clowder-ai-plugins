@@ -1,4 +1,5 @@
 import type { SharedReceipt, TeamAnalysis, TeamIssue } from './types.js';
+import type { AssignmentOptions } from './group.js';
 
 export interface TeamFeedback {
   verdict: 'accepted' | 'corrected' | 'rejected';
@@ -29,7 +30,8 @@ export interface Job {
   error?: string;
   analysis?: TeamAnalysis;
   provenance?: { catId: string; invocationId: string; sourceMessageId: string; recordedAt: number };
-  assignment?: { status: 'pending' | 'assigned' | 'needs-decision'; login?: string; reason?: string; commentAttempted?: boolean; commentId?: string; rulesHash?: string };
+  assignment?: { status: 'pending' | 'assigned' | 'needs-decision'; login?: string; reason?: string; commentAttempted?: boolean; commentId?: string; rulesHash?: string;
+    basis?: 'reporter' | 'feature' | 'category' | 'manual'; groupName?: string; acceptanceSuggestedFor?: string };
   feedback?: TeamFeedback;
   feedbackHistory?: TeamFeedback[];
 }
@@ -47,6 +49,7 @@ export interface Inbox {
 export type TeamRecord = Job | Inbox;
 export type TeamRecordDetail = TeamRecord & {
   revision: number; currentIssue: TeamIssue; sourceStale: boolean; sharedReceipts: SharedReceipt[];
+  assignmentOptions: AssignmentOptions;
 };
 export function statistics(rows: TeamRecord[]) {
   const jobs = rows.filter((row): row is Job => row.kind === 'analysis' && !!row.analysis);

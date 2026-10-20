@@ -6,6 +6,8 @@ export interface TeamIssue {
   id: string;
   title: string;
   body: string;
+  /** GitHub user.login, never inferred from issue prose. Null means unavailable. */
+  author: string | null;
   state: 'open' | 'closed';
   labels: string[];
   assignees: string[];
@@ -19,6 +21,7 @@ export interface SharedDispatch {
   score: number | null;
   reason: string;
   sourceVersion: string;
+  acceptanceSuggestedFor?: string;
 }
 export interface AssignmentObservation {
   issue: TeamIssue;

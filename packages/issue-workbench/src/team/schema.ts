@@ -26,6 +26,7 @@ export const dispatchSchema = z.object({
   issueId: z.string().min(1), assignee: login,
   score: z.number().int().min(1).max(10).nullable(),
   reason: z.string().max(1000), sourceVersion: idInput.shape.id,
+  acceptanceSuggestedFor: login.optional(),
 }).strict();
 export const receiptSchema = z.object({
   schema: z.literal('issue-workbench.receipt.v1'), id: idInput.shape.id,
@@ -37,7 +38,7 @@ export const receiptSchema = z.object({
   }, 'Use GitHub evidence links')).max(10),
 }).strict();
 export const hash = (value: unknown) => createHash('sha256').update(JSON.stringify(value)).digest('hex');
-export const issueVersion = (issue: TeamIssue) => hash([issue.id, issue.title, issue.body, issue.state, [...issue.labels].sort()]);
+export const issueVersion = (issue: TeamIssue) => hash([issue.id, issue.title, issue.body, issue.state, [...issue.labels].sort(), issue.author ?? null]);
 export const features = (issue: TeamIssue) => [...new Set(issue.labels.flatMap(label => {
   const match = /^feature:(F\d+)$/i.exec(label); return match ? [match[1].toUpperCase()] : [];
 }))].sort();

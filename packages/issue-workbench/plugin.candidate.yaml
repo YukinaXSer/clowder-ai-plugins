@@ -65,21 +65,31 @@ configuration:
     kind: string
     required: false
     description: 工作台发起的研判发送到此对话；猫在对话中发起时仍使用当前对话。
+  - key: teamGroupName
+    label: 工作人员 group 名称
+    kind: string
+    required: false
+    description: 插件内维护的成员组名称；不会自动读取 GitHub Organization Team。
+  - key: teamMembers
+    label: group 成员
+    kind: string
+    required: false
+    description: 成员的 GitHub 用户名，以逗号或空格分隔。只有此名单内的用户可被派工或接收任务；仓库协作者和分工规则不会自动获得成员资格。空值停止派工。
   - key: routingRules
     label: 成员分工
     kind: string
     required: false
-    description: JSON 数组，每项 login、categories、features；Feature 绑定优先。只有唯一匹配才自动派工。
+    description: JSON 数组，每项 login、categories、features。组员自己提的问题优先本人；其他问题按 Feature 绑定、分类分工选择组员。只有唯一匹配才自动派工。
   - key: automaticAssignment
     label: 按分工自动指派
     kind: boolean
     required: false
-    description: 开启后允许将研判结果写入以上仓库：添加 assignee，并公开发布分数和理由。保留已有负责人；不会自动修代码。
+    description: 开启后按当前 group 派工：添加 assignee，并公开发布分数和理由。组员自提的问题优先本人，并建议本人参与合入前验收。保留已有负责人；不会自动修代码或合入。
   - key: receiveAssignments
     label: 启动后接收我的分配
     kind: boolean
     required: false
-    description: 使用本机 GitHub CLI 登录账号，首次启用也补收已有 Open Issues。
+    description: 使用本机 GitHub CLI 登录账号，该账号须在 group 中；任务发送到下面配置的本人猫猫和收件对话。首次启用也补收已有 Open Issues。
   - key: inboxThreadId
     label: 本团队收件线程
     kind: string
@@ -130,6 +140,11 @@ configuration:
         label: 重试此记录
         render: row
         action: { method: issue.workbench.retry }
+      - id: assign
+        label: 确认指派
+        render: row
+        confirm: 将此 Issue 指派给所选 group 成员，并公开发布研判分数、理由及验收建议；不会自动修代码或合入。
+        action: { method: issue.workbench.assign }
       - id: republish
         label: 确认重新发布
         render: row
@@ -145,7 +160,7 @@ contributions:
     name: issue_team_inspect
     description: "Read a current issue from an enabled repository. Use when analyzing an issue in
       conversation. Not for PRs, assignment or cached source truth. Output: current title, body,
-      labels, state and assignees; GitHub READ only."
+      labels, state, provider-verified author and assignees; GitHub READ only."
     inputSchema:
       type: object
       additionalProperties: false
@@ -187,8 +202,9 @@ contributions:
     name: issue_team_submit
     description: "Submit the requested semantic analysis. Use as the assigned analysis cat in the
       original thread. Not for stale sources, invented quotes or editing member rules. Output:
-      persisted analysis; if owner-enabled, automatically adds the configured GitHub assignee and
-      publishes score/reason. Feature ownership is preserved."
+      persisted analysis; if owner-enabled, assigns only current group members, preferring a member
+      reporter before Feature/category rules, suggests reporter acceptance before merge, and
+      publishes score/reason. Existing Feature classifications and different assignees are preserved."
     inputSchema:
       type: object
       additionalProperties: false

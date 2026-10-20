@@ -29,6 +29,23 @@ test('a native read expiring during source retrieval does not disclose the resul
   await assert.rejects(runtime.invoke('inspect', { repo: 'fixture/repo', number: 1 }, caller), /expired/);
 });
 
+test('authority expiry during the final group refresh cannot leak an assignment', async () => {
+  const s = setup(), runtime = s.runtime();
+  const job = await runtime.invoke('analyze', { repo: 'fixture/repo', number: 1, requestId: 'group-refresh' }, s.caller('requester')) as any;
+  let current = true, checkedPermission = false;
+  s.provider.assignable = async () => { checkedPermission = true; return true; };
+  const get = s.context.config.get;
+  s.context.config.get = async key => {
+    const value = await get(key);
+    if (checkedPermission && key === 'teamMembers') current = false;
+    return value;
+  };
+  const caller = { ...s.caller(), assertCurrent: async () => { if (!current) throw new Error('Invocation expired'); } };
+  await assert.rejects(runtime.invoke('submit', { id: job.id, analysis: s.analysis }, caller), /expired/);
+  assert.deepEqual(s.writes, []);
+  assert.deepEqual(s.dispatches, []);
+});
+
 test('record details are reauthorized after reading shared receipts', async () => {
   const s = setup(), runtime = s.runtime();
   const job = await runtime.invoke('analyze', { repo: 'fixture/repo', number: 1, requestId: 'detail' }, s.caller('requester')) as any;

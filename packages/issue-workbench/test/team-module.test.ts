@@ -14,6 +14,7 @@ function moduleHost(s: ReturnType<typeof setup>): ModulePluginHostShape {
 }
 test('SDK module journey: two isolated Host stores, offline assignment, startup inbox and authored report return', async () => {
   const sender = setup(), receiver = setup();
+  sender.issues[0].author = 'alice';
   receiver.config.automaticAssignment = false; receiver.config.shareProgress = true;
   const receipts: SharedReceipt[] = [];
   sender.provider.receipts = async () => receipts;
@@ -26,6 +27,10 @@ test('SDK module journey: two isolated Host stores, offline assignment, startup 
   assert.equal(receiver.sends.size, 0, 'receiver has not started');
   const b = await createIssueTeamModule(receiver.provider).create(manifest).start(moduleHost(receiver));
   assert.equal(receiver.sends.size, 1, 'first startup includes already-assigned issues');
+  const notice = [...receiver.sends.values()][0];
+  assert.equal(notice.threadId, 'inbox');
+  assert.equal(notice.draft.wake.catId, 'receiver', 'the member Host selects its own configured cat');
+  assert.match(notice.draft.payload.elements[0].payload.text, /alice.*验收|验收.*alice/);
   const inbox = (await b.actions['issue.team.receive']!({}, receiver.caller('receiver', 'inbox')) as any).data;
   assert.equal(inbox[0].score, 9);
   await b.actions['issue.team.report']!({ id: inbox[0].id, status: 'accepted', summary: 'Confirmed receipt', evidenceUrls: [] }, receiver.caller('receiver', 'inbox'));

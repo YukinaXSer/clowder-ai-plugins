@@ -6,11 +6,12 @@ export function setup() {
   const config: Record<string, unknown> = {
     repositories: 'fixture/repo', analysisCatId: 'analyst', inboxCatId: 'receiver',
     inboxThreadId: 'inbox', receiveAssignments: true, automaticAssignment: true,
+    teamGroupName: 'Fixture staff', teamMembers: 'alice,bob',
     routingRules: JSON.stringify([{ login: 'alice', categories: ['runtime'], features: ['F123'] }]),
   };
   const issues: TeamIssue[] = [{
     repo: 'fixture/repo', number: 1, id: 'issue-1', title: 'Cannot start',
-    body: 'The café cannot start. No workaround.', state: 'open', labels: [], assignees: [],
+    body: 'The café cannot start. No workaround.', author: 'reporter', state: 'open', labels: [], assignees: [],
     url: 'https://github.com/fixture/repo/issues/1',
   }];
   const sends = new Map<string, any>();

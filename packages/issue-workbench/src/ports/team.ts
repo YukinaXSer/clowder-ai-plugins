@@ -6,7 +6,8 @@ export interface TeamSummary {
   nextOffset: number | null;
   statistics: TeamStatistics;
   settings: { repositories?: string; analysisCatId?: string; analysisThreadId?: string;
-    automaticAssignment?: boolean; receiveAssignments?: boolean; shareProgress?: boolean };
+    automaticAssignment?: boolean; receiveAssignments?: boolean; shareProgress?: boolean;
+    teamGroupName?: string; teamMembers?: string };
   configurationError?: string;
 }
 export interface TeamHost {
@@ -14,6 +15,7 @@ export interface TeamHost {
   get(id: string): Promise<TeamRecordDetail>;
   analyze(input: { repo: string; number: number; requestId: string }): Promise<TeamRecord>;
   retry(id: string): Promise<TeamRecord>;
+  assign(input: { id: string; expectedRevision: number; login: string }): Promise<TeamRecord>;
   republish(id: string, expectedRevision: number): Promise<TeamRecord>;
   feedback(input: { id: string; expectedRevision: number; verdict: 'accepted' | 'corrected' | 'rejected'; reason: string }): Promise<TeamRecord>;
   settingsUrl?: string;
@@ -43,6 +45,7 @@ export function createTeamClient(request: (path: string, options?: RequestInit) 
     get: id => call('get', { id }),
     analyze: input => call('analyze', input),
     retry: id => call('retry', { id }),
+    assign: input => call('assign', input, true),
     republish: (id, expectedRevision) => call('republish', { id, expectedRevision }, true),
     feedback: input => call('feedback', input),
     settingsUrl,

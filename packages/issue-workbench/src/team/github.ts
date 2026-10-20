@@ -9,6 +9,7 @@ const execute = promisify(execFile);
 const issueSchema = z.object({
   node_id: z.string().min(1), number: z.number().int().positive(), title: z.string(),
   body: z.string().nullable(), state: z.enum(['open', 'closed']),
+  user: z.object({ login }).nullable(),
   labels: z.array(z.object({ name: z.string() })),
   assignees: z.array(z.object({ login })), html_url: z.string(), pull_request: z.unknown().optional(),
 });
@@ -19,7 +20,7 @@ const commentSchema = z.object({
 const marker = (id: string) => `<!-- issue-workbench.dispatch.v1:${id} -->`;
 const escapeMention = (text: string) => text.replaceAll('@', '＠');
 export const dispatchBody = (dispatch: SharedDispatch) =>
-  `Issue Workbench · @${dispatch.assignee}\n\n优先级：${dispatch.score ?? '待研判'}${dispatch.score === null ? '' : '/10'}\n${escapeMention(dispatch.reason)}\n\n${marker(dispatch.id)}\n\`\`\`json\n${JSON.stringify(dispatch)}\n\`\`\``;
+  `Issue Workbench · @${dispatch.assignee}\n\n优先级：${dispatch.score ?? '待研判'}${dispatch.score === null ? '' : '/10'}\n${escapeMention(dispatch.reason)}\n${dispatch.acceptanceSuggestedFor ? `\n建议合入前邀请 Issue 提交者 @${dispatch.acceptanceSuggestedFor} 参与验收；此建议不表示已验收，也不替代独立审查。\n` : ''}\n${marker(dispatch.id)}\n\`\`\`json\n${JSON.stringify(dispatch)}\n\`\`\``;
 
 /** All paths are constructed here from validated repository/number/login.
  * No user-controlled URL, host, credential, executable or shell enters gh. */
@@ -59,7 +60,7 @@ export class GhTeamProvider implements TeamProvider {
     const url = `https://github.com/${repo}/issues/${raw.number}`;
     if (raw.html_url.toLowerCase() !== url.toLowerCase()) throw new Error('GitHub issue repository mismatch');
     return { repo, number: raw.number, id: raw.node_id, title: raw.title, body: raw.body ?? '', state: raw.state,
-      labels: raw.labels.map(label => label.name), assignees: raw.assignees.map(assignee => assignee.login), url };
+      author: raw.user?.login ?? null, labels: raw.labels.map(label => label.name), assignees: raw.assignees.map(assignee => assignee.login), url };
   }
   async identity(signal: AbortSignal) {
     return z.object({ login }).parse(await this.api('user', signal)).login;

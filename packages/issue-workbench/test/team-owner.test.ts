@@ -73,6 +73,59 @@ test('owner actions reject caller impersonation, wrong action, expired authority
   await s.active.stop();
 });
 
+test('one owner assignment selects only a current group member and does not enable automatic dispatch', async () => {
+  const s = await fixture();
+  const job = (await s.call('analyze', { repo: 'fixture/repo', number: 1, requestId: 'manual' })).data;
+  await s.active.actions['issue.team.submit']!({ id: job.id, analysis: s.analysis }, s.caller());
+  const current = (await s.call('get', { id: job.id })).data;
+  const input = { id: job.id, expectedRevision: current.revision, login: 'mallory' };
+  await assert.rejects(s.call('assign', input), /group|成员/);
+  await assert.rejects(s.call('assign', { ...input, login: 'alice', expectedRevision: 0 }), /changed|revision/i);
+  await assert.rejects(s.call('assign', { ...input, login: 'alice' }, owner('summary')), /authority|action/i);
+  assert.deepEqual(s.writes, []);
+  await s.call('assign', { ...input, login: 'alice' });
+  assert.deepEqual(s.writes, ['alice']);
+  assert.equal(s.dispatches.length, 1);
+  assert.equal(s.config.automaticAssignment, false);
+  const assigned = (await s.call('get', { id: job.id })).data;
+  assert.equal(assigned.assignment.basis, 'manual');
+  await assert.rejects(s.call('assign', { ...input, login: 'alice' }), /changed|revision/i);
+  assert.ok(manifest.configuration.find((setting: any) => setting.key === 'teamWorkbench')
+    .actions.find((action: any) => action.id === 'assign')?.confirm, 'the public Host operation must enforce confirmation');
+  await s.active.stop();
+});
+
+test('a failed manual assignment is retained without becoming permission for a background retry', async () => {
+  const s = await fixture();
+  const job = (await s.call('analyze', { repo: 'fixture/repo', number: 1, requestId: 'manual-failed' })).data;
+  await s.active.actions['issue.team.submit']!({ id: job.id, analysis: s.analysis }, s.caller());
+  const current = (await s.call('get', { id: job.id })).data;
+  const assign = s.provider.addAssignee;
+  s.provider.addAssignee = async () => { throw new Error('Provider unavailable'); };
+  await s.call('assign', { id: job.id, expectedRevision: current.revision, login: 'alice' });
+  s.provider.addAssignee = assign;
+  s.config.automaticAssignment = true;
+  await s.runtime().recover();
+  assert.deepEqual(s.writes, [], 'a later automatic policy cannot resume a one-time manual intent');
+  const pending = (await s.call('get', { id: job.id })).data;
+  await s.call('assign', { id: job.id, expectedRevision: pending.revision, login: 'alice' });
+  assert.deepEqual(s.writes, ['alice']);
+  await s.active.stop();
+});
+
+test('invalid automatic routing retains the explicit group for owner selection', async () => {
+  const s = await fixture();
+  s.config.routingRules = '{broken';
+  const job = (await s.call('analyze', { repo: 'fixture/repo', number: 1, requestId: 'manual-invalid-rules' })).data;
+  await s.active.actions['issue.team.submit']!({ id: job.id, analysis: s.analysis }, s.caller());
+  const current = (await s.call('get', { id: job.id })).data;
+  assert.deepEqual(current.assignmentOptions.members, ['alice', 'bob']);
+  assert.match(current.assignmentOptions.error, /规则/);
+  await s.call('assign', { id: job.id, expectedRevision: current.revision, login: 'alice' });
+  assert.deepEqual(s.writes, ['alice']);
+  await s.active.stop();
+});
+
 test('an owner request that expires during source lookup cannot persist or send a job', async () => {
   const s = await fixture();
   let current = true;

@@ -24,6 +24,16 @@
 .panel p, .dialog p { margin: 8px 0; }
 .panel label { display: grid; gap: 6px; margin: 8px 0; }
 .panel textarea { min-height: 64px; }
+.panel select {
+  width: 100%;
+  min-width: 0;
+  min-height: 36px;
+  padding: 6px 8px;
+  color: var(--cafe-text);
+  background: var(--cafe-surface);
+  border: 1px solid var(--cafe-border);
+  border-radius: 8px;
+}
 .panel a, .dialog a { color: var(--cafe-accent-hover); }
 .panel button, .dialog button {
   min-height: 32px;

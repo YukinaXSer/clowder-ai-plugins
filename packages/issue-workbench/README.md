@@ -25,13 +25,36 @@ and recover uncertain publications through the Host's owner-operation route.
 The standalone READ preview shows an honest disconnected state until an embedding
 Host provides that authorized route; opening the preview does not install a module.
 
-Assignment is off until the owner enables it and supplies allowed repositories and
-member rules. The GitHub CLI identity belongs to each member's own environment.
-Feature bindings take precedence over semantic categories. Existing different
-assignees, changed source text, ambiguous rules and revoked settings stop automatic
-assignment. Dispatch records publish the score and reason as Issue comments only
-under that explicit policy. Reports require the currently assigned receiver's
-GitHub account and a separate progress-sharing setting.
+Configure a staff group first: **teamGroupName** names it and **teamMembers**
+lists its GitHub logins, separated by commas or whitespace. This is an explicit
+owner-maintained plugin roster, not a GitHub Organization Team sync. Repository
+collaborators and routing-rule entries do not become members implicitly. Until a
+group is configured, analysis remains available but assignment is disabled.
+
+A member who opened an Issue is the first assignment choice. The author comes
+from GitHub's `user.login`, never a mention in the Issue body. Other Issues use
+Feature rules before category rules, restricted to current group members.
+Feature classification remains visible even when its member reporter is preferred.
+Existing different assignees, changed source text and ambiguous rules stop automatic
+assignment. The owner can select a group member in the analysis panel and confirm
+one assignment without enabling automatic assignment. Confirmation binds the
+current record revision and publishes the score/reason; stale clicks cannot replay it.
+Alternatively, **automaticAssignment** explicitly enables the saved routing policy.
+Membership, repository permission and request authority are checked before writes
+and retries. A failed one-time assignment does not authorize a background retry.
+
+The receiving member uses their own GitHub CLI account and configures their own
+**inboxThreadId** / **inboxCatId**. Their plugin must enable **receiveAssignments**
+and include that account in its staff group. The sender does not guess a remote
+cat identity. For member-authored Issues, the workbench, dispatch comment and
+receiving cat's notice suggest inviting the reporter to acceptance before merge.
+This is a recommendation, not a merge gate or an acceptance result. Reports require
+the currently assigned group member and a separate **shareProgress** setting.
+
+Source fingerprints now include the provider-verified author. Older analysis
+records are retained but require a fresh analysis before new assignment; historical
+dispatch markers remain readable. Removing someone from the group stops future
+writes and intake, without deleting history or automatically unassigning GitHub work.
 
 Initial startup includes previously assigned Open Issues. Provider assignment
 event IDs distinguish reassignment from restart. A durable Host message ID means
@@ -215,8 +238,10 @@ Source snapshots/archives persist in the explicitly supplied directory. The prev
 stores work records through a synchronous storage port, with a key scoped by owner
 and repository. The demo uses browser localStorage, **not** final Host persistence.
 It does not automatically read/migrate the old Core origin or remove old data.
-Tasks and label changes are drafts only. No dispatch, GitHub mutation or automatic
-acceptance is implemented. Remote changes do not overwrite local decisions.
+In the standalone READ workbench, tasks and label changes remain local drafts.
+The separately authorized team module above performs explicit assignment and
+comment writes. Neither surface automatically accepts a fix. Remote changes do
+not overwrite local decisions.
 
 ## Development and validation
 

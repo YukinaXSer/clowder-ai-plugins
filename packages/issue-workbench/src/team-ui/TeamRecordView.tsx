@@ -10,8 +10,14 @@ export function TeamRecordView({ row }: { row: TeamRecordDetail }) {
     <dl>
       <div><dt>优先级</dt><dd>{score == null ? '待研判' : `${score} / 10`}</dd></div>
       <div><dt>当前负责人</dt><dd>{row.currentIssue.assignees.join('、') || '未分配'}</dd></div>
+      <div><dt>提交者</dt><dd>{row.currentIssue.author ? `@${row.currentIssue.author}` : '无法确认'}</dd></div>
+      <div><dt>工作人员组</dt><dd>{row.assignmentOptions.groupName || '尚未配置'}</dd></div>
       <div><dt>来源状态</dt><dd>{row.currentIssue.state === 'open' ? 'Open · 开放' : 'Closed · 已关闭'}</dd></div>
     </dl>
+    {row.assignmentOptions.acceptanceSuggestedFor && <div className={styles.notice}>
+      <p>建议合入前邀请 @{row.assignmentOptions.acceptanceSuggestedFor} 参与验收</p>
+      <p className={styles.muted}>这是一项建议，尚不表示已验收；研判反馈和成员接手回执也不等于修复验收。</p>
+    </div>}
     {analysis && <>
       <p>{row.kind === 'analysis' && row.features.length ? `随 Feature 处理 · ${row.features.join('、')}` : analysis.category}</p>
       <p>{analysis.reason}</p>

@@ -1,5 +1,24 @@
 # Validation record
 
+## Group membership and reporter preference — 2026-10-20
+
+Source: `thread_mucwsgsjtlbabfcq#0001792510714026-000073-37b4fb6b`.
+This plugin-only increment adds an explicit staff roster, member-reporter priority,
+one-time owner assignment and reporter acceptance recommendations. Group membership
+is independent of repository access and routing rules, and is refreshed before
+writes, retries and intake. Existing different assignees are preserved.
+
+The 38 team checks and packed team browser journey passed. The latter covers
+selection, confirmation, persisted result/reload, feedback and uncertain-publication
+recovery. Desktop and 390px confirmation screenshots were inspected. The complete
+35-step repository gate and all five packed browser/READ journeys passed; the
+managed command exited 0, and all 109 captured source digests still matched on
+readback. The existing Feishu pack exemption is unchanged. See
+[`docs/evidence/issue-workbench-group.md`](../../docs/evidence/issue-workbench-group.md)
+for observed failures/fixes, exact commands and remaining real-journey gaps.
+No production group, real GitHub assignment/comment, Host change, merge or
+independent approval is implied by these isolated checks.
+
 ## Team workbench and recovery — 2026-10-20
 
 Accepted source: `thread_mucwsgsjtlbabfcq#0001792487469228-000178-8c6b1ebb`.
