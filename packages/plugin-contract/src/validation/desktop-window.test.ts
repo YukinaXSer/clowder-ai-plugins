@@ -63,6 +63,14 @@ test('surface integrity, bridge version and initial bounds are closed', () => {
   visibleObservationBridge.contributions[0]!.bridgeVersion = '1.4.0';
   assert.equal(validateManifest(visibleObservationBridge).valid, true,
     'bridge 1.4 admits the renderer-to-Host visible-text observation');
+  const boundedConversationBridge = manifest();
+  boundedConversationBridge.contributions[0]!.bridgeVersion = '1.5.0';
+  assert.equal(validateManifest(boundedConversationBridge).valid, true,
+    'bridge 1.5 admits bounded conversation paging and body continuation');
+  const splitCallAndAppAssistBridge = manifest();
+  splitCallAndAppAssistBridge.contributions[0]!.bridgeVersion = '1.6.0';
+  assert.equal(validateManifest(splitCallAndAppAssistBridge).valid, true,
+    'bridge 1.6 admits split call geometry and Host-owned application-assistance settlement');
   const badIntegrity = manifest();
   badIntegrity.contributions[0]!.surface.integrity = 'trust-me';
   assert.equal(validateManifest(badIntegrity).valid, false);

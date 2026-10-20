@@ -1,5 +1,23 @@
 # Validation record
 
+## Main compatibility update — 2026-10-20
+
+The PR conflict notification was verified against GitHub and a local merge of
+`29595a7794486ed0e6354a35a706875998e23d8f` into this feature branch. Conflicts were
+limited to Contract CI and the workspace lockfile. Main's shared `gate:ci` entry
+is retained; the workbench's manifest/lint/tests/build/artifact checks now join
+that shared gate, and its packed browser journey remains explicit in the workflow.
+A regression check first failed with the workbench gate absent, then passed after
+integration (12 CI-gate checks). Main's 24 existing lockfile importers, 392 package
+records and 395 resolved snapshots are preserved; only the workbench dependency
+closure is added. Frozen installation is part of the full gate.
+
+This synchronization does not modify the workbench UI, classification corpus or
+service behavior. Validation logs and final-head evidence are retained under
+`artifacts/main-sync-2026-10-20/`. The source export still uses Core cut
+`3432e6d0b00749d762a8e2ec441c4f6a33fa241a`. This is PR maintenance, not a merge
+to main, publication, approval or completion of the overall plugin feature.
+
 ## Visible Open / Closed distinction — 2026-10-20
 
 Source: `thread_mucwsgsjtlbabfcq#0001792479863843-000114-15c85d76`.

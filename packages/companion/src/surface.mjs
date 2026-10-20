@@ -20,12 +20,16 @@ import { COMPACT_BALL_SIZE, compactSizeAction } from './compact-size.mjs';
 import { WorkOverviewView } from './work-overview.mjs';
 import { MeetingStatus, renderMeetingStatus } from './meeting-state.mjs';
 import { VisibleTextPresentation } from './visible-text-receipt.mjs';
+import { ConversationSurface } from './conversation-surface.mjs';
+import { CallControlsPresentation } from './call-controls-presentation.mjs';
+import { CallDuration } from './call-duration.mjs';
+import { AppAssistController } from './app-assist-controller.mjs';
+import { bindAppAssistCountdown } from './app-assist-countdown.mjs';
 const $ = id => document.getElementById(id);
 const label = (id, text) => { $(id).querySelector('.label').textContent = text; };
 const status = text => {
   $('status').textContent = text;
   $('menu-status').textContent = text;
-  $('chat-status').textContent = text;
   $('announcement').textContent = text;
 };
 const transcript = new TranscriptView($('chat-transcript'));
@@ -36,7 +40,8 @@ const callTranscript = new CallTranscriptView($('call-transcript-log'), {
   },
 });
 const bubble = new RecentBubble([$('bubble-first'), $('bubble-second')]);
-const callBubble = new RecentBubble([$('call-bubble-first'), $('call-bubble-second')]);
+const callBubble = new RecentBubble([$('call-bubble-first'), $('call-bubble-second')], { showSpeaker: false });
+const callDuration = new CallDuration($('call-duration'));
 const meetingStatus = new MeetingStatus();
 const foldedChatUnread = new FoldedChatUnread(count => {
   $('call-chat-unread').hidden = count === 0;
@@ -49,13 +54,15 @@ const nativeTravel = new NativeWindowTravel({
   readPosition: () => ({ x: window.screenX, y: window.screenY }),
   changed: value => motion.syncTravel(value),
 });
-let sharing = false, pendingScreen = false, loading = false, transcriptLoading = false, latestHistory, previousPhase = 'idle';
-let didMove = false, threadTitle, settingsView, settingsValues, decisionPanel, workView;
+let sharing = false, pendingScreen = false, transcriptLoading = false, previousPhase = 'idle';
+let appAssistOffer = null;
+let didMove = false, settingsView, settingsValues, decisionPanel, workView, callControlsPresentation;
 let previousControlPanel = 'none';
 // F229 stays quiet: a history ID change has no provenance for proactive text.
-const ambientPanel = active => active ? 'actions' : 'none';
+const ambientPanel = active => active ? 'actions' : appAssistOffer ? 'app-assist' : 'none';
 const setTexts = (ids, text) => { for (const id of ids) $(id).textContent = text; };
 const setHidden = (ids, hidden) => { for (const id of ids) $(id).hidden = hidden; };
+const renderAppAssistCountdown = bindAppAssistCountdown($('app-assist-countdown'));
 if (!window.clowderCompanion) {
   $('actions').hidden = false; $('status').hidden = false;
   status('请从 Clowder 的聊聊入口打开猫猫球');
@@ -63,12 +70,15 @@ if (!window.clowderCompanion) {
 } else {
   nativeTravel.start();
   const client = createCompanionClient(window.clowderCompanion);
+  let conversationSurface;
   const visibleText = new VisibleTextPresentation({
     document,
     report: observation => client.observePresentation(observation),
     transcript, callTranscript, bubble, callBubble,
   });
   const controls = bindPetControls(client, {
+    activate: () => { const handled = callControlsPresentation?.activate() ?? false; if (handled) void controls.show('actions'); return handled; },
+    escape: panel => callControlsPresentation?.escape(panel) ?? false,
     error: (error, context) => status(context?.panel === 'settings' && error?.code === 'invalid_request' ? '这个 Host 版本还不支持猫旁设置。原来的设置入口会继续保留。' : explainError(error)),
     moved: (dx, dy) => {
       if (dx !== 'stop') { didMove = true; nativeTravel.setManual(true); motion.move(dx, dy); return; }
@@ -80,17 +90,24 @@ if (!window.clowderCompanion) {
       setTimeout(() => motion.setDockedEdge(detectDockedEdge(window, $('pet').getBoundingClientRect())), 100);
     },
     changed: panel => {
+      callControlsPresentation?.setPanel(panel);
       visibleText.retry();
+      if (previousControlPanel === 'chat' && panel !== 'chat') conversationSurface.closeHistory();
+      if (panel === 'chat' && conversationSurface.controller.mode === 'idle') conversationSurface.openHistory();
       if (panel === 'chat') foldedChatUnread.open();
       else if (previousControlPanel === 'chat' && conversation?.active) foldedChatUnread.fold();
       previousControlPanel = panel;
-      if (panel === 'chat') void readHistory();
+      if (panel === 'chat') void conversationSurface.readHistory();
       if (panel === 'transcript') void readCallTranscript();
       if (panel === 'decisions') void decisionPanel?.read();
       if (panel === 'settings') void settingsView?.open();
       if (panel === 'menu') void workView?.load();
     },
     action(kind) {
+      if (kind === 'write') {
+        conversationSurface.openWrite(conversation.active);
+      }
+      if (kind === 'history') conversationSurface.openHistory();
       if (kind === 'begin') { transcript.reset(); callTranscript.reset(); bubble.reset(); callBubble.clear(); void conversation.begin(); void controls.show('none'); }
       if (kind === 'listen') { transcript.reset(); callTranscript.reset(); bubble.reset(); callBubble.clear(); void conversation.begin('receive_only'); void controls.show('none'); }
       if (kind === 'stop') void conversation.end();
@@ -116,15 +133,37 @@ if (!window.clowderCompanion) {
       }
     },
   });
+  callControlsPresentation = new CallControlsPresentation({
+    document, root: $('actions'), pet: $('pet'), input: $('lite-call-message'),
+    composers: [{ form: $('call-compose'), input: $('call-message') },
+      { form: $('lite-call-compose'), input: $('lite-call-message') }],
+    send: text => conversation.send(text),
+    accepted: () => { motion.signal('received'); void conversationSurface.readHistory(); },
+    changed: () => controls.remeasure(),
+  });
+  const appAssist = new AppAssistController({
+    client,
+    changed: value => {
+      appAssistOffer = value.offer;
+      $('app-assist-name').textContent = appAssistOffer?.appName ?? '';
+      renderAppAssistCountdown(appAssistOffer);
+      void controls.setAmbient(ambientPanel(previousPhase !== 'idle'));
+    },
+    accepted: () => {
+      status('提示已收起。请先点“语音通话”，连上后再点“共享画面”。');
+      $('menu-status').hidden = false;
+      void controls.show('menu');
+    },
+  });
   const screen = new ScreenShare({
-    screenRequest: () => client.screenPick(),
-    screenStart: (selectionId, name) => client.screenOpen(selectionId, name),
+    screenRequest: () => client.screenPick(), screenStart: (selectionId, name) => client.screenOpen(selectionId, name),
     screenFrame: (selectionId, frame) => client.screenFrame(selectionId, {
       ...frame, frameId: crypto.randomUUID(), sourceLabel: '所选画面', observedAt: Date.now(),
     }), screenStop: () => client.screenClose(),
   }, value => {
     const wasActive = sharing || pendingScreen;
     sharing = value.sharing; pendingScreen = value.pending === true;
+    callControlsPresentation.setMediaLocked(sharing || pendingScreen);
     for (const id of ['share', 'menu-share', 'menu-call-share', 'chat-share', 'settings-share']) label(id, sharing ? '停止共享' : pendingScreen ? '取消选屏' : '共享画面');
     for (const prefix of ['call', 'menu', 'chat', 'transcript', 'settings']) {
       $(`${prefix}-share-context`).hidden = !sharing;
@@ -146,13 +185,14 @@ if (!window.clowderCompanion) {
   }
   const conversation = new CompanionConversation({
     client, createPeer: callback => new VoicePeer(callback, client), stopScreen: () => screen.stop(),
+    delivery: ({ text, receipt }) => conversationSurface.controller.recordDelivery(receipt, text),
     transcript: event => {
       if (event.type === 'turn-done') {
         transcript.finish(event); callTranscript.finish(event); bubble.finish(event.role); callBubble.finish(event.role);
-        void readHistory(); void readCallTranscript();
+        void conversationSurface.readHistory(); void readCallTranscript();
       } else if (event.type === 'typed') {
         callTranscript.appendTyped(event);
-        void readHistory(); void readCallTranscript();
+        void conversationSurface.readHistory(); void readCallTranscript();
       } else {
         const speaker = event.role === 'assistant' ? conversation.identity?.displayName ?? '猫猫' : '语音';
         visibleText.appendLive(event, speaker);
@@ -163,7 +203,7 @@ if (!window.clowderCompanion) {
       const showFailure = value.failed && previousPhase !== 'idle' && value.phase === 'idle';
       const justConnected = previousPhase !== 'talking' && value.phase === 'talking';
       if (previousPhase !== 'idle' && value.phase === 'idle') {
-        transcript.reset(); callTranscript.reset(); bubble.reset(); callBubble.clear(); void readHistory();
+        transcript.reset(); callTranscript.reset(); bubble.reset(); callBubble.clear(); void conversationSurface.readHistory();
         foldedChatUnread.reset();
         if (controls.panel === 'transcript') void controls.show('menu');
       }
@@ -173,6 +213,9 @@ if (!window.clowderCompanion) {
       const canReceiveOnly = value.identity?.audio?.supportedModes?.includes('receive_only') === true;
       const retryReceiveOnly = value.failed && value.retryMode === 'receive_only' && canReceiveOnly;
       visibleText.setCall(value.callId);
+      callDuration.set(value.connectedAt);
+      callControlsPresentation.setActive(active);
+      if (value.identity?.appAssist) appAssist.consume(value.identity.appAssist);
       void controls.setAmbient(ambientPanel(active));
       $('begin').hidden = active; $('begin').disabled = !value.identity;
       $('listen').hidden = active || !canReceiveOnly; $('listen').disabled = !value.identity;
@@ -189,8 +232,9 @@ if (!window.clowderCompanion) {
       $('share').disabled = value.phase !== 'talking';
       $('menu-call-share').disabled = value.phase !== 'talking';
       $('compose').querySelector('button').disabled = !value.identity || value.phase === 'connecting';
+      callControlsPresentation.setComposerState(value.identity, value.phase === 'connecting');
       status(value.message ?? '');
-      $('status').hidden = !value.message || /^(点击|正在听|只听模式|只听已结束|语音通话已结束|已发送)/.test(value.message);
+      $('status').hidden = !value.message || /^(点击|正在听|麦克风已静音|只听模式|只听已结束|语音通话已结束|已发送)/.test(value.message);
       $('menu-status').hidden = !value.message;
       const callState = value.recovering ? '连接不稳定' : value.phase === 'connecting' ? '正在连接'
         : receiveOnly ? '只听中' : active ? '通话中' : '';
@@ -224,8 +268,7 @@ if (!window.clowderCompanion) {
       const companionIdentity = currentCompanionIdentity(identity);
       renderMeetingStatus(document, meetingStatus.update(active ? identity?.meeting : null));
       const nativeSnapshot = normalizeNativeWork(identity?.nativeWork);
-      const workLabel = nativeWorkLabel(nativeSnapshot, identity?.nativeActivity);
-      const workState = workLabel ? `${identity.displayName}${workLabel}` : '';
+      const workLabel = nativeWorkLabel(nativeSnapshot, identity?.nativeActivity), workState = workLabel ? `${identity.displayName}${workLabel}` : '';
       setTexts(['call-work', 'chat-call-work', 'transcript-call-work', 'menu-call-work', 'settings-call-work'], workState);
       setHidden(['call-work', 'chat-call-work', 'transcript-call-work', 'menu-call-work', 'settings-call-work'], !workState);
       motion.setContext({ skin: identity?.skin, phase: value.phase,
@@ -238,9 +281,10 @@ if (!window.clowderCompanion) {
         $('menu-play').hidden = identity.skin !== 'xianxian-codex';
         const companionLabel = companionIdentity
           ? `${companionIdentity.title} · ${companionIdentity.partnerLabel}` : identity.displayName;
-        $('chat-name').textContent = threadTitle ?? companionLabel; $('menu-name').textContent = companionLabel;
-        $('call-message').placeholder = `发消息给${identity.displayName}…`;
-        $('pet').setAttribute('aria-label', `${companionLabel}：点击或右键打开名片，拖动移动`);
+        $('chat-name').textContent = conversationSurface?.threadTitle ?? companionLabel; $('menu-name').textContent = companionLabel;
+        $('message').placeholder = `发消息给${identity.displayName}…`;
+        $('pet').setAttribute('aria-label', active ? `${companionLabel}：指向或点击显示通话控制，右键打开名片，拖动移动`
+          : `${companionLabel}：点击或右键打开名片，拖动移动`);
         $('documents').querySelector('.menu-status').textContent = identity.documentsAllowed ? '开启' : '暂停';
         $('documents').setAttribute('aria-pressed', String(identity.documentsAllowed));
         if (companionIdentity) {
@@ -255,6 +299,16 @@ if (!window.clowderCompanion) {
       }
       if (showFailure) void controls.show('menu');
     },
+  });
+  $('app-assist-dismiss').onclick = () => { void appAssist.settle('dismiss'); };
+  $('app-assist-start').onclick = () => { void appAssist.settle('accept'); };
+  conversationSurface = new ConversationSurface({
+    document, client, controls, bubble, transcript,
+    onAccepted: () => motion.signal('received'),
+    retryLegacy: text => conversation.send(text),
+    status,
+    scheduleInterval: setInterval,
+    cancelInterval: clearInterval,
   });
   settingsView = new SettingsView({
     document,
@@ -289,21 +343,6 @@ if (!window.clowderCompanion) {
     motion,
     proactivePolicy: () => settingsValues?.proactivePolicy,
   });
-  async function readHistory() {
-    if (loading) return;
-    loading = true;
-    try {
-      const history = await client.readConversation();
-      $('history').textContent = history.hasMore ? '在 Cat Café 中查看更早聊天 ↗' : '在 Cat Café 中查看完整聊天 ↗';
-      threadTitle = history.threadTitle;
-      $('chat-name').textContent = threadTitle;
-      bubble.load(history.messages);
-      void controls.setAmbient(ambientPanel(conversation.phase !== 'idle'));
-      const serialized = JSON.stringify(history.messages);
-      if (serialized !== latestHistory) { latestHistory = serialized; transcript.load(history.messages); }
-    } catch { $('chat-status').textContent = '聊天记录暂未更新 · 正在说的话仍会显示'; }
-    finally { loading = false; }
-  }
   async function readCallTranscript() {
     if (transcriptLoading || !conversation.active || !conversation.callId) return;
     transcriptLoading = true;
@@ -319,32 +358,16 @@ if (!window.clowderCompanion) {
     } finally { transcriptLoading = false; }
   }
   $('share-badge').onclick = toggleScreen;
-  $('history').onclick = () => void client.openConversation().then(result => {
-    if (result.delivery === 'unconfirmed') status('打开聊天尚未确认 · 请从 Clowder 查看');
-  }).catch(error => status(explainError(error)));
-  async function submitMessage(event, inputId) {
-    event.preventDefault(); const input = $(inputId); const text = input.value;
-    if (await conversation.send(text)) {
-      motion.signal('received');
-      if (input.value === text) input.value = '';
-      latestHistory = undefined; void readHistory();
-    }
-  }
-  $('compose').onsubmit = event => submitMessage(event, 'message');
-  $('call-compose').onsubmit = event => submitMessage(event, 'call-message');
   $('call-unread').onclick = () => callTranscript.scrollToBottom();
   const unsubscribe = client.subscribe(event => {
     if (event.kind === 'media-stopped') void conversation.hostStopped(event.reason);
     if (event.kind === 'view-dismiss') controls.dismiss();
   });
-  const statusMonitor = setInterval(() => void conversation.refresh(), 1000);
-  const historyMonitor = setInterval(() => void readHistory(), 3000);
-  const transcriptMonitor = setInterval(() => void readCallTranscript(), 1000);
-  const decisionMonitor = setInterval(() => { if (controls.panel !== 'decisions') void decisionPanel.read(); }, 15000);
-  const workMonitor = setInterval(() => { if (controls.panel === 'menu') void workView.load(); }, 15000);
-  void conversation.refresh(); void readHistory(); void decisionPanel.read(); void settingsView.controller.load(); void controls.show('none');
+  const statusMonitor = setInterval(() => void conversation.refresh(), 1000), transcriptMonitor = setInterval(() => void readCallTranscript(), 1000);
+  const decisionMonitor = setInterval(() => { if (controls.panel !== 'decisions') void decisionPanel.read(); }, 15000), workMonitor = setInterval(() => { if (controls.panel === 'menu') void workView.load(); }, 15000);
+  void conversation.refresh(); conversationSurface.start(); void decisionPanel.read(); void settingsView.controller.load(); void controls.show('none');
   window.addEventListener('beforeunload', () => {
-    clearInterval(statusMonitor); clearInterval(historyMonitor); clearInterval(transcriptMonitor); clearInterval(decisionMonitor); clearInterval(workMonitor);
-    unsubscribe(); visibleText.close(); nativeTravel.close(); motion.close(); void conversation.end();
+    clearInterval(statusMonitor); clearInterval(transcriptMonitor); clearInterval(decisionMonitor); clearInterval(workMonitor); conversationSurface.close(); callControlsPresentation.close(); callDuration.close();
+    unsubscribe(); appAssist.close(); visibleText.close(); nativeTravel.close(); motion.close(); void conversation.end();
   });
 }

@@ -2,8 +2,9 @@ import { explainError } from './errors.mjs';
 
 /** Local controls only. Durable messages, identity and preferences belong to the Host. */
 export class CompanionConversation {
-  constructor({ client, createPeer, render, transcript, stopScreen, uuid = () => crypto.randomUUID() }) {
-    Object.assign(this, { client, createPeer, render, transcript, stopScreen, uuid });
+  constructor({ client, createPeer, render, transcript, delivery = () => {}, stopScreen,
+    uuid = () => crypto.randomUUID(), now = Date.now }) {
+    Object.assign(this, { client, createPeer, render, transcript, delivery, stopScreen, uuid, now });
     this.active = false;
     this.generation = 0;
     this.phase = 'idle';
@@ -19,7 +20,7 @@ export class CompanionConversation {
     this.message = message;
     this.render({ phase: this.phase, identity: this.identity, audioMode: this.audioMode, retryMode: this.retryMode,
       muted: this.muted, silent: this.silent, failed: this.failed, recovering: this.recovering,
-      callId: this.callId, message });
+      callId: this.callId, connectedAt: this.connectedAt ?? null, message });
   }
   current(generation) { return this.active && generation === this.generation; }
   listening() {
@@ -68,6 +69,7 @@ export class CompanionConversation {
     this.recovering = false;
     this.phase = 'connecting';
     this.callId = null;
+    this.connectedAt = null;
     this.expectedHostStop = undefined;
     const generation = ++this.generation;
     // Must reach the isolated preload while the click still has user activation.
@@ -81,6 +83,7 @@ export class CompanionConversation {
         if (event.type === 'connected') {
           if (this.callId && this.callId !== event.callId) return;
           this.callId = event.callId;
+          this.connectedAt ??= this.now();
           this.recovering = false;
           clearTimeout(this.deadline); this.phase = 'talking'; this.show(this.listening());
         }
@@ -129,6 +132,7 @@ export class CompanionConversation {
     this.phase = 'idle';
     this.recovering = false;
     this.callId = null;
+    this.connectedAt = null;
     this.show(message);
     await Promise.allSettled([peer?.close(), this.stopScreen()]);
   }
@@ -219,10 +223,15 @@ export class CompanionConversation {
     try {
       const receipt = await this.client.text(input.text, input.id);
       if (receipt?.delivery !== 'accepted') {
+        this.reportDelivery(input, receipt ?? {
+          kind: 'delivery', delivery: 'unconfirmed', clientMessageId: input.id,
+          messageId: null, callId: null,
+        });
         if (generation === this.generation) this.show(explainError({ code: 'unconfirmed' }));
         return false;
       }
       if (this.pendingText === input) this.pendingText = undefined;
+      this.reportDelivery(input, receipt);
       // Voice may have ended; an accepted message still retires this draft.
       // Keep the newer voice status rather than announcing that we are listening.
       if (generation !== this.generation) return true;
@@ -230,9 +239,17 @@ export class CompanionConversation {
       this.show(this.active ? this.listening() : '已发送 · 回答会留在同一段聊天中');
       return true;
     } catch (error) {
+      if (error?.code === 'unconfirmed') this.reportDelivery(input, {
+        kind: 'delivery', delivery: 'unconfirmed', clientMessageId: input.id,
+        messageId: null, callId: null,
+      });
       if (generation === this.generation) this.show(explainError(error));
       return false;
     } finally { this.sending = false; }
+  }
+  reportDelivery(input, receipt) {
+    try { this.delivery({ text: input.text, receipt }); }
+    catch { /* Presentation failures cannot change Host delivery truth. */ }
   }
   muteMic() {
     if (this.audioMode === 'receive_only') return;

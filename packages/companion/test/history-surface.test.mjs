@@ -16,21 +16,42 @@ import { COMPACT_BALL_SIZE, compactSizeAction } from '../src/compact-size.mjs';
 import { WorkOverviewView } from '../src/work-overview.mjs';
 import { MeetingStatus, meetingPresentation, renderMeetingStatus } from '../src/meeting-state.mjs';
 import { VisibleTextPresentation } from '../src/visible-text-receipt.mjs';
+import { ConversationHistory } from '../src/conversation-history.mjs';
+import { ReplyLetterController } from '../src/reply-letter-controller.mjs';
+import { ReplyLetterView } from '../src/reply-letter-view.mjs';
+import { HostConversationDraft } from '../src/conversation-draft.mjs';
+import { ConversationSurface } from '../src/conversation-surface.mjs';
+import { CallControlsPresentation } from '../src/call-controls-presentation.mjs';
+import { CallDuration } from '../src/call-duration.mjs';
+import { AppAssistController } from '../src/app-assist-controller.mjs';
+import { bindAppAssistCountdown } from '../src/app-assist-countdown.mjs';
 
 const source = readFileSync(process.env.COMPANION_SURFACE_TEST_FILE ?? new URL('../src/surface.mjs', import.meta.url), 'utf8');
 const flush = () => new Promise(resolve => setImmediate(resolve));
 const CALL_A = '11111111-1111-4111-8111-111111111111';
 const CALL_B = '22222222-2222-4222-8222-222222222222';
+const historyRow = (id, text = id) => ({
+  id, role: 'user', name: '你', text, inputMessageIds: [], responsePhase: null,
+  body: { revision: `fixture:${id}`, complete: true, continuation: null },
+});
+const historyPage = (messages = [], { status = 'available', hasMoreOlder = false, olderCursor = null } = {}) =>
+  status === 'available'
+    ? { kind: 'conversation', v: 2, status, threadTitle: '猫猫球 · 伴随对话', messages, hasMoreOlder, olderCursor }
+    : { kind: 'conversation', v: 2, status };
 function fixture() {
-  const nodes = new Map(), calls = [], motionCalls = [];
-  const document = { getElementById: id => nodes.get(id) ?? node(id), querySelectorAll: () => [],
+  const nodes = new Map(), calls = [], motionCalls = [], historyReads = [];
+  const document = { activeElement: null, getElementById: id => nodes.get(id) ?? node(id), querySelectorAll: () => [],
     createElement: () => node(), addEventListener() {} };
   function node(id) {
-    const value = { dataset: {}, attributes: {}, textContent: '', hidden: false, children: [], style: {}, value: '', listeners: {},
+    const value = { dataset: {}, attributes: {}, textContent: '', hidden: false, children: [], style: {
+      setProperty(name, propertyValue) { this[name] = propertyValue; },
+    }, value: '', listeners: {},
       ownerDocument: document, scrollTop: 0, scrollHeight: 100, clientHeight: 100,
       setAttribute(name, attributeValue) { this.attributes[name] = String(attributeValue); },
       removeAttribute(name) { delete this.attributes[name]; },
       addEventListener(name, callback) { this.listeners[name] = callback; },
+      removeEventListener(name, callback) { if (this.listeners[name] === callback) delete this.listeners[name]; },
+      contains(target) { return target === this || this.children.includes(target); },
       querySelector(selector) { return selector === '.empty' ? null : document.getElementById(`${id}${selector}`); },
       querySelectorAll() { return []; },
       append(...rows) { this.children.push(...rows); }, replaceChildren(...rows) { this.children = rows; },
@@ -40,6 +61,7 @@ function fixture() {
   let identity = { phase: 'talking', displayName: '宪宪', skin: 'xianxian-codex', behaviorEnabled: true,
     nativeActivity: 'none', liveTransport: { kind: 'gpt_live_v3', verifiedModel: null },
     meeting: { kind: 'idle', sharing: false, paused: false, sourceLabel: null },
+    appAssist: { scopeRef: 'fixture-view-a', revision: 1, status: 'off', offer: null },
     nativeWork: { scopeId: '0123456789abcdef', revision: 0, active: [], recent: [] },
     duty: { catId: 'cat', displayName: '宪宪' }, carrier: { catId: 'cat', displayName: '宪宪' } };
   let onControls, onVoice, receive, shareState, travelObserver, history = async () => ({ threadTitle: '猫猫球 · 伴随对话', messages: [{ id: 'old', role: 'user', text: '之前的对话', name: '你' }] });
@@ -58,16 +80,26 @@ function fixture() {
     ], active: [], recentDeliveries: [] });
   let settings = { kind: 'settings', status: 'available', values: {
     dutyCatProfileId: 'fable-5', skin: 'xianxian-codex', ballSize: 72, behaviorEnabled: true,
+    appAssistEnabled: false,
     proactivePolicy: 'quiet-badge', personaTone: '温暖、简短、不啰嗦', householdReadsAllowed: true,
   }, companions: [{ catProfileId: 'fable-5', displayName: '宪宪', available: true }], selectedCompanionStatus: 'available' };
   let settingsReader = async () => settings;
+  let textSender = async (text, clientMessageId) => ({
+    kind: 'delivery', delivery: 'accepted', clientMessageId,
+    messageId: `message-${clientMessageId}`, callId: CALL_A,
+  });
+  let draftState = {
+    kind: 'conversation-draft', v: 1, status: 'available', scopeRef: 'fixture-scope',
+    revision: 0, text: '', writable: true, submissions: [],
+  };
+  let bodyReader = async () => ({ kind: 'conversation-body', v: 2, status: 'stale' });
   let settingUpdate = async (field, value) => {
     settings = { ...settings, values: { ...settings.values, [field]: value } };
     return { kind: 'settings-update', field, outcome: 'saved', callStatus: 'unchanged',
       applies: field === 'personaTone' ? 'next_call' : 'now' };
   };
   const monitors = [];
-  const controls = { panel: 'none', ambient: 'none', async show(panel) {
+  const controls = { panel: 'none', ambient: 'none', remeasure() {}, async show(panel) {
     const previous = this.panel;
     this.panel = panel === 'none' && this.ambient !== 'none' ? this.ambient : panel;
     if (previous !== this.panel) onControls.changed(this.panel);
@@ -78,7 +110,35 @@ function fixture() {
     stop: async () => calls.push('stop'), subscribe: callback => { receive = callback; return () => {}; },
     text: async (text, clientMessageId) => {
       calls.push(['text', text, clientMessageId]);
-      return { kind: 'delivery', delivery: 'accepted', clientMessageId, messageId: `message-${clientMessageId}`, callId: CALL_A };
+      return textSender(text, clientMessageId);
+    },
+    readConversationDraft: async () => { calls.push('draft-read'); return draftState; },
+    saveConversationDraft: async (expectedRevision, text, scopeRef) => {
+      calls.push(['draft-save', expectedRevision, text, scopeRef]);
+      if (scopeRef !== draftState.scopeRef || expectedRevision !== draftState.revision) {
+        return { kind: 'conversation-draft', v: 1, status: 'conflict', revision: draftState.revision };
+      }
+      draftState = { ...draftState, revision: draftState.revision + 1, text };
+      return draftState;
+    },
+    submitConversationText: async (text, clientMessageId, submissionRevision, scopeRef) => {
+      calls.push(['text', text, clientMessageId, submissionRevision, scopeRef]);
+      let receipt = await textSender(text, clientMessageId);
+      if (!('v' in receipt)) receipt = { ...receipt, v: 2 };
+      if (receipt.delivery !== 'rejected') {
+        const submission = { clientMessageId, text, submissionRevision, receipt };
+        draftState = {
+          ...draftState,
+          text: receipt.delivery === 'accepted' && draftState.revision === submissionRevision ? '' : draftState.text,
+          submissions: [...draftState.submissions.filter(value => value.clientMessageId !== clientMessageId), submission],
+        };
+      }
+      return receipt;
+    },
+    readConversationDelivery: async (clientMessageId, scopeRef) => {
+      calls.push(['delivery-read', clientMessageId, scopeRef]);
+      return draftState.submissions.find(value => value.clientMessageId === clientMessageId)?.receipt
+        ?? { kind: 'delivery', v: 2, delivery: 'unconfirmed', clientMessageId, messageId: null, callId: null };
     },
     inspectF221: async proposalId => { calls.push(`inspect:${proposalId}`); return { kind: 'decision-trial', status: 'trial_confirmed' }; },
     openDecision: async (variantRef, target) => {
@@ -87,12 +147,32 @@ function fixture() {
     readWork: () => { calls.push('work-read'); return work(); },
     openWork: async entryRef => { calls.push(`work-open:${entryRef}`); return { kind: 'navigation', delivery: 'applied' }; },
     readDecisions: (offset, limit) => decisions(offset, limit),
-    readConversation: () => { calls.push('read'); return history(); },
+    readConversationPage: async (options = {}) => {
+      historyReads.push({ ...options });
+      calls.push('read');
+      const value = await history(options);
+      if (value.v === 2) return value;
+      return {
+        kind: 'conversation', v: 2, status: 'available',
+        threadTitle: value.threadTitle ?? '猫猫球 · 伴随对话',
+        messages: value.messages.map(message => ({
+          ...message, inputMessageIds: [], responsePhase: null,
+          body: { revision: `fixture:${message.id}`, complete: true, continuation: null },
+        })),
+        hasMoreOlder: value.hasMore === true,
+        olderCursor: value.hasMore === true ? 'fixture:older' : null,
+      };
+    },
+    readConversationBody: async continuation => { calls.push(['body-read', continuation]); return bodyReader(continuation); },
     readTranscript: () => { calls.push('transcript-read'); return callTranscript(); },
     readSettings: async () => { calls.push('settings-read'); return settingsReader(); },
     updateSetting: async (field, value) => {
       calls.push(['settings-update', field, value]);
       return settingUpdate(field, value);
+    },
+    settleAppAssist: async (scopeRef, offerRef, action) => {
+      calls.push(['app-assist-settle', scopeRef, offerRef, action]);
+      return { kind: 'app-assist-settlement', scopeRef, revision: 2, offerRef, action, outcome: 'settled' };
     },
     resetPosition: async () => { calls.push('position-reset'); return { kind: 'ok' }; },
     observePresentation: async observation => { calls.push(['presentation-observe', observation]); return { kind: 'ok' }; },
@@ -112,6 +192,7 @@ function fixture() {
   class LivingBody {}
   node('message');
   node('call-message');
+  node('lite-call-message');
   node('transcript');
   node('decisions');
   runInNewContext(source.replace(/^import .*;\n/gm, ''), { document, window: { clowderCompanion: {}, addEventListener() {} },
@@ -119,14 +200,18 @@ function fixture() {
     CompanionConversation, TranscriptView, CallTranscriptView, SettingsView, RecentBubble, PetMotion, LivingBody, NativeWindowTravel, VoicePeer, ScreenShare,
     DecisionPanel, decisionBadge, decisionPresentation, decisionRows, normalizeNativeWork, nativeWorkLabel, currentCompanionIdentity,
     FoldedChatUnread, COMPACT_BALL_SIZE, compactSizeAction, WorkOverviewView, MeetingStatus, meetingPresentation, renderMeetingStatus,
-    VisibleTextPresentation,
+    VisibleTextPresentation, CallControlsPresentation, CallDuration, AppAssistController, bindAppAssistCountdown,
+    ConversationHistory, ReplyLetterController, ReplyLetterView, HostConversationDraft, ConversationSurface,
     explainError: () => '未更新',
-    setInterval: callback => { monitors.push(callback); }, clearInterval() {}, crypto: { randomUUID: () => 'fixture' } });
-  return { calls, motionCalls, nodes, controls, action: kind => onControls.action(kind), start: () => onControls.action('begin'), voice: event => onVoice(event),
+    setInterval: callback => { monitors.push(callback); }, clearInterval() {}, queueMicrotask,
+    setTimeout, clearTimeout, crypto: { randomUUID: () => 'fixture' } });
+  return { calls, historyReads, motionCalls, nodes, controls, action: kind => onControls.action(kind), start: () => onControls.action('begin'), voice: event => onVoice(event),
     tick: () => monitors.forEach(callback => callback()), receive: event => receive(event), share: value => shareState(value),
     travel: value => travelObserver.changed(value),
     history: callback => { history = callback; }, transcript: callback => { callTranscript = callback; }, decisions: callback => { decisions = callback; },
     work: callback => { work = callback; },
+    text: callback => { textSender = callback; }, body: callback => { bodyReader = callback; },
+    draft: value => { draftState = value; },
     settingsRead: callback => { settingsReader = callback; }, settingsUpdate: callback => { settingUpdate = callback; },
     identity: value => { identity = value; } };
 }
@@ -149,6 +234,113 @@ test('opening history during voice and refreshing it preserves speech without cl
   assert.ok(!f.calls.includes('stop')); assert.ok(!f.calls.includes('close'));
 });
 
+test('three-second history polling preserves an unsettled app-assist offer from state refresh', async () => {
+  const f = fixture(); await flush();
+  f.identity({
+    phase: 'idle', displayName: '宪宪', skin: 'xianxian-codex', behaviorEnabled: true,
+    nativeActivity: 'none', liveTransport: { kind: 'gpt_live_v3', verifiedModel: null },
+    meeting: { kind: 'idle', sharing: false, paused: false, sourceLabel: null },
+    appAssist: { scopeRef: 'fixture-view-a', revision: 2, status: 'ready',
+      offer: { offerRef: 'offer-a', appName: 'Fixture Writer' } },
+    nativeWork: { scopeId: '0123456789abcdef', revision: 0, active: [], recent: [] },
+    duty: { catId: 'cat', displayName: '宪宪' }, carrier: { catId: 'cat', displayName: '宪宪' },
+  });
+
+  f.tick(); await flush(); await flush();
+
+  assert.equal(f.controls.ambient, 'app-assist');
+  assert.equal(f.controls.panel, 'app-assist');
+  assert.equal(f.nodes.get('app-assist-name').textContent, 'Fixture Writer');
+  assert.equal(f.calls.some(call => Array.isArray(call) && call[0] === 'app-assist-settle'), false);
+});
+
+test('a scroll for older history waits for an active latest read and uses its current cursor once', async () => {
+  const f = fixture(); await flush();
+  f.history(async () => historyPage([historyRow('m2')], {
+    hasMoreOlder: true, olderCursor: 'history.before-old',
+  }));
+  f.tick(); await flush();
+  f.action('history'); await f.controls.show('chat'); await flush();
+
+  let resolveLatest;
+  const latest = new Promise(resolve => { resolveLatest = resolve; });
+  f.history(options => options.before === undefined
+    ? latest
+    : Promise.resolve(historyPage([historyRow('m1')])));
+  const readStart = f.historyReads.length;
+  f.tick(); await Promise.resolve();
+
+  const transcript = f.nodes.get('chat-transcript');
+  transcript.scrollHeight = 400;
+  transcript.clientHeight = 100;
+  transcript.scrollTop = 0;
+  transcript.listeners.scroll();
+  transcript.listeners.scroll();
+  transcript.listeners.scroll();
+  assert.deepEqual(f.historyReads.slice(readStart), [{}], 'older reads stay serialized behind the latest page');
+
+  resolveLatest(historyPage([historyRow('m2'), historyRow('m3')], {
+    hasMoreOlder: true, olderCursor: 'history.before-current',
+  }));
+  await flush(); await flush();
+
+  assert.deepEqual(f.historyReads.slice(readStart), [{}, { before: 'history.before-current' }],
+    'repeated scroll events preserve one intent and re-read the cursor after latest settles');
+  assert.deepEqual(transcript.children.map(row => row.dataset.messageId), ['m1', 'm2', 'm3']);
+});
+
+test('an upward wheel at the exact top reads one older page when the transcript cannot scroll further', async () => {
+  const f = fixture(); await flush();
+  f.history(options => options.before === undefined
+    ? Promise.resolve(historyPage([historyRow('m2')], {
+      hasMoreOlder: true, olderCursor: 'history.before-m2',
+    }))
+    : Promise.resolve(historyPage([historyRow('m1')])));
+  f.action('history'); await f.controls.show('chat'); await flush();
+
+  const transcript = f.nodes.get('chat-transcript');
+  transcript.scrollHeight = transcript.clientHeight;
+  transcript.scrollTop = 0;
+  const readStart = f.historyReads.length;
+  transcript.listeners.wheel({ deltaY: -200_000 });
+  await flush();
+
+  assert.deepEqual(f.historyReads.slice(readStart), [{ before: 'history.before-m2' }]);
+  assert.deepEqual(transcript.children.map(row => row.dataset.messageId), ['m1', 'm2']);
+});
+
+test('a queued older read cannot reuse a cursor after latest history becomes stale or loses permission', async t => {
+  for (const scenario of ['stale', 'permission_required']) await t.test(scenario, async () => {
+    const f = fixture(); await flush();
+    f.history(async () => historyPage([historyRow('m2')], {
+      hasMoreOlder: true, olderCursor: 'history.before-old',
+    }));
+    f.tick(); await flush();
+    f.action('history'); await f.controls.show('chat'); await flush();
+
+    let settleLatest;
+    f.history(options => {
+      if (options.before !== undefined) throw new Error(`reused stale cursor: ${options.before}`);
+      return new Promise((resolve, reject) => { settleLatest = scenario === 'stale'
+        ? () => resolve(historyPage([], { status: 'stale' }))
+        : () => reject(Object.assign(new Error('permission revoked'), { code: 'permission_required' })); });
+    });
+    const readStart = f.historyReads.length;
+    f.tick(); await Promise.resolve();
+    const transcript = f.nodes.get('chat-transcript');
+    transcript.scrollHeight = 400;
+    transcript.clientHeight = 100;
+    transcript.scrollTop = 0;
+    transcript.listeners.scroll();
+    settleLatest();
+    await flush(); await flush();
+    transcript.listeners.scroll();
+    await flush();
+
+    assert.equal(f.historyReads.slice(readStart).filter(options => options.before !== undefined).length, 0);
+  });
+});
+
 test('native history renders the saved companion separately from the real message author', async () => {
   const f = fixture();
   f.history(async () => ({ threadTitle: '猫猫球 · 伴随对话', messages: [{
@@ -168,12 +360,119 @@ test('native history renders the saved companion separately from the real messag
   assert.match(row.dataset.companionDeep, /深思端：宪宪/u);
 });
 
+test('idle writing uses the compact composer and an unconfirmed retry keeps the same client identity', async () => {
+  const f = fixture(); await flush();
+  let attempts = 0;
+  f.text(async (_text, clientMessageId) => {
+    if (++attempts === 1) return { kind: 'delivery', v: 2, delivery: 'unconfirmed', clientMessageId,
+      messageId: null, callId: null };
+    return { kind: 'delivery', v: 2, delivery: 'accepted', clientMessageId,
+      messageId: 'message-fixture', callId: null };
+  });
+  f.action('write'); await f.controls.show('chat'); await flush();
+  assert.equal(f.nodes.get('chat').dataset.replyMode, 'compose');
+  assert.equal(f.nodes.get('compose').hidden, false);
+  assert.equal(f.nodes.get('chat-transcript').hidden, true);
+
+  f.nodes.get('message').value = '把刚才那一步再讲慢一点';
+  await f.nodes.get('compose').onsubmit({ preventDefault() {} });
+  assert.equal(f.nodes.get('chat-status').textContent, '发送结果未确认');
+  assert.equal(f.nodes.get('message').value, '把刚才那一步再讲慢一点');
+  f.nodes.get('reply-retry').onclick(); await flush();
+
+  const submissions = f.calls.filter(call => Array.isArray(call) && call[0] === 'text');
+  assert.equal(submissions.length, 2);
+  assert.equal(submissions[0][2], submissions[1][2]);
+  assert.equal(f.nodes.get('reply-sent').hidden, false);
+  assert.equal(f.nodes.get('reply-sent-status').textContent, '已发送');
+});
+
+test('dismissing history does not make the explicit write action reopen history', async () => {
+  const f = fixture(); await flush();
+  f.action('history'); await f.controls.show('chat'); await flush();
+  assert.equal(f.nodes.get('chat').dataset.replyMode, 'history');
+  f.controls.dismiss(); await flush();
+
+  f.action('write'); await f.controls.show('chat'); await flush();
+  assert.equal(f.nodes.get('chat').dataset.replyMode, 'compose');
+  assert.equal(f.nodes.get('compose').hidden, false);
+  assert.equal(f.nodes.get('chat-transcript').hidden, true);
+});
+
+test('explicit writing can leave a terminal sent envelope without losing accepted truth', async () => {
+  const f = fixture(); await flush();
+  f.action('write'); await f.controls.show('chat');
+  f.nodes.get('message').value = '第一封';
+  await f.nodes.get('compose').onsubmit({ preventDefault() {} });
+  await flush();
+  const submission = f.calls.find(call => Array.isArray(call) && call[0] === 'text');
+  const inputMessageId = `message-${submission[2]}`;
+  f.history(async () => ({
+    kind: 'conversation', v: 2, status: 'available', threadTitle: '猫猫球 · 伴随对话',
+    messages: [{ id: 'failed-reply', role: 'assistant', name: '宪宪', text: '',
+      inputMessageIds: [inputMessageId], responsePhase: 'failed',
+      body: { revision: 'failed-reply:1', complete: true, continuation: null } }],
+    hasMoreOlder: false, olderCursor: null,
+  }));
+  f.tick(); await flush();
+  assert.equal(f.nodes.get('reply-sent-status').textContent, '回复失败');
+
+  f.controls.dismiss(); await flush();
+  f.action('write'); await f.controls.show('chat'); await flush();
+  assert.equal(f.nodes.get('chat').dataset.replyMode, 'compose');
+  assert.equal(f.nodes.get('compose').hidden, false);
+});
+
+test('the real surface waits for completed provenance and full body before starting reply presentation', async () => {
+  const f = fixture(); await flush();
+  f.action('write'); await f.controls.show('chat');
+  f.nodes.get('message').value = '请完整解释';
+  await f.nodes.get('compose').onsubmit({ preventDefault() {} });
+  await flush();
+  const submission = f.calls.find(call => Array.isArray(call) && call[0] === 'text');
+  const inputMessageId = `message-${submission[2]}`;
+
+  f.history(async () => ({
+    kind: 'conversation', v: 2, status: 'available', threadTitle: '猫猫球 · 伴随对话',
+    messages: [{ id: 'reply-a', role: 'assistant', name: '宪宪', text: '仍在生成的草稿',
+      inputMessageIds: [inputMessageId], responsePhase: 'processing',
+      body: { revision: 'draft-a', complete: true, continuation: null } }],
+    hasMoreOlder: false, olderCursor: null,
+  }));
+  f.tick(); await flush();
+  assert.equal(f.nodes.get('chat-transcript').children[0]?.dataset.messageId, 'reply-a');
+  assert.equal(f.nodes.get('reply-sent').hidden, false);
+  assert.equal(f.nodes.get('reply-sent-status').textContent, '正在回复');
+  assert.equal(f.nodes.get('reply-card').hidden, true);
+
+  f.body(async continuation => ({
+    kind: 'conversation-body', v: 2, status: 'available', messageId: 'reply-a', text: '第二段。',
+    body: { revision: 'final-a', complete: true, continuation: null },
+  }));
+  f.history(async () => ({
+    kind: 'conversation', v: 2, status: 'available', threadTitle: '猫猫球 · 伴随对话',
+    messages: [{ id: 'reply-a', role: 'assistant', name: '宪宪', text: '完整回答第一段。',
+      inputMessageIds: [inputMessageId], responsePhase: 'completed',
+      body: { revision: 'final-a', complete: false, continuation: 'body.final-a.1' } }],
+    hasMoreOlder: false, olderCursor: null,
+  }));
+  f.tick(); await flush(); await flush();
+
+  assert.ok(f.calls.some(call => Array.isArray(call) && call[0] === 'body-read' && call[1] === 'body.final-a.1'));
+  assert.equal(f.nodes.get('reply-card').hidden, false);
+  assert.equal(f.nodes.get('reply-body').textContent, '完整回答第一段。第二段。');
+  assert.equal(f.nodes.get('reply-body-status').textContent, '');
+  assert.equal(f.nodes.get('reply-retain').hidden, false);
+  f.nodes.get('reply-retain').onclick();
+  assert.equal(f.nodes.get('reply-close').hidden, false);
+});
+
 test('voice keeps a persistent call bar and only call-scoped messages while history stays closed', async () => {
   const f = fixture(); await flush(); f.start(); await flush(); f.tick(); await flush();
   assert.equal(f.controls.panel, 'actions');
-  assert.equal(f.nodes.get('call-bubble-first').textContent, '语音：It is like an assistant.');
+  assert.equal(f.nodes.get('call-bubble-first').textContent, 'It is like an assistant.');
   f.voice({ type: 'transcript', callId: CALL_A, role: 'assistant', text: '正在查', itemId: 'output-live' });
-  assert.equal(f.nodes.get('call-bubble-second').textContent, '宪宪：正在查');
+  assert.equal(f.nodes.get('call-bubble-second').textContent, '正在查');
   assert.match(f.nodes.get('call-state').textContent, /通话中/u);
   assert.equal(f.nodes.get('call-mic-state').textContent, '麦克风已开启');
   assert.ok(!f.calls.includes('stop'));
@@ -460,12 +759,18 @@ test('cat-side settings read Host truth, save one field, and confirm call-sensit
   assert.equal(f.controls.panel, 'settings');
   assert.equal(f.nodes.get('settings-partner-value').textContent, '宪宪');
   assert.equal(f.nodes.get('settings-behavior').attributes['aria-checked'], 'true');
+  assert.equal(f.nodes.get('settings-app-assist').attributes['aria-checked'], 'false');
   assert.equal(f.nodes.get('settings-tone-count').textContent, '9 / 200');
 
   await f.nodes.get('settings-behavior').onclick(); await flush();
   assert.ok(f.calls.some(call => Array.isArray(call) && call[0] === 'settings-update'
     && call[1] === 'behaviorEnabled' && call[2] === false));
   assert.equal(f.nodes.get('settings-behavior').attributes['aria-checked'], 'false');
+
+  await f.nodes.get('settings-app-assist').onclick(); await flush();
+  assert.ok(f.calls.some(call => Array.isArray(call) && call[0] === 'settings-update'
+    && call[1] === 'appAssistEnabled' && call[2] === true));
+  assert.equal(f.nodes.get('settings-app-assist').attributes['aria-checked'], 'true');
 
   f.start(); await flush();
   await f.controls.show('settings'); await flush();
@@ -612,7 +917,7 @@ test('a failed history refresh preserves existing history and live audio', async
   const f = fixture(); await flush(); f.start(); await flush(); await f.controls.show('chat'); await flush();
   f.history(async () => { throw new Error('unavailable'); }); f.tick(); await flush();
   assert.equal(f.nodes.get('chat-transcript').children[0]?.textContent, '之前的对话');
-  assert.match(f.nodes.get('chat-status').textContent, /暂未更新/);
+  assert.match(f.nodes.get('chat-connection-status').textContent, /暂未更新/);
   assert.ok(!f.calls.includes('stop')); assert.ok(!f.calls.includes('close'));
 });
 test('unexpected media revocation exposes a persistent retry without clearing the draft', async () => {

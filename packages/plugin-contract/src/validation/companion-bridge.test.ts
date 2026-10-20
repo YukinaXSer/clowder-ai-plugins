@@ -13,9 +13,180 @@ test('cat-first controls stay bounded to this window and its existing conversati
   for (const width of [0, -1, 100000, 200.5]) assert.equal(validateCompanionCommand({ kind: 'view.layout', panel: 'menu', width, height: 250 }), false);
   assert.equal(validateCompanionCommand({ kind: 'view.drag', phase: 'unlimited' }), false);
   assert.equal(validateCompanionCommand({ kind: 'view.layout', panel: 'bubble', width: 240, height: 80 }), true);
+  const splitCall = {
+    kind: 'view.layout', panel: 'actions', width: 412, height: 116,
+    call: { presentation: 'controls', bubble: { width: 320, height: 62 } },
+  };
+  assert.equal(validateCompanionCommand(splitCall), true,
+    'active calls may request one separately placed passive speech bubble');
+  assert.equal(validateCompanionReply({
+    kind: 'layout', pet: { x: 420, y: 90 },
+    panel: { x: 0, y: 104, width: 412, height: 116 },
+    bubble: { x: 300, y: 0, width: 320, height: 62 },
+    width: 628, height: 236,
+  }), true);
+  for (const invalid of [
+    { ...splitCall, panel: 'menu' },
+    { ...splitCall, call: { ...splitCall.call, presentation: 'expanded' } },
+    { ...splitCall, call: { ...splitCall.call, bubble: { width: 421, height: 62 } } },
+  ]) assert.equal(validateCompanionCommand(invalid), false);
   assert.equal(validateCompanionReply({ kind: 'conversation', threadTitle: '猫猫球 · 伴随对话', messages: [{ id: 'real-message', role: 'user', text: '你好', name: '你' }], hasMore: false }), true);
   assert.equal(validateCompanionReply({ kind: 'conversation', messages: [], hasMore: false }), false);
   assert.equal(validateCompanionEvent({ kind: 'view-dismiss' }), true);
+});
+
+test('conversation v2 separates history progress, response phase and body progress', () => {
+  const body = { revision: 'sha256:body-a', complete: false, continuation: 'body.next_A-1' };
+  const row = {
+    id: 'assistant-a', role: 'assistant', name: '宪宪', text: '第一段',
+    inputMessageIds: ['input-a'], responsePhase: 'completed', body,
+  };
+  const page = {
+    kind: 'conversation', v: 2, status: 'available', threadTitle: '猫猫球 · 伴随对话',
+    messages: [row], hasMoreOlder: true, olderCursor: 'history.before_A-1',
+  };
+
+  assert.equal(validateCompanionCommand({ kind: 'conversation.read', v: 2 }), true);
+  assert.equal(validateCompanionCommand({ kind: 'conversation.read', v: 2, before: 'history.before_A-1', limit: 20 }), true);
+  assert.equal(validateCompanionCommand({ kind: 'conversation.body.read', v: 2, continuation: 'body.next_A-1' }), true);
+  for (const limit of [0, 33, 1.5])
+    assert.equal(validateCompanionCommand({ kind: 'conversation.read', v: 2, limit }), false);
+  assert.equal(validateCompanionCommand({ kind: 'conversation.read', v: 2, threadId: 'renderer-choice' }), false);
+  assert.equal(validateCompanionCommand({ kind: 'conversation.body.read', v: 2, continuation: 'body.next_A-1', messageId: 'assistant-a' }), false);
+
+  assert.equal(validateCompanionReply(page), true);
+  assert.equal(validateCompanionReply({ ...page, messages: [{ ...row, responsePhase: 'processing', body: { ...body, complete: true, continuation: null } }] }), true,
+    'a complete body projection must not imply that the source response completed');
+  assert.equal(validateCompanionReply({ ...page, messages: [{ ...row, responsePhase: null, inputMessageIds: [] }] }), true,
+    'legacy or unproven rows remain readable without a fabricated relation');
+  assert.equal(validateCompanionReply({ ...page, hasMoreOlder: false, olderCursor: null }), true);
+  assert.equal(validateCompanionReply({ ...page, hasMoreOlder: false }), false);
+  assert.equal(validateCompanionReply({ ...page, hasMoreOlder: false, olderCursor: 'history.before_A-1' }), false);
+  assert.equal(validateCompanionReply({ ...page, messages: [{ ...row, body: { ...body, complete: false, continuation: null } }] }), false);
+  assert.equal(validateCompanionReply({ ...page, messages: [{ ...row, body: { ...body, complete: true, continuation: 'body.next_A-1' } }] }), false);
+
+  assert.equal(validateCompanionReply({ kind: 'conversation', v: 2, status: 'stale' }), true);
+  assert.equal(validateCompanionReply({ kind: 'conversation', v: 2, status: 'stale', messages: [] }), false);
+  assert.equal(validateCompanionReply({
+    kind: 'conversation-body', v: 2, status: 'available', messageId: 'assistant-a', text: '第二段',
+    body: { revision: 'sha256:body-a', complete: true, continuation: null },
+  }), true);
+  for (const status of ['stale', 'withdrawn'])
+    assert.equal(validateCompanionReply({ kind: 'conversation-body', v: 2, status }), true);
+  assert.equal(validateCompanionReply({ kind: 'conversation-body', v: 2, status: 'withdrawn', text: '' }), false);
+
+  assert.equal(validateCompanionReply({
+    kind: 'conversation', v: 2, threadTitle: 'old branch must stay strict', messages: [], hasMore: false,
+  }), false, 'adding v:2 cannot silently extend the legacy conversation branch');
+  assert.equal(validateCompanionReply({ kind: 'error', code: 'permission_required' }), true);
+});
+
+test('conversation drafts and durable text submissions stay revision-bound', () => {
+  const clientMessageId = '6d01d254-1e3b-4588-a352-756449e95025';
+  const scopeRef = 'companion-scope_A-1';
+  const accepted = {
+    kind: 'delivery', v: 2, delivery: 'accepted', clientMessageId,
+    messageId: 'message-1', callId: null,
+  };
+  const unconfirmed = {
+    kind: 'delivery', v: 2, delivery: 'unconfirmed', clientMessageId,
+    messageId: null, callId: null,
+  };
+
+  assert.equal(validateCompanionCommand({ kind: 'conversation.draft.read', v: 1 }), true);
+  assert.equal(validateCompanionCommand({
+    kind: 'conversation.draft.save', v: 1, scopeRef, expectedRevision: 7, text: '继续写',
+  }), true);
+  assert.equal(validateCompanionCommand({
+    kind: 'conversation.draft.save', v: 1, scopeRef, expectedRevision: 7, text: '',
+  }), true, 'clearing a writable canonical draft remains a valid CAS write');
+  assert.equal(validateCompanionCommand({
+    kind: 'text', v: 2, scopeRef, text: '请继续', clientMessageId, submissionRevision: 7,
+  }), true);
+  assert.equal(validateCompanionCommand({ kind: 'conversation.delivery.read', v: 1, scopeRef, clientMessageId }), true);
+  for (const command of [
+    { kind: 'conversation.draft.read' },
+    { kind: 'conversation.draft.save', v: 1, scopeRef, expectedRevision: -1, text: '' },
+    { kind: 'conversation.draft.save', v: 1, scopeRef, expectedRevision: 7, text: 'x'.repeat(8001) },
+    { kind: 'conversation.draft.save', v: 1, expectedRevision: 7, text: '' },
+    { kind: 'text', v: 2, scopeRef, text: 'x'.repeat(8001), clientMessageId, submissionRevision: 7 },
+    { kind: 'text', v: 2, scopeRef, text: '请继续', clientMessageId, submissionRevision: -1 },
+    { kind: 'text', v: 2, text: '请继续', clientMessageId, submissionRevision: 7 },
+    { kind: 'conversation.delivery.read', v: 1, scopeRef, clientMessageId, text: 'renderer claim' },
+    { kind: 'conversation.delivery.read', v: 1, clientMessageId },
+  ]) assert.equal(validateCompanionCommand(command), false);
+
+  const available = {
+    kind: 'conversation-draft', v: 1, status: 'available', scopeRef, revision: 7,
+    text: '一段可恢复的草稿', writable: true,
+    submissions: [{ clientMessageId, text: '请继续', submissionRevision: 6, receipt: unconfirmed }],
+  };
+  assert.equal(validateCompanionReply(available), true);
+  assert.equal(validateCompanionReply({ ...available, text: 'x'.repeat(100001) }), false);
+  assert.equal(validateCompanionReply({ ...available, text: 'x'.repeat(8001), writable: true }), false);
+  assert.equal(validateCompanionReply({ ...available, text: 'x'.repeat(8001), writable: false }), true);
+  assert.equal(validateCompanionReply({ ...available, submissions: [
+    available.submissions[0], available.submissions[0],
+  ] }), false, 'one intent identity occupies one recovery slot');
+  assert.equal(validateCompanionReply({ ...available, submissions: [{
+    ...available.submissions[0], receipt: { ...unconfirmed, clientMessageId:
+      '863adf11-9fa3-4156-93af-94f7d6022d85' },
+  }] }), false, 'the receipt identity must match its submission');
+  assert.equal(validateCompanionReply({ ...available, submissions: [
+    { ...available.submissions[0], receipt: accepted },
+    { ...available.submissions[0], clientMessageId: '863adf11-9fa3-4156-93af-94f7d6022d85',
+      receipt: { ...accepted, clientMessageId: '863adf11-9fa3-4156-93af-94f7d6022d85' } },
+  ] }), false, 'only the most recent accepted recovery receipt is projected');
+  assert.equal(validateCompanionReply({ ...available, submissions: [
+    { ...available.submissions[0], receipt: {
+      kind: 'delivery', v: 2, delivery: 'rejected', clientMessageId,
+      reason: 'pending_limit', draftRevision: 7,
+    } },
+  ] }), false, 'rejected attempts are not durable draft submissions');
+  assert.equal(validateCompanionReply({ ...available, submissions: Array.from({ length: 33 }, () => available.submissions[0]) }), false);
+  assert.equal(validateCompanionReply({ kind: 'conversation-draft', v: 1, status: 'conflict', revision: 8 }), true);
+  assert.equal(validateCompanionReply({ kind: 'conversation-draft', v: 1, status: 'readonly', revision: 8 }), true);
+  assert.equal(validateCompanionReply({ kind: 'conversation-draft', v: 1, status: 'readonly', revision: 8, text: '' }), false);
+
+  assert.equal(validateCompanionReply(accepted), true);
+  assert.equal(validateCompanionReply(unconfirmed), true);
+  for (const reason of ['draft_changed', 'unsupported_draft', 'pending_limit']) {
+    assert.equal(validateCompanionReply({
+      kind: 'delivery', v: 2, delivery: 'rejected', clientMessageId, reason, draftRevision: 7,
+    }), true);
+  }
+  assert.equal(validateCompanionReply({
+    kind: 'delivery', v: 2, delivery: 'rejected', clientMessageId,
+    reason: 'busy', draftRevision: 7,
+  }), false);
+});
+
+test('history v2 carries only the Host-protected accepted receipt for the same user message', () => {
+  const clientMessageId = '6d01d254-1e3b-4588-a352-756449e95025';
+  const receipt = {
+    kind: 'delivery', v: 2, delivery: 'accepted', clientMessageId,
+    messageId: 'input-a', callId: null,
+  };
+  const userRow = {
+    id: 'input-a', role: 'user', name: '你', text: '请继续',
+    inputMessageIds: [], responsePhase: null,
+    body: { revision: 'sha256:input-a', complete: true, continuation: null },
+    deliveryReceipt: receipt,
+  };
+  const page = {
+    kind: 'conversation', v: 2, status: 'available', threadTitle: '猫猫球 · 伴随对话',
+    messages: [userRow], hasMoreOlder: false, olderCursor: null,
+  };
+  assert.equal(validateCompanionReply(page), true);
+  assert.equal(validateCompanionReply({ ...page, messages: [{
+    ...userRow, deliveryReceipt: { ...receipt, messageId: 'another-message' },
+  }] }), false);
+  assert.equal(validateCompanionReply({ ...page, messages: [{
+    ...userRow, deliveryReceipt: { ...receipt, delivery: 'unconfirmed', messageId: null },
+  }] }), false);
+  assert.equal(validateCompanionReply({ ...page, messages: [{
+    ...userRow, role: 'assistant', inputMessageIds: ['input-a'], responsePhase: 'completed',
+  }] }), false);
 });
 
 test('call transcript is a Host-bound read with stable source identity', () => {
@@ -147,6 +318,7 @@ test('companion settings are Host-bound single-field updates with explicit settl
   assert.equal(validateCompanionCommand({ kind: 'settings.read' }), true);
   assert.equal(validateCompanionCommand({ kind: 'settings.read', ownerId: 'renderer-choice' }), false);
   assert.equal(validateCompanionCommand({ kind: 'view.layout', panel: 'settings', width: 360, height: 478 }), true);
+  assert.equal(validateCompanionCommand({ kind: 'view.layout', panel: 'app-assist', width: 320, height: 92 }), true);
 
   const updates = [
     { kind: 'settings.update', field: 'dutyCatProfileId', value: 'fable-5' },
@@ -156,6 +328,7 @@ test('companion settings are Host-bound single-field updates with explicit settl
     { kind: 'settings.update', field: 'proactivePolicy', value: 'ambient' },
     { kind: 'settings.update', field: 'personaTone', value: '温暖、简短、不啰嗦' },
     { kind: 'settings.update', field: 'householdReadsAllowed', value: false },
+    { kind: 'settings.update', field: 'appAssistEnabled', value: true },
   ];
   for (const update of updates) {
     assert.equal(validateCompanionCommand(update), true, update.field);
@@ -179,6 +352,7 @@ test('companion settings are Host-bound single-field updates with explicit settl
       dutyCatProfileId: 'fable-5', skin: 'xianxian-codex', ballSize: 72,
       behaviorEnabled: true, proactivePolicy: 'quiet-badge',
       personaTone: '温暖、简短、不啰嗦', householdReadsAllowed: true,
+      appAssistEnabled: false,
     },
     companions: [
       { catProfileId: 'fable-5', displayName: '宪宪', available: true },
@@ -210,6 +384,32 @@ test('companion settings are Host-bound single-field updates with explicit settl
   assert.equal(validateCompanionReply({
     kind: 'settings-update', field: 'householdReadsAllowed', outcome: 'unconfirmed', callStatus: 'stopped', reconcile: 'settings.read',
   }), true);
+  assert.equal(validateCompanionReply({
+    kind: 'settings-update', field: 'appAssistEnabled', outcome: 'unconfirmed', callStatus: 'unchanged', reconcile: 'settings.read',
+  }), true);
+  assert.equal(validateCompanionReply({
+    kind: 'settings-update', field: 'appAssistEnabled', outcome: 'saved', callStatus: 'stopped', applies: 'now',
+  }), false, 'application assistance cannot claim authority over an existing call');
+  for (const action of ['dismiss', 'timeout', 'accept']) {
+    assert.equal(validateCompanionCommand({
+      kind: 'app-assist.settle', scopeRef: 'fixture-view-a', offerRef: 'fixture-only-1', action,
+    }), true, action);
+    assert.equal(validateCompanionReply({
+      kind: 'app-assist-settlement', scopeRef: 'fixture-view-a', revision: 5,
+      offerRef: 'fixture-only-1', action, outcome: 'settled',
+    }), true, action);
+  }
+  assert.equal(validateCompanionReply({
+    kind: 'app-assist-settlement', scopeRef: 'fixture-view-a', revision: 5,
+    offerRef: 'fixture-only-1', action: 'accept', outcome: 'stale_offer',
+  }), true);
+  for (const invalid of [
+    { kind: 'app-assist.settle', scopeRef: 'foreign scope', offerRef: 'fixture-only-1', action: 'dismiss' },
+    { kind: 'app-assist.settle', scopeRef: 'fixture-view-a', offerRef: 'fixture-only-1', action: 'open' },
+    { kind: 'app-assist.settle', scopeRef: 'fixture-view-a', offerRef: 'fixture-only-1', action: 'accept', activated: true },
+    { kind: 'app-assist-settlement', scopeRef: 'fixture-view-a', revision: -1,
+      offerRef: 'fixture-only-1', action: 'accept', outcome: 'settled' },
+  ]) assert.equal('outcome' in invalid ? validateCompanionReply(invalid) : validateCompanionCommand(invalid), false);
   assert.equal(validateCompanionReply({
     kind: 'settings-update', field: 'personaTone', outcome: 'saved', callStatus: 'unchanged', applies: 'now',
   }), false, 'tone starts with the next call');
@@ -308,11 +508,42 @@ test('surface state preserves real actors but never leaks internal handles or ra
     carrier: { catId: 'voice', displayName: 'Voice' }, documentsAllowed: true, behaviorEnabled: true,
     toolsReady: false, nativeActivity: 'none',
     liveTransport: { kind: 'gpt_live_v3', verifiedModel: null },
-    meeting: { kind: 'idle', sharing: false, paused: false, sourceLabel: null }, nativeWork };
+    meeting: { kind: 'idle', sharing: false, paused: false, sourceLabel: null },
+    appAssist: { scopeRef: 'fixture-view-a', revision: 1, status: 'off', offer: null }, nativeWork };
   assert.equal(validateCompanionReply(state), true);
   const { meeting: _meeting, ...withoutMeeting } = state;
   assert.equal(validateCompanionReply(withoutMeeting), false,
     'an exact-version state cannot silently erase meeting capture truth');
+  const { appAssist: _appAssist, ...withoutAppAssist } = state;
+  assert.equal(validateCompanionReply(withoutAppAssist), false,
+    'the new exact version always states whether application assistance is off or unavailable');
+  for (const status of ['off', 'suspended', 'unsupported', 'source_unavailable', 'permission_required',
+    'timezone_required', 'identity_unavailable']) {
+    assert.equal(validateCompanionReply({ ...state, appAssist: {
+      scopeRef: 'fixture-view-a', revision: 2, status, offer: null,
+    } }), true, status);
+    assert.equal(validateCompanionReply({ ...state, appAssist: {
+      scopeRef: 'fixture-view-a', revision: 2, status,
+      offer: { offerRef: 'fixture-only-1', appName: 'Fixture Writer' },
+    } }), false, `${status} cannot carry an offer`);
+  }
+  assert.equal(validateCompanionReply({ ...state, appAssist: {
+    scopeRef: 'fixture-view-a', revision: 3, status: 'ready', offer: null,
+  } }), true);
+  assert.equal(validateCompanionReply({ ...state, appAssist: {
+    scopeRef: 'fixture-view-a', revision: 4, status: 'ready',
+    offer: { offerRef: 'fixture-only-1', appName: 'Fixture Writer' },
+  } }), true);
+  assert.equal(validateCompanionReply({ ...state, appAssist: {
+    scopeRef: 'fixture-view-a', revision: 4, status: 'ready',
+    offer: { offerRef: 'fixture-only-1', appName: 'Fixture Writer', bundleId: 'org.fixture.writer' },
+  } }), false, 'the renderer never receives a bundle id or app frequency key');
+  for (const invalidAppAssist of [
+    { revision: 1, status: 'off', offer: null },
+    { scopeRef: 'fixture-view-a', status: 'off', offer: null },
+    { scopeRef: 'fixture view a', revision: 1, status: 'off', offer: null },
+    { scopeRef: 'fixture-view-a', revision: 1.5, status: 'off', offer: null },
+  ]) assert.equal(validateCompanionReply({ ...state, appAssist: invalidAppAssist }), false);
   for (const meeting of [
     { kind: 'running', sharing: true, paused: false, sourceLabel: 'Zoom' },
     { kind: 'running', sharing: false, paused: false, sourceLabel: 'Google Meet' },

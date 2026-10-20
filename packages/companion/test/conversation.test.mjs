@@ -9,12 +9,13 @@ const state = (phase = 'ready') => ({ kind: 'state', phase, displayName: '宪宪
   behaviorEnabled: true,
   nativeActivity: 'none', liveTransport: { kind: 'gpt_live_v3', verifiedModel: null },
   meeting: { kind: 'idle', sharing: false, paused: false, sourceLabel: null },
+  appAssist: { scopeRef: 'fixture-view-a', revision: 1, status: 'off', offer: null },
   nativeWork: { scopeId: phase === 'idle' ? null : '0123456789abcdef', revision: 0, active: [], recent: [] },
   duty: { catId: 'opus5', displayName: '宪宪' }, carrier: { catId: 'codex-astra', displayName: '砚砚' } });
 const deferred = () => { let resolve; const promise = new Promise(r => { resolve = r; }); return { promise, resolve }; };
 function fixture(overrides = {}) {
-  const { callIds = [CALL_A], ...clientOverrides } = overrides;
-  const events = [], calls = [], rows = [], peerOperations = [];
+  const { callIds = [CALL_A], now = () => 1_791_804_000_000, ...clientOverrides } = overrides;
+  const events = [], calls = [], rows = [], deliveries = [], peerOperations = [];
   let notify, readiness, closed = false, connection = 0;
   const client = {
     prepare() { calls.push('prepare'); return Promise.resolve(state()); },
@@ -41,9 +42,10 @@ function fixture(overrides = {}) {
   const conversation = new CompanionConversation({ client,
     createPeer: callback => { notify = callback; return peer; },
     render: value => events.push(value), transcript: value => rows.push(value),
-    stopScreen: async () => {}, uuid: () => '0a9a8b00-334a-4ee1-9cff-bf77b0f7489',
+    delivery: value => deliveries.push(value),
+    stopScreen: async () => {}, uuid: () => '0a9a8b00-334a-4ee1-9cff-bf77b0f7489', now,
   });
-  return { conversation, calls, events, rows, peer, peerOperations, notify: value => notify(value) };
+  return { conversation, calls, deliveries, events, rows, peer, peerOperations, notify: value => notify(value) };
 }
 test('typing while idle sends to the Host without a microphone or voice preparation', async () => {
   const f = fixture();
@@ -61,8 +63,10 @@ test('one click synchronously submits preparation and voice intent before user a
   await starting;
   assert.deepEqual(f.calls, ['prepare', 'connect']);
   assert.equal(f.events.at(-1).phase, 'talking');
+  assert.equal(f.events.at(-1).connectedAt, 1_791_804_000_000);
   assert.equal(f.events.at(-1).identity.duty.catId, 'opus5');
   await f.conversation.end();
+  assert.equal(f.events.at(-1).connectedAt, null);
 });
 test('receive-only starts playback without ever issuing a microphone command', async () => {
   const audio = { supportedModes: ['duplex', 'receive_only'], activeMode: null };
@@ -160,8 +164,11 @@ test('an explicit unconfirmed delivery receipt keeps the draft and retry identit
   assert.equal(await f.conversation.send('把这句留着'), true);
   assert.deepEqual(ids, [ids[0], ids[0]]);
   assert.equal(f.rows[0].receipt.messageId, 'message-after-retry');
+  assert.deepEqual(f.deliveries.map(value => value.receipt.delivery), ['unconfirmed', 'accepted']);
+  assert.deepEqual(f.deliveries.map(value => value.text), ['把这句留着', '把这句留着']);
   await f.conversation.end();
 });
+
 test('parallel clicks cannot start two calls or submit text twice', async () => {
   const waiting = deferred(); const f = fixture({ text: async (...args) => {
     f.calls.push(args); await waiting.promise;
