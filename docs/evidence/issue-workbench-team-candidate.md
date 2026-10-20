@@ -1,88 +1,65 @@
 # Issue 团队联动候选：2026-10-20
 
-完整用户旅程：**尚未走通**。这是原任务中的候选实现记录，不是 Feature 完成、
-安装成功、模型训练或真实双账号派工的声明。
+完整用户旅程：**尚未走通**。本记录描述 PR #80 中的候选实现和隔离验收，
+不代表用户安装、在线猫已调用、真实双账号派工、模型训练或 Feature 完成。
+PR 保持不合入。授权源：`thread_mucwsgsjtlbabfcq#0001792487469228-000178-8c6b1ebb`。
 
-授权源：`thread_mucwsgsjtlbabfcq#0001792487469228-000178-8c6b1ebb`。
-需求与实施契约见 `docs/feature-discussions/2026-10-20-issue-team-assignment/README.md`
-和 `docs/plans/issue-workbench-team.md`。PR #80 保持不合入。
+## 本轮实物与原约定
 
-## 本轮实物
-
-- 插件原生 `src/team/`：公开 SDK 模块接口、固定 GitHub CLI provider、结构化
-  对话研判、配置驱动的自动分配、按成员启动补收、回执与反馈统计。
-- 研判包含类别、1–10 分或未评分、影响理由、原文证据、运行阻塞和替代路径；
-  Feature 标签优先。不同负责人、旧版本原文、多条冲突规则不自动写入。
-- Host 提供调用猫/线程/消息来源；工具输入不能指定调用者身份。发送目标来自安装配置，
-  不可路由时保留待发送；修改收件目标不会重定向旧消息。
-- 接手/处理中/受阻/待验证是成员署名报告，保存 GitHub 分配事件 ID；
-  不冒充 Host 执行或本仓已验收。读取同时返回当前 GitHub 状态及历史记录。
-- 反馈必须关联研判之后的新 owner 消息。原请求、猫自评、旧 hold 来源不能当作采纳。
-  修改保留历史，重试不重复计数；统计不宣称经过训练或测得模型准确率。
-- 原三栏 UI 与分类数据未改。Core export 已对齐当前构建边界
-  `b6c608a672ae06d477490efe2d77718d60947c72`，只调整协调服务的共享契约导入。
-  当前预览尚未绑定新团队工具。
+- 原生模块使用公开 SDK `0.2.0-beta.21` 的实例存储、调用身份、线程与消息接口。
+  研判绑定原文版本、提交猫和调用来源，保存类别、1–10 分/未评分、理由、证据和替代办法。
+  Feature 路由优先，负责人仅来自已保存规则；冲突、旧原文或已有其他负责人不自动覆盖。
+- 三栏右侧接入「请猫分析」、结果/分数/当前 GitHub 负责人、明确人工反馈。
+  顶部「团队记录」打开个人收件、研判历史和反馈统计；保留原分类、Open/Closed 与本仓记录。
+  按类别/分数/历史派工成员统计，区分研判次数和独立问题，不称为训练或当前工作量。
+- Owner Settings authority 与猫调用身份独立：页面请求不伪造 caller 或聊天消息；
+  使用 `teamWorkbench` 公共 operation，路由与自动写入开关只读已保存的安装配置。
+  权限撤回后清除页面旧数据；未安装/未接入时明确提示。
+- 分析与收件详情均提供查重重试、明确确认再次发布。确认绑定当前 storage revision，
+  旧确认不可重放；再次发布只处理评论，不再次分配成员。
+- 撤销/关闭后向原对话发送一次持久变更提醒，失败后重试；同一分配关闭后重开会再次提醒，
+  重启不重复通知，旧提醒历史保留。已投递、已接手、已验证仍是不同事实。
+- 新业务/页面在插件 `src/team/`、`src/team-ui/`、`src/ports/team.ts`。
+  Core export `031244712b8b62d1dc017ed379efd09b15dd4fc6` 只提供泛化 slots，
+  并让移动端来源设置随工具栏实际高度定位。未改共享契约/生产数据/权限模型。
 
 ## 已观察的验证
 
-`pnpm --filter @clowder-ai/issue-workbench test:team` 的 16 项行为检查包括：
-同一问题的分析/派工/恢复，Feature 优先，原文证据与版本检查，调用猫/线程绑定，
-目标不可用，首次补收及重新分配，配置撤回，回执作者和分配事件核对，公开评论的
-不确定发送结果，人工反馈来源/历史，以及优先级排序。
+作者实际执行了本轮模块和 packed browser 验收；独立 review 尚未取得。
+仓库 `buildGateSteps()` 的完整 35 步全部通过；按现有工具链适配，仅 Feishu 下载步骤
+使用 Node 环境代理。Pack gate 保留仓库已有 Feishu intake 例外，21 个发布包检查通过。
 
-模块旅程用**两个隔离 Host store 和受控 provider**：A 研判 9 分 → 指派给离线 B →
-B 启动后补收 → B 回报接手 → A 读回 → B 重启无重复通知。它证明模块接线和状态行为，
-不替代真实 GitHub 两账号/两团队验收。
+| 旅程与边界 | 证据 | 实际范围 |
+|---|---|---|
+| 页面请求 → 研判结果 → 保存反馈 → 统计 | `test/team-browser.test.mjs` | 实际 tgz 页面、真实候选模块、隔离 provider 与显式测试 authority |
+| 收件回执发布结果未知 → 查重重试 → 确认再发 | 同上 | 首次 create=true，普通重试=false，确认后=true；无真实 GitHub 写入 |
+| 旧原文提示、撤权清屏、手机与暗色布局 | 同上和 `artifacts/team-ui-2026-10-20/` 截图 | 桌面与手机截图已由作者检查 |
+| 源读取/保存/关联/分类与移动端来源管理 | 原有 packed browser 旅程 | 与新增团队入口同一构建，5 条全部通过 |
+| 身份隔离、明确反馈、恢复/幂等与版本检查 | `test/team*.test.ts`，22 项 | 有界行为测试；另有两个隔离 Host store 的离线派工/补收/接手回报 |
+| 真正 Host 准入与 Settings carrier | Core `check-issue-workbench-artifact.mjs` | 临时文件 inventory、实际 ModulePluginRuntime/InstalledPluginOperations |
+| Host Settings 状态/摘要与发布确认拒绝 | 同上 | status/summary 成功，无确认 republish 在 Host 返回400 |
+| GitHub READ、停用拒绝、重启再读 | 同上 | 真实读取 `zts212653/clowder-ai#1628`，远端写入0 |
 
-真实外部读取：通过生产 `GhTeamProvider.issue()` 与固定 `gh api` 读取
-`zts212653/clowder-ai#1628`，返回 Open、Windows 主测试入口依赖 POSIX shell 的问题，
-当时 assignee 数为 0。本轮没有对真实 Issue 写入 assignee、评论或标签。
+本轮确实观察到并修复的失败：缺少 owner action/变更提醒、缺少分析按钮、
+同一分配重开后仍停在 inactive、收件详情没有发布恢复入口、移动端固定高度弹层遮挡关闭。
+不是先写实现再给从未失败的检查计作 RED。
 
-空白 consumer 安装检查曾暴露 SDK 动态 schema loader 未随 bundle 发布。已改为
-直接实现公开模块接口，仅将 SDK 用于类型检查；最终 tgz 可独立导入模块、读取未配置状态、
-拒绝无 Host 身份的动作并正确停止。失败日志保留在 `artifact.red.log`。
+实际 Host 的调用身份来自明确验收 fixture；这些结果证明载体接线，不能证明
+用户在线会话或真实两账号旅程。真实 Host policy 在配套草稿
+[PR #1639](https://github.com/zts212653/clowder-ai/pull/1639)，同样保持未合入。
+门禁日志、最终 tgz 摘要和当前 HEAD 写入 `artifacts/team-ui-2026-10-20/acceptance.json`；
+该文件是本地验收记录，PR 检查状态以 GitHub 当时 HEAD 为准。
 
-原工作台四项 packed browser/READ Host 旅程通过。新模块没有注入浏览器或生产 Host。
-最终仓库门禁 35 步全部通过，使用仓库 `buildGateSteps()` 的同一命令列表；
-只有 Feishu 下载步骤启用 Node 环境代理，其余步骤沿用固定制品工具链。
-日志目录：`packages/issue-workbench/artifacts/team-2026-10-20/`。
-最终门禁与提交坐标记录在该目录的 `acceptance.json`。
+## 尚未完成
 
-## 真实 Host 载体检查
+1. **用户实例安装和工作台入口**：Core main 已支持公开 module，配套策略和真实载体验证已完成。
+   独立 READ 预览尚无已安装 Host 的 owner route，显示未接入；`createTeamClient(hostRequest)`
+   是已验证的绑定入口。不能拿 fixture 页面宣称用户正常入口已能联动。
+2. **在线猫与真实双账号旅程**：成员 GitHub 用户名/分工、接收端配置尚缺；不能代猜账号或启用生产自动写入。
+3. **完整生命周期和迁移**：用户实际授予/撤回、升级/重装、旧记录迁移与正式独立评审仍需验收。
+   `hostInstallable:false`，未加入 catalog、未发布 npm，原记录不迁移或删除。
 
-Core 配套分支 `feat/issue-workbench-host-grants`，提交
-`9819504e04897144b5464d202dd574bb826f6750`，以远端 main 为基线，只包含
-Issue 专属授权策略、2 项授权/安装身份保留回归及制品验收脚本。
-[配套草稿 PR #1639](https://github.com/zts212653/clowder-ai/pull/1639) 保持未合入；
-原 Core 工位已切回 `feat/issue-workbench`，没有新建或更改生产工位。
-授权回归先观察到有效 grants 为空、reconciliation 无变化的失败，再补策略转绿。
-Core API build、对应定向测试通过；原开发入口保留测试也通过。
-
-`packages/api/scripts/check-issue-workbench-artifact.mjs <candidate.tgz>` 使用实际
-`LocalPluginPackageAdmission`、文件 inventory、已验证包 locator 和 `ModulePluginRuntime`：
-候选准备（补 Host manifest）→ 准入 → 从磁盘恢复 inventory → 加载 → 无身份调用拒绝 →
-读取真实 `zts212653/clowder-ai#1628` → 未授权仓库拒绝 → 停用后拒绝 →
-重新启用后再次读取，已通过。日志保留原 tgz 和 prepared tgz 两份摘要。
-
-检查隔离在临时目录，没有连接生产存储或修改生产配置。Host 调用身份来自明确的验收
-fixture，因此这证明真实载体与 provider 接线，**不证明在线猫已调用或用户已安装**。
-
-## 未完成与接入依赖
-
-1. **真实宿主安装与猫调用**：最初读取的本地 Core main `466d4549fe2d75c9cc5c96b9497f47e464d13cf2`
-   已过时。后续拉取核实远端 main `c086765ddb7181722f03f9f53c7a7ee17a29f147`
-   已支持公开 module Host，并消费同版 SDK。Issue 专属 grants 和隔离准入/启停/READ
-   已在上述配套分支实现并验证；用户实例安装与在线猫调用仍未完成。
-   运行健康响应没有 deployment revision，未宣称精确部署 HEAD。
-2. **工作台入口**：新研判/优先级/成员/统计仍需接入现有三栏与 Host 授权动作。
-   当前 UI 不能触发新模块，不能把原界面截图当成本轮联动证据。
-3. **真实双账号验收**：成员 GitHub 用户名/分工与接收端配置尚未提供；没有代猜账号、
-   代开自动写入或更改运行配置。
-4. **完整恢复体验**：不确定的评论 POST 保持待核对，明确确认后的再次发布入口、
-   撤销/关闭给已接手成员的变更提醒、权限修复入口仍需完成。
-5. **完整 Host 生命周期**：授予/撤销、安装/启停、历史工作迁移和最终独立评审仍未验收。
-   `hostInstallable:false` 保持，未进入 catalog 或正式发布。
-
-风险：行为/持久化/权限/外部写入均有增量；本轮外部写入只在隔离测试中执行。
-Architecture cell：插件业务与公开 Host adapter；没有复制 Host Task 权威或修改共享契约。
-新的团队模块属于插件原生源码，Core export 仍钉在原提交。
+五轴风险：行为增量（研判/恢复/反馈）、持久数据（新可追溯记录，无 TTL）、
+安全（独立 owner authority）、契约（消费公开 SDK，无共享修改）、外部写入（需安装配置和确认）。
+Architecture cell：插件业务与公开 Host adapter。Map delta：插件原生团队运行时与界面；
+不复制 Host Task 权威。未完成项继续保留在同一 canonical Task。

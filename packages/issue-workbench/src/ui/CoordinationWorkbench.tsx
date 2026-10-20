@@ -4,6 +4,7 @@ import {
   type CoordinationSnapshot,
   type IssueInvestigation,
   type IssueSourceFact,
+  type IssueSourceProfile,
   issueCategory,
   issueCategoryCounts,
   issueClassificationFor,
@@ -15,7 +16,7 @@ import {
   safeIssueUrl,
   type Versioned,
 } from '../model/issue-coordination.js';
-import { useEffect, useRef, useState } from 'react';
+import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { CoordinationEditor } from './CoordinationEditor';
 import { CoordinationLinks, type RelationCandidate } from './CoordinationLinks';
 import { CoordinationReading } from './CoordinationReading';
@@ -29,9 +30,13 @@ const version = (f: IssueSourceFact) => f.reviewVersion ?? f.contentVersion ?? f
 export function CoordinationWorkbench({
   host,
   showClassifications = false,
+  tools,
+  issueTools,
 }: {
   host: CoordinationHost;
   showClassifications?: boolean;
+  tools?: ReactNode;
+  issueTools?: (profile: IssueSourceProfile, fact: IssueSourceFact) => ReactNode;
 }) {
   const [snapshot, setSnapshot] = useState<CoordinationSnapshot>({ sources: [], relations: [] });
   const [selected, setSelected] = useState(''),
@@ -176,6 +181,7 @@ export function CoordinationWorkbench({
           <span className={styles.muted}>{rows.length} 个问题</span>
         </div>
         <div className={styles.actions}>
+          {tools}
           <IssueClassificationResults
             sources={snapshot.sources}
             initialOpen={showClassifications}
@@ -356,6 +362,7 @@ export function CoordinationWorkbench({
                 />
               </section>
               <section className={styles.inspector} aria-label="本仓研判">
+                {issueTools?.(row.source.profile, row.fact)}
                 {current.dirty && row.saved && row.saved.revision !== current.revision && (
                   <details className={styles.notice} open>
                     <summary>其他页面已保存新版本，请核对差异</summary>

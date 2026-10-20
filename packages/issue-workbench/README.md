@@ -18,8 +18,12 @@ Host storage, current invocation identity, thread visibility and message deliver
 Its nine `issue_team_*` actions support reading an Issue, requesting analysis by an
 explicitly configured cat, submitting evidence-backed classifications/priority,
 configured automatic GitHub assignment, startup inbox recovery, progress reports,
-explicit feedback and statistics. The existing browser preview is unchanged and
-**does not expose or activate these actions**.
+explicit feedback and statistics. The three-column workbench now includes a team
+analysis panel and a **团队记录** drawer for inbox, analysis history and feedback.
+It can request analysis, read scores/evidence/current assignees, save owner feedback
+and recover uncertain publications through the Host's owner-operation route.
+The standalone READ preview shows an honest disconnected state until an embedding
+Host provides that authorized route; opening the preview does not install a module.
 
 Assignment is off until the owner enables it and supplies allowed repositories and
 member rules. The GitHub CLI identity belongs to each member's own environment.
@@ -33,19 +37,44 @@ Initial startup includes previously assigned Open Issues. Provider assignment
 event IDs distinguish reassignment from restart. A durable Host message ID means
 delivered, not accepted or executing. Receiver-authored progress is not a Host
 execution verdict. Unknown comment publication outcomes are not retried with a
-blind POST. Analysis/feedback counts are descriptive statistics, not trained
+blind POST. The owner can check the original issue and explicitly confirm another
+publication against the current record revision; this never changes the assignee.
+Closing/reassigning sends a durable change notice to the original destination;
+reopening resumes delivery without treating it as a restart duplicate.
+Analysis/feedback counts are descriptive statistics, not trained
 weights, measured classifier accuracy or automatic human acceptance.
 
 The source of this new extension is `src/team/`, owned by the plugin. The Core
-export is pinned to `b6c608a672ae06d477490efe2d77718d60947c72`; its coordination
-services now consume the built shared contract. See [the implementation plan](../../docs/plans/issue-workbench-team.md).
-Remaining acceptance: compatible installed Host, workbench UI binding, lifecycle
+export is pinned to `031244712b8b62d1dc017ed379efd09b15dd4fc6`; its generic extension slots
+keep team policy and UI in this plugin. See [the implementation plan](../../docs/plans/issue-workbench-team.md).
+Remaining acceptance: compatible installed Host and workbench surface, lifecycle
 and grants, safe migration, and two real accounts/teams. Core main
 `c086765ddb7181722f03f9f53c7a7ee17a29f147` supports public modules and the matching
 SDK. [Core companion #1639](https://github.com/zts212653/clowder-ai/pull/1639)
 adds its declared grant policy. The prepared candidate passes isolated real Host
-admission/loading, GitHub READ, disable/refusal and re-enable/read checks. User
+admission/loading, owner Settings actions, publication confirmation rejection,
+GitHub READ, disable/refusal and re-enable/read checks. User
 installation, live-cat invocation and the remaining product journey are still pending.
+
+### Embedding the team workbench
+
+Use the Host's authenticated request function; the browser never supplies a cat,
+thread caller identity or saved assignment policy:
+
+```ts
+import { createTeamClient, mountCoordination } from '@clowder-ai/issue-workbench/browser';
+const team = createTeamClient(hostRequest, pluginSettingsUrl);
+mountCoordination(element, coordinationHost, { team });
+```
+
+The client uses the existing `/api/plugins/dev.clowder.issue-workbench/actions/teamWorkbench/*`
+owner route. Install/configure the module and grant its declared capabilities in
+the Host first. The Settings **analysisThreadId** and **analysisCatId** select the
+owner-click destination; native conversation requests retain their calling thread.
+Unsaved form values never become effective routing policy. The optional preview
+`teamAction` callback is an isolated test seam, not an authentication mechanism.
+Statistics count recorded analyses, explicit latest feedback, score/category
+frequency and historical published assignments by member, not current workload.
 
 ## What is in the artifact
 

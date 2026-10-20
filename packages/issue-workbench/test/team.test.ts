@@ -69,7 +69,9 @@ test('first startup imports existing assignments, restart deduplicates, and reas
   assert.equal(s.sends.size, 1);
   s.epoch('assignment-2');
   await s.runtime().recover();
-  assert.equal(s.sends.size, 2);
+  assert.equal(s.sends.size, 3, 'new assignment plus a withdrawal notice for the previous assignment');
+  await s.runtime().recover();
+  assert.equal(s.sends.size, 3, 'both notices survive restart without duplication');
 });
 
 test('changed inbox target does not redirect a pending delivery; unauthorized caller has no effects', async () => {

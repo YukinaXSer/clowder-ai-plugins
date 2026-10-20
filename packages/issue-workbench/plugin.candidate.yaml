@@ -60,6 +60,11 @@ configuration:
     kind: string
     required: false
     description: 对话请求交给这只猫，在原对话中分析。不可用时保留待发送，不替换猫。
+  - key: analysisThreadId
+    label: 工作台研判对话
+    kind: string
+    required: false
+    description: 工作台发起的研判发送到此对话；猫在对话中发起时仍使用当前对话。
   - key: routingRules
     label: 成员分工
     kind: string
@@ -104,6 +109,36 @@ configuration:
         action:
           method: issue.team.retry
         next: status
+  - key: teamWorkbench
+    label: 工作台团队操作
+    kind: operation
+    required: false
+    actions:
+      - id: summary
+        label: 读取团队记录
+        render: status
+        action: { method: issue.workbench.summary }
+      - id: get
+        label: 读取研判与回执
+        render: row
+        action: { method: issue.workbench.get }
+      - id: analyze
+        label: 请猫分析
+        render: row
+        action: { method: issue.workbench.analyze }
+      - id: retry
+        label: 重试此记录
+        render: row
+        action: { method: issue.workbench.retry }
+      - id: republish
+        label: 确认重新发布
+        render: row
+        confirm: 请先核对 GitHub 评论。上次发布结果不确定，重新发布可能产生重复评论；不会更改负责人。
+        action: { method: issue.workbench.republish }
+      - id: feedback
+        label: 保存人工反馈
+        render: row
+        action: { method: issue.workbench.feedback }
 contributions:
   - type: tool
     id: team-inspect

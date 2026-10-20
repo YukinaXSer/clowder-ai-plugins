@@ -1,5 +1,31 @@
 # Validation record
 
+## Team workbench and recovery — 2026-10-20
+
+Accepted source: `thread_mucwsgsjtlbabfcq#0001792487469228-000178-8c6b1ebb`.
+The candidate now connects the existing three-column workbench to owner-authenticated
+analysis requests, cat results, feedback and a team-record drawer. Native cat
+identity and Settings authority remain separate. Statistics expose category,
+score and historical assignment counts; they do not represent model training.
+
+Observed RED→GREEN: missing owner handlers/withdrawal notice; same-assignment reopen
+remaining inactive; missing analysis button; receipt recovery absent from the inbox
+detail. The existing mobile journey also caught the source-settings panel hiding its
+own toggle when the new toolbar wrapped; it now follows the actual header height.
+Core export: `031244712b8b62d1dc017ed379efd09b15dd4fc6`.
+
+The 22 team behavior checks and packed browser journeys cover owner request/result/
+feedback, permission withdrawal clearing displayed data, explicit uncertain-comment
+republication, stale source, mobile/dark layout, durable withdrawal/reopen and
+restart deduplication. Actual Host carrier checks use isolated inventory/config
+and explicit test authority: admission, Settings health/summary, rejection without
+publication confirmation, real GitHub READ, disable/refusal and re-enable.
+
+Full user journey remains incomplete at installed Host UI, live cat invocation and
+real two-account verification. The ordinary READ preview shows a disconnected team
+state. No production config, real assignment/comment or catalog publication changed.
+See `docs/evidence/issue-workbench-team-candidate.md` for current evidence and limits.
+
 ## Classification overview wording — 2026-10-20
 
 Source: `thread_mucwsgsjtlbabfcq#0001792486161119-000170-f4dd06d2`.

@@ -99,6 +99,19 @@ GitHub 访问走固定 `gh api --hostname github.com`，不接受任意 URL、sh
 用户实例仍未安装；完整对话/派工/界面旅程继续在同一任务中完成。
 
 已写入 `integration.json` 的剩余项包括 installed-host-admission、
-team-workbench-ui-binding、real-cat-dispatch-and-acceptance、two-account-dogfood。
+installed-host-workbench-surface、real-cat-dispatch-and-acceptance、two-account-dogfood。
 `hostInstallable` 保持 false，未新增目录/安装宣告，未改变生产 Host。
 搜索未找到可核验的 F202 owner thread；不猜测跨线程收件人或发礼貌 ACK。
+
+## 2026-10-20 工作台与恢复增量
+
+插件原生 team-ui 已通过可选 slots 接入现有三栏：请猫分析、结果/优先级/当前负责人、
+明确人工反馈、我的收件/研判记录/统计。Core 映射切片为
+`031244712b8b62d1dc017ed379efd09b15dd4fc6`；仅泛化 slots 与移动端弹层定位回流 Core。
+Owner 操作使用 Host 独立 authority，不伪造聊天消息或调用猫。收件和分析详情均有
+不确定发布的查重重试与明确确认入口；确认绑定存储 revision，不再次改变负责人。
+关闭/撤回通知失败可重试，同一分配关闭后重开也会再次提醒，历史记录仍保留。
+
+打包页面与实际 Host owner-operation carrier 已分别验实。尚未安装用户实例，
+现有独立 READ 预览没有生产 owner route，显示未接入；真实 Host 的工作台入口、
+在线猫及双账号验收仍是同一 Task 的未完成结果，不以 fixture 冒充。

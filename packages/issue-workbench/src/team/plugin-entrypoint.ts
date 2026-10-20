@@ -1,6 +1,6 @@
 import type { ModulePluginHostShape, PluginActionHandler, PluginHostActionContext, PluginModuleEntrypoint } from '@clowder-ai/plugin-sdk';
 import { GhTeamProvider } from './github.js';
-import { IssueTeamRuntime } from './runtime.js';
+import { IssueTeamRuntime, WORKBENCH_METHODS } from './runtime.js';
 import type { TeamContext, TeamProvider } from './types.js';
 
 export const TEAM_METHODS = ['inspect', 'analyze', 'submit', 'get', 'list', 'receive', 'report', 'feedback', 'statistics'] as const;
@@ -31,11 +31,12 @@ export function createIssueTeamModule(provider?: TeamProvider): PluginModuleEntr
             current();
             try { lastRecovery = { state: 'checked', results: await runtime.recover(), checkedAt: Date.now() }; }
             catch (error) { current(); lastRecovery = { state: 'needs-setup', reason: error instanceof Error ? error.message : 'Setup required' }; }
-            return { data: lastRecovery };
+            return { render: 'status', data: lastRecovery };
           };
           const owner = async (authority?: PluginHostActionContext) => {
             current();
-            if (!authority || authority.pluginInstanceId !== host.pluginInstanceId || authority.kind !== 'owner-operation') throw new Error('Authenticated Host Settings operation required');
+            if (!authority || authority.pluginInstanceId !== host.pluginInstanceId || authority.kind !== 'owner-operation') throw new Error('Authenticated Host Settings authority required');
+            authority.signal.throwIfAborted();
             await authority.assertCurrent(); current();
           };
           const actions: Record<string, PluginActionHandler> = Object.fromEntries(TEAM_METHODS.map(method => [
@@ -48,15 +49,28 @@ export function createIssueTeamModule(provider?: TeamProvider): PluginModuleEntr
           actions['issue.team.health'] = async (_input, caller, authority) => {
             if (caller) throw new Error('Use native read tools from a conversation');
             await owner(authority);
-            return { data: { recovery: lastRecovery, configured: !!await host.config.get('repositories'),
+            if (authority?.kind !== 'owner-operation' || authority.operationKey !== 'teamStatus' || authority.actionId !== 'status') throw new Error('Matching status action authority required');
+            return { render: 'status', data: { recovery: lastRecovery, configured: !!await host.config.get('repositories'),
               automaticAssignment: await host.config.get('automaticAssignment') === true,
               receiveAssignments: await host.config.get('receiveAssignments') === true,
               shareProgress: await host.config.get('shareProgress') === true } };
           };
           actions['issue.team.retry'] = async (_input, caller, authority) => {
             if (caller) throw new Error('Use native receive from a conversation');
-            await owner(authority); return recover();
+            await owner(authority);
+            if (authority?.kind !== 'owner-operation' || authority.operationKey !== 'teamStatus' || authority.actionId !== 'retry') throw new Error('Matching retry action authority required');
+            return recover();
           };
+          for (const method of WORKBENCH_METHODS) {
+            actions['issue.workbench.' + method] = async (params, caller, authority) => {
+              if (caller) throw new Error('Owner action cannot use a cat caller');
+              await owner(authority);
+              const payload = (params as { input?: { payload?: unknown } })?.input?.payload;
+              if (payload !== undefined && (typeof payload !== 'string' || payload.length > 16000)) throw new Error('Invalid workbench payload');
+              return { render: 'status', data: await runtime.invokeOwner(method,
+                payload === undefined ? {} : JSON.parse(payload as string), authority as import('@clowder-ai/plugin-sdk').PluginOwnerOperationContext) };
+            };
+          }
           await recover();
           return { actions, configRefresh: async () => { await recover(); }, stop: async () => { stopped = true; await runtime.stop(); } };
         },

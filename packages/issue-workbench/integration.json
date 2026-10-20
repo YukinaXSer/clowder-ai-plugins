@@ -5,6 +5,29 @@
   "pluginId": "dev.clowder.issue-workbench",
   "candidateManifest": "plugin.candidate.yaml",
   "sdkVersion": "0.2.0-beta.21",
-  "implemented": ["read-source-engine", "versioned-archives", "standalone-workbench", "browser-draft-storage", "source-sync", "team-module-candidate", "conversation-analysis-protocol", "configured-assignment", "durable-inbox", "explicit-feedback-statistics"],
-  "pending": ["installed-host-admission", "team-workbench-ui-binding", "host-lifecycle-and-grants", "durable-work-migration", "real-cat-dispatch-and-acceptance", "two-account-dogfood", "catalog-publication"]
+  "implemented": [
+    "read-source-engine",
+    "versioned-archives",
+    "standalone-workbench",
+    "browser-draft-storage",
+    "source-sync",
+    "team-module-candidate",
+    "conversation-analysis-protocol",
+    "configured-assignment",
+    "durable-inbox",
+    "explicit-feedback-statistics",
+    "owner-operation-client",
+    "team-workbench-panels",
+    "confirmed-publication-recovery",
+    "assignment-withdrawal-and-reopening"
+  ],
+  "pending": [
+    "installed-host-admission",
+    "installed-host-workbench-surface",
+    "host-lifecycle-and-grants",
+    "durable-work-migration",
+    "real-cat-dispatch-and-acceptance",
+    "two-account-dogfood",
+    "catalog-publication"
+  ]
 }

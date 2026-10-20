@@ -63,7 +63,7 @@ export function githubPreviewBinding({ dataRoot, query } = {}) {
     },
   };
 }
-export function coordinationPreview({ dataRoot, dist, bindings = fixtureBindings(), allowedOrigins = [], allowedHosts = [] }) {
+export function coordinationPreview({ dataRoot, dist, bindings = fixtureBindings(), allowedOrigins = [], allowedHosts = [], teamAction }) {
   if (!dataRoot || !dist) throw new Error('Explicit isolated dataRoot and dist are required');
   const service = new IssueCoordinationService(new IssueCoordinationStore(dataRoot), bindings, 'preview-owner');
   const assets = { '/': ['coordination.html', 'text/html'], '/coordination.js': ['coordination.js','text/javascript'], '/browser.js': ['browser.js','text/javascript'], '/browser.css': ['browser.css','text/css'] };
@@ -81,6 +81,18 @@ export function coordinationPreview({ dataRoot, dist, bindings = fixtureBindings
     try {
       if (asset && req.method === 'GET') { res.setHeader('content-type', asset[1] + '; charset=utf-8'); res.end(await readFile(join(dist, asset[0]))); return; }
       if (url.pathname === '/health' && req.method === 'GET') { res.setHeader('content-type','application/json'); res.end(JSON.stringify({ ok: true, mode: 'isolated-acceptance', revision: 'issue-coordination-v1' })); return; }
+      // Explicit acceptance injection only. The ordinary READ preview has no
+      // owner authority, no native caller and no automatic connection to a Host.
+      const team = /^\/api\/plugins\/dev\.clowder\.issue-workbench\/actions\/teamWorkbench\/(summary|get|analyze|retry|republish|feedback)$/.exec(url.pathname);
+      if (team) {
+        if (req.method !== 'POST' || !req.headers['content-type']?.startsWith('application/json')) { res.writeHead(403); res.end(); return; }
+        if (!teamAction) { res.writeHead(503, { 'content-type': 'application/json' }); res.end(JSON.stringify({ error: 'Team Host is not connected' })); return; }
+        let raw = ''; for await (const chunk of req) { raw += chunk; if (Buffer.byteLength(raw) > 32000) throw new Error('Request too large'); }
+        const body = JSON.parse(raw);
+        if (!body || typeof body.payload !== 'string' || Object.keys(body).some(key => key !== 'payload')) throw new Error('Invalid team input');
+        const result = await teamAction(team[1], JSON.parse(body.payload), req.headers['x-cat-cafe-owner-confirmed'] === 'true');
+        res.setHeader('content-type', 'application/json'); res.end(JSON.stringify(result)); return;
+      }
       let result;
       if (url.pathname === '/api/issue-coordination/state' && req.method === 'GET') result = await service.load();
       else {
