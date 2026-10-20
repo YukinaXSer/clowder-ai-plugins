@@ -22,12 +22,21 @@ and mobile journeys remain covered. Build/typecheck/export checks and the 5 sync
 19 source/port, 15 UI and corpus tests passed; the legacy refresh test now checks
 the new Closed label while preserving its unsaved-input/local-acceptance assertions.
 
-Core cut: `97d096227dc5fa4133dd34ab65810315384bd680`.
+Real-page inspection caught an overflowing Closed count in the 270px desktop
+queue: the shell's generic button reset overrode compact filter typography.
+An overflow assertion reproduced it RED; scoped selector specificity fixes it.
+
+Core cut: `3a0cbb1faac224355dcc14a98107e05f1f76aead`.
 Package export explicitly includes the shared badge/filter component and stylesheet.
 The classification dataset, service/store contract and remote issue state are not
 changed by this UI increment. Final packed preview screenshots and local-record
 preservation evidence are recorded under `artifacts/source-state-2026-10-20/`.
 PR #80 remains open for independent review; this is author validation only.
+The fallback scanner's three new flags are Boolean membership/display predicates
+in `IssueSourceState`, not alternative data paths; the only state source remains
+the imported fact. No store/transport/architecture ownership changes. Capability
+tips checks passed with existing anchor warnings; the opt-in preview's state
+controls are self-describing and retain the existing `tips_exempt` scope.
 
 ## First full classification and category browsing — 2026-10-20
 

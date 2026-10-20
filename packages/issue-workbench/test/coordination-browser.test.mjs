@@ -56,6 +56,7 @@ test('packed multi-source journey: save, link, reload, independent verification,
   await closedBadge.waitFor(); await openBadge.waitFor();
   assert.notEqual(await closedBadge.evaluate(el => getComputedStyle(el).color), await openBadge.evaluate(el => getComputedStyle(el).color));
   const states = page.getByRole('group', { name: '来源状态筛选', exact: true });
+  assert.ok(await states.locator('button').evaluateAll(buttons => buttons.every(button => button.scrollWidth <= button.clientWidth)), 'state counts fit within narrow desktop queue buttons');
   await states.getByRole('button', { name: 'Open · 2', exact: true }).click();
   assert.equal(await queue.getByText('Closed · 已关闭', { exact: true }).count(), 0);
   await openInternal();

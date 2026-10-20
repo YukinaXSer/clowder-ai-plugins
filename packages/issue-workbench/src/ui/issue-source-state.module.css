@@ -30,7 +30,7 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 4px;
 }
-.filters button {
+.filters[role="group"] button {
   font-size: 12px;
   padding: 6px 3px;
   white-space: nowrap;
