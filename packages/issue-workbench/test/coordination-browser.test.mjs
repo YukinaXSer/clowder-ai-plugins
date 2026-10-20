@@ -63,6 +63,7 @@ test('packed multi-source journey: save, link, reload, independent verification,
   await page.getByRole('region', { name: '问题正文', exact: true }).getByText('Open · 开放', { exact: true }).waitFor();
   await page.getByLabel('本地标记', { exact: true }).fill('状态筛选间保留草稿');
   await states.getByRole('button', { name: 'Closed · 801', exact: true }).click();
+  assert.ok(await states.locator('button').evaluateAll(buttons => buttons.every(button => button.scrollWidth <= button.clientWidth)), 'selected state counts fit as well');
   assert.equal(await queue.getByText('Open · 开放', { exact: true }).count(), 0);
   await page.getByRole('region', { name: '问题正文', exact: true }).getByText('Closed · 已关闭', { exact: true }).waitFor();
   await states.getByRole('button', { name: 'Open · 2', exact: true }).click();

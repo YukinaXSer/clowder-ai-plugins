@@ -24,9 +24,10 @@ the new Closed label while preserving its unsaved-input/local-acceptance asserti
 
 Real-page inspection caught an overflowing Closed count in the 270px desktop
 queue: the shell's generic button reset overrode compact filter typography.
-An overflow assertion reproduced it RED; scoped selector specificity fixes it.
+An overflow assertion reproduced it RED; scoped selector specificity and
+content-sized, wrapping buttons prevent both style overrides and count overflow.
 
-Core cut: `3a0cbb1faac224355dcc14a98107e05f1f76aead`.
+Core cut: `3432e6d0b00749d762a8e2ec441c4f6a33fa241a`.
 Package export explicitly includes the shared badge/filter component and stylesheet.
 The classification dataset, service/store contract and remote issue state are not
 changed by this UI increment. Final packed preview screenshots and local-record

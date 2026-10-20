@@ -26,11 +26,12 @@
   color: var(--issue-closed);
 }
 .filters {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  display: flex;
+  flex-wrap: wrap;
   gap: 4px;
 }
 .filters[role="group"] button {
+  flex: 1 0 auto;
   font-size: 12px;
   padding: 6px 3px;
   white-space: nowrap;

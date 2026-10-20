@@ -1,7 +1,7 @@
 {
   "version": 1,
   "sourceRepository": "https://github.com/zts212653/clowder-ai",
-  "sourceCommit": "3a0cbb1faac224355dcc14a98107e05f1f76aead",
+  "sourceCommit": "3432e6d0b00749d762a8e2ec441c4f6a33fa241a",
   "files": [
     {
       "source": "packages/shared/src/issue-coordination.ts",
@@ -30,8 +30,8 @@
     {
       "source": "packages/web/src/components/settings/issue-workbench/issue-source-state.module.css",
       "target": "src/ui/issue-source-state.module.css",
-      "sourceHash": "1d334df2098faa7e318c51b7ee4def253a34a3d1bfd855b60f1fa7da3e3d108b",
-      "targetHash": "1d334df2098faa7e318c51b7ee4def253a34a3d1bfd855b60f1fa7da3e3d108b"
+      "sourceHash": "123e18d824720de084ad55156d44b0271aea9bd437e53d01cca578a3b57e156a",
+      "targetHash": "123e18d824720de084ad55156d44b0271aea9bd437e53d01cca578a3b57e156a"
     },
     {
       "source": "packages/web/src/components/settings/issue-workbench/IssueClassifications.tsx",
