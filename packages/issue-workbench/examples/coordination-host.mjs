@@ -3,10 +3,13 @@ import { readFile } from 'node:fs/promises';
 import { readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { IssueCoordinationService, IssueCoordinationStore } from '../dist/index.js';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+import { IssueCoordinationService, IssueCoordinationStore, FileIssueSourceStore, IssueSourceService,
+  createGhIssueSourceReader, decodeGhSourceResponse } from '../dist/index.js';
 
 // Public, evidence-backed seed shipped with this plugin; never injected into another source.
-const initialSeed = JSON.parse(readFileSync(new URL('../data/initial-classification.v0.json', import.meta.url), 'utf8'));
+const initialSeed = JSON.parse(readFileSync(new URL('../data/first-classification.v1.json', import.meta.url), 'utf8'));
 export const initialClassifications = initialSeed.suggestions.map(suggestion => ({
   id: initialSeed.schema + ':' + suggestion.source.issueId,
   model: initialSeed.method.model, generatedAt: initialSeed.createdAt, source: suggestion.source,
@@ -27,23 +30,36 @@ export function fixtureBindings() {
     detail: async ref => ({ fact: issues.find(i => i.id === ref.issueId) ?? null }),
   }));
 }
-/** Explicit bridge to the already isolated GitHub READ acceptance Host, never production. */
-export function githubPreviewBinding() {
-  const base = 'http://127.0.0.1:3192', query = '?repo=zts212653%2Fclowder-ai';
-  async function read(path, refresh = false, pageQuery = '') {
-    const response = await fetch(base + '/api/issue-source' + path + query + pageQuery, { signal: AbortSignal.timeout(120000),
-      ...(refresh ? { method: 'POST', headers: { 'x-issue-source-request': 'refresh' } } : {}) });
-    if (!response.ok) throw new Error('GitHub preview source unavailable'); return response.json();
-  }
+/** Explicit public READ Host. CLI credentials stay here; no dependency on a second preview server. */
+export function githubPreviewBinding({ dataRoot, query } = {}) {
+  if (!dataRoot) throw new Error('GitHub READ preview requires an isolated dataRoot');
+  const execute = promisify(execFile);
+  const read = query ?? (async (document, variables) => {
+    const args = ['api', 'graphql', '--hostname', 'github.com', '-f', `query=${document}`];
+    for (const [key, value] of Object.entries(variables)) args.push('-f', `${key}=${value}`);
+    let stdout;
+    try {
+      ({ stdout } = await execute('gh', args, { timeout: 45000, maxBuffer: 32 * 1024 * 1024, windowsHide: true }));
+    } catch (error) {
+      if (!error.stdout?.trim()) throw error;
+      stdout = error.stdout;
+    }
+    return decodeGhSourceResponse(stdout);
+  });
+  const repo = 'zts212653/clowder-ai';
+  const service = new IssueSourceService(new FileIssueSourceStore(join(dataRoot, 'github-read')), createGhIssueSourceReader(read));
   return {
     profile: { id: 'github.com:R_kgDORlB5aQ', provider: 'github', instance: 'https://github.com', repositoryId: 'R_kgDORlB5aQ', repository: 'zts212653/clowder-ai', name: 'GitHub · clowder-ai', visibility: 'public' },
     // Public data ONLY. A production Host must replace this with its current grant resolver.
     authorize: async () => true,
     classifications: initialClassifications,
-    catalog: async refresh => (await read(refresh ? '/refresh' : '', refresh)).snapshot,
+    catalog: async refresh => refresh ? service.refresh(repo) : (await service.read(repo)) ?? service.refresh(repo),
     detail: async (ref, offset = 0, version) => {
-      const result = offset ? await read('/issues/' + ref.number, false, '&offset=' + offset + '&version=' + encodeURIComponent(version)) : await read('/issues/' + ref.number + '/refresh', true);
-      return { fact: result.detail ?? null, nextOffset: result.nextOffset, error: result.failures?.map(f => f.message).join('；') || undefined };
+      if (!Number.isSafeInteger(offset) || offset < 0 || (offset > 0 && !version)) throw new Error('Invalid detail page');
+      const result = offset ? { detail: await service.readDetail(repo, ref.number, version) } : await service.refreshDetail(repo, ref.number);
+      const fact = result.detail, comments = fact?.comments ?? [], end = Math.min(offset + 25, comments.length);
+      return { fact: fact ? { ...fact, comments: comments.slice(offset, end) } : null,
+        nextOffset: end < comments.length ? end : null, error: result.failures?.map(f => f.message).join('；') || undefined };
     },
   };
 }
@@ -89,7 +105,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   const root = process.env.ISSUE_COORDINATION_DATA_DIR;
   if (!root) throw new Error('Set ISSUE_COORDINATION_DATA_DIR to a dedicated acceptance data directory');
   const port = Number(process.env.PORT ?? 5196);
-  const bindings = process.env.ISSUE_COORDINATION_GITHUB === '1' ? [githubPreviewBinding(), fixtureBindings()[1]] : fixtureBindings();
+  const bindings = process.env.ISSUE_COORDINATION_GITHUB === '1' ? [githubPreviewBinding({ dataRoot: root }), fixtureBindings()[1]] : fixtureBindings();
   coordinationPreview({ dataRoot: root, dist: fileURLToPath(new URL('../dist', import.meta.url)), bindings,
     allowedHosts: [`preview-${port}.localhost:4100`], allowedOrigins: [`http://preview-${port}.localhost:4100`] })
     .listen(port, '127.0.0.1', () => console.log(`Issue coordination acceptance http://localhost:${port}; data=${root}`));

@@ -8,6 +8,10 @@
   font-size: 14px;
   line-height: 1.55;
 }
+.categoryLabel {
+  color: var(--cafe-accent);
+  font-size: 12px;
+}
 .shell * {
   box-sizing: border-box;
 }

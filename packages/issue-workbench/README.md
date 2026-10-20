@@ -43,33 +43,47 @@ evidence independently. Reload to recover the saved work. The supplied loopback 
 is for acceptance only; production installation must provide real owner authorization.
 Its source registry is supplied by the Host, not an arbitrary URL/token form.
 
-`ISSUE_COORDINATION_GITHUB=1` explicitly replaces the public fixture with the existing
-isolated Clowder GitHub READ preview at port 3192 for `zts212653/clowder-ai`.
+`ISSUE_COORDINATION_GITHUB=1` explicitly replaces the public fixture with a
+GitHub READ adapter for `zts212653/clowder-ai`. The example Host invokes the
+authenticated `gh` on its PATH using the exported paginated source engine, and
+stores its cache under the dedicated data directory. It no longer needs port 3192.
 It does not connect an internal service. The `?legacy=1` trial link exposes the original
 5192 workbench; old browser plans and label batches stay there, untouched. SDK cutover
 must include an explicit data migration; it is not performed by this increment.
 
 ### Inspect initial classifications
 
-Click **分类结果 · 12** in the GitHub preview header, or open
+Use **按类别查看** in the issue queue, or click **分类结果 · 708** in the GitHub preview header. Open
 `http://localhost:5196/?legacy=1&classifications=1` to show the overview immediately.
-The overview shows the 12 initial candidates, issue titles, four label dimensions
-and supporting excerpts. Select an issue to open its candidate card. Click
+The first full pass observed **813 issues: 288 open, 525 closed** on 2026-10-20.
+**105 already bound to 32 Features** stay with those Features; **708** have a
+primary classification (including four insufficient-information items in 待澄清).
+The overview shows category counts, title/number search, open/closed filters and
+Feature subgroups. It initially renders 40 results; **显示更多问题** loads the next
+40 from the same filtered set. Selecting a category in the queue opens its first issue.
+Select an issue in the overview to open its candidate card. Click
 **加入本地标记草稿**, edit the tags if needed, then **保存本仓记录** to retain them.
 Existing tags are preserved; copying a candidate alone does not save or write to GitHub.
 
-The versioned public seed lives in [data/initial-classification.v0.json](data/initial-classification.v0.json),
+The active public dataset lives in [data/first-classification.v1.json](data/first-classification.v1.json),
 ships inside the tgz and is loaded by the example Host only for the matching public
 repository. Other Host bindings may supply `classifications`; results must match
 provider, instance, stable repository ID and a currently readable issue. Revoked
 sources and their derived suggestions are hidden. A changed source timestamp flags
-review; this is not continuous content-hash verification. The browser bundle does
+review; this is not continuous content-hash verification. Exact `feature:F<number>`
+source labels take precedence on every read, including a binding added after this
+batch. Bare `feature` labels and Feature numbers in titles are not bindings.
+Existing local work remains intact. New unbound issues show **尚未分类**.
+The browser bundle does
 not embed the seed. Hosts can pass `{ showClassifications: true }` as the optional
 third argument to `mountCoordination` for this entry.
 
-These 12 GPT-6-astra title/body suggestions are a deliberately selected sample,
-not a full-corpus automated classifier, a measured accuracy result, or preaccepted
-labels. Empty facets mean no evidence was extracted. The default synthetic trial
+This is GPT-6-astra's first semantic pass over all unbound titles, with selected
+ambiguous bodies consulted. Type/environment facets use explicit source labels or
+title markers; symptoms were not extracted in this pass. It is not a trained or
+continuously automatic classifier and has no measured accuracy or preaccepted labels.
+The historical 12-result `initial-classification.v0.json` stays unchanged.
+Empty facets mean no evidence was extracted. The default synthetic trial
 has no classifications; it does not impersonate these real public results.
 
 Run `pnpm test:coordination` for the actual packed artifact browser journey. As with

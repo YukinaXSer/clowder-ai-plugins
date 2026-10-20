@@ -6,6 +6,7 @@ export function CoordinationEditor({
   value,
   subject,
   classification,
+  featureBindings,
   sourceUpdatedAt,
   change,
   save,
@@ -16,6 +17,7 @@ export function CoordinationEditor({
   value: IssueInvestigation;
   subject: string;
   classification?: IssueClassification;
+  featureBindings?: string[];
   sourceUpdatedAt: string;
   change: (value: IssueInvestigation) => void;
   save: () => Promise<void>;
@@ -60,6 +62,7 @@ export function CoordinationEditor({
       <div className={styles.editorBody}>
         <IssueClassificationCandidate
           result={classification}
+          featureBindings={featureBindings}
           sourceUpdatedAt={sourceUpdatedAt}
           tags={value.tags}
           changeTags={(tags) => change({ ...value, tags })}

@@ -192,6 +192,17 @@ test('packed classification results: overview, evidence, explicit local save and
   bindings[0].classifications = [{ id: 'synthetic-classification', model: 'test-model', generatedAt: '2026-10-14T00:00:00Z',
     source: { ...bindings[0].profile, issueId: 'public-88', number: 88, updatedAt: '2026-10-13T00:00:00Z', bodySha256: 'synthetic-hash' },
     labels: { area: ['界面交互'], kind: ['缺陷'], symptom: ['重复加载'], environment: [] }, evidence: '合成分类依据：重复加载测试' }];
+  const catalog = bindings[0].catalog;
+  let featureAdded = false;
+  bindings[0].catalog = async (...args) => {
+    const result = await catalog(...args);
+    return { ...result, issues: [
+      { ...result.issues[0], labels: featureAdded ? ['feature:F999'] : ['feature'] },
+      { ...result.issues[0], id: 'public-90', number: 90, title: '已绑定 Feature 的问题', labels: ['feature:F128', 'feature:f070'] },
+    ] };
+  };
+  bindings[0].classifications.push({ ...bindings[0].classifications[0], id: 'obsolete-candidate',
+    source: { ...bindings[0].classifications[0].source, issueId: 'public-90', number: 90 }, evidence: 'SHOULD_NOT_APPEAR' });
   const server = coordinationPreview({ dataRoot: join(directory, 'data'), dist: join(directory, 'package/dist'), bindings });
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   t.after(() => new Promise(resolve => { server.closeAllConnections(); server.close(resolve); }));
@@ -202,6 +213,22 @@ test('packed classification results: overview, evidence, explicit local save and
   await page.goto(url + '/?classifications=1');
   const overview = page.getByRole('dialog', { name: '初始分类结果', exact: true });
   await overview.waitFor();
+  await overview.getByRole('button', { name: '界面交互 · 1', exact: true }).click();
+  assert.equal(await overview.locator('article').count(), 1);
+  await overview.getByRole('button', { name: '随 Feature 处理 · 1', exact: true }).click();
+  await overview.getByLabel('Feature 分组', { exact: true }).selectOption('feature:F070');
+  assert.equal(await overview.locator('article').count(), 1);
+  assert.ok(!(await overview.textContent()).includes('SHOULD_NOT_APPEAR'));
+  await overview.getByRole('button', { name: /#90.*已绑定 Feature/ }).click();
+  await page.getByText('已绑定 F070、F128，随 Feature 处理，不参与特征分类。', { exact: true }).waitFor();
+  const queue = page.getByRole('complementary', { name: '聚合问题队列' });
+  await queue.getByLabel('问题类别', { exact: true }).selectOption('area:界面交互');
+  assert.equal(await queue.getByRole('button').count(), 1);
+  await queue.getByLabel('问题类别', { exact: true }).selectOption('feature');
+  assert.equal(await queue.getByRole('button').count(), 1);
+  await queue.getByLabel('问题类别', { exact: true }).selectOption('all');
+  await page.getByRole('button', { name: '分类结果 · 1', exact: true }).click();
+  await overview.getByRole('button', { name: '界面交互 · 1', exact: true }).click();
   await overview.getByText('合成分类依据：重复加载测试', { exact: true }).waitFor();
   await overview.getByRole('button', { name: /#88.*上游修复/ }).click();
   const candidate = page.getByRole('region', { name: '模型候选分类', exact: true });
@@ -227,6 +254,11 @@ test('packed classification results: overview, evidence, explicit local save and
   await page.getByRole('button', { name: '分类结果 · 1', exact: true }).click();
   await page.keyboard.press('Escape');
   assert.equal(await overview.isVisible(), false);
+  featureAdded = true;
+  await page.getByRole('button', { name: '更新来源', exact: true }).click();
+  await page.getByRole('button', { name: '分类结果 · 0', exact: true }).waitFor();
+  assert.equal(await page.getByLabel('本地标记', { exact: true }).inputValue(), tags, 'Feature binding preserves authored local tags');
+  assert.equal(await candidate.count(), 0, 'refresh withdraws obsolete semantic suggestions');
   grant = false;
   await page.getByRole('button', { name: '更新来源', exact: true }).click();
   await page.getByRole('button', { name: '分类结果 · 0', exact: true }).waitFor();

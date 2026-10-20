@@ -85,6 +85,55 @@ export interface IssueClassification {
   labels: Record<'area' | 'kind' | 'symptom' | 'environment', string[]>;
   evidence: string;
 }
+/** Only an explicit source label binds a Feature; titles and generic `feature` do not. */
+export function issueFeatureBindings(fact: IssueSourceFact): string[] {
+  return [
+    ...new Set(
+      fact.labels.flatMap((label) => {
+        const match = /^feature:(F\d+)$/i.exec(label);
+        return match ? [match[1].toUpperCase()] : [];
+      }),
+    ),
+  ].sort((a, b) => Number(a.slice(1)) - Number(b.slice(1)));
+}
+export function issueClassificationFor(
+  source: Pick<CoordinationSource, 'profile' | 'classifications'>,
+  fact: IssueSourceFact,
+) {
+  if (fact.unavailable || issueFeatureBindings(fact).length) return undefined;
+  return source.classifications?.find(
+    ({ source: ref }) =>
+      ref.provider === source.profile.provider &&
+      ref.instance === source.profile.instance &&
+      ref.repositoryId === source.profile.repositoryId &&
+      ref.issueId === fact.id &&
+      ref.number === fact.number,
+  );
+}
+export type ClassifiedIssue = { source: CoordinationSource; fact: IssueSourceFact };
+export function issueCategory({ source, fact }: ClassifiedIssue): { key: string; label: string } {
+  if (fact.unavailable) return { key: 'unavailable', label: '来源暂不可用' };
+  if (issueFeatureBindings(fact).length) return { key: 'feature', label: '随 Feature 处理' };
+  const area = issueClassificationFor(source, fact)?.labels.area[0];
+  return area ? { key: `area:${area}`, label: area } : { key: 'unclassified', label: '尚未分类' };
+}
+export function matchesIssueCategory(row: ClassifiedIssue, category: string): boolean {
+  if (category === 'all') return true;
+  if (category.startsWith('feature:'))
+    return !row.fact.unavailable && issueFeatureBindings(row.fact).includes(category.slice(8));
+  return issueCategory(row).key === category;
+}
+/** Primary categories partition issues; individual Features are subfilters and may overlap. */
+export function issueCategoryCounts(rows: ClassifiedIssue[]) {
+  const groups = new Map<string, { key: string; label: string; count: number }>();
+  for (const row of rows) {
+    const category = issueCategory(row);
+    const entry = groups.get(category.key) ?? { ...category, count: 0 };
+    entry.count++;
+    groups.set(entry.key, entry);
+  }
+  return [...groups.values()].sort((a, b) => b.count - a.count || a.key.localeCompare(b.key));
+}
 export interface CoordinationSnapshot {
   sources: CoordinationSource[];
   relations: Versioned<IssueRelation>[];

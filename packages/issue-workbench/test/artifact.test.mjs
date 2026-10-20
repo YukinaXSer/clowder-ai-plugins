@@ -19,6 +19,9 @@ test('exact tgz installs outside the monorepo and persists source without runtim
   const seed = JSON.parse(readFileSync(join(consumer, 'node_modules/@clowder-ai/issue-workbench/data/initial-classification.v0.json'), 'utf8'));
   assert.equal(seed.suggestions.length, 12);
   assert.ok(seed.suggestions.every(item => item.status === 'proposed' && item.humanAcceptance === null));
+  const batch = JSON.parse(readFileSync(join(consumer, 'node_modules/@clowder-ai/issue-workbench/data/first-classification.v1.json'), 'utf8'));
+  assert.equal(batch.catalog.total, batch.suggestions.length + batch.catalog.featureBound);
+  assert.equal(batch.suggestions.length, 708);
   run(process.execPath,['--input-type=module','--eval',`
     import assert from 'node:assert/strict';
     import { FileIssueSourceStore, IssueSourceService, createGhIssueSourceReader, emptyWork, acceptWork } from '@clowder-ai/issue-workbench';

@@ -1,5 +1,14 @@
-import { type CoordinationSource, type IssueClassification, issueRef, issueRefKey } from '../model/issue-coordination.js';
-import { useEffect, useId, useRef } from 'react';
+import {
+  type CoordinationSource,
+  type IssueClassification,
+  issueCategoryCounts,
+  issueClassificationFor,
+  issueFeatureBindings,
+  issueRef,
+  issueRefKey,
+  matchesIssueCategory,
+} from '../model/issue-coordination.js';
+import { useEffect, useId, useRef, useState } from 'react';
 import styles from './classifications.module.css';
 
 const facets = { area: '模块', kind: '类型', symptom: '表现', environment: '环境' } as const;
@@ -25,12 +34,16 @@ export function IssueClassificationCandidate({
   sourceUpdatedAt,
   tags,
   changeTags,
+  featureBindings = [],
 }: {
   result?: IssueClassification;
   sourceUpdatedAt: string;
   tags: string;
   changeTags: (value: string) => void;
+  featureBindings?: string[];
 }) {
+  if (featureBindings.length)
+    return <p className={styles.explanation}>已绑定 {featureBindings.join('、')}，随 Feature 处理，不参与特征分类。</p>;
   if (!result) return <p className={styles.meta}>这条问题尚无本批分类结果。</p>;
   const existing = new Set(tags.split(/[,，;；\n]/).map((tag) => tag.trim()));
   const missing = tagsFor(result).filter((tag) => !existing.has(tag));
@@ -66,15 +79,37 @@ export function IssueClassificationResults({
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const heading = useId();
-  const results = sources.flatMap((source) =>
-    (source.classifications ?? []).flatMap((result) => {
-      const fact = source.issues.find(
-        (item) => item.id === result.source.issueId && item.number === result.source.number,
-      );
-      return fact ? [{ source, fact, result }] : [];
-    }),
+  const [category, setCategory] = useState('all'),
+    [query, setQuery] = useState(''),
+    [state, setState] = useState('all');
+  const [limit, setLimit] = useState(40);
+  const rows = sources.flatMap((source) =>
+    source.issues
+      .filter((fact) => !fact.unavailable)
+      .map((fact) => ({
+        source,
+        fact,
+        result: issueClassificationFor(source, fact),
+        features: issueFeatureBindings(fact),
+      })),
   );
-  const count = sources.reduce((total, source) => total + source.issues.length, 0);
+  const results = rows.filter((row) => row.result);
+  const scoped = rows.filter(
+    ({ fact, source }) =>
+      (state === 'all' || fact.state === state) &&
+      `${fact.title} #${fact.number} ${source.preference.value.name}`
+        .toLowerCase()
+        .includes(query.toLowerCase().trim()),
+  );
+  const groups = issueCategoryCounts(scoped);
+  const features = [...new Set(scoped.flatMap((row) => row.features))].sort(
+    (a, b) => Number(a.slice(1)) - Number(b.slice(1)),
+  );
+  const visible = scoped.filter((row) => matchesIssueCategory(row, category));
+  function choose(value: string) {
+    setCategory(value);
+    setLimit(40);
+  }
   useEffect(() => {
     if (initialOpen) dialog.current?.showModal();
     return () => dialog.current?.close();
@@ -89,24 +124,79 @@ export function IssueClassificationResults({
           <div>
             <h2 id={heading}>初始分类结果</h2>
             <p className={styles.meta}>
-              {results.length} 条候选 / 当前可读 {count} 个问题
+              {results.length} 条分类候选 · {rows.filter((row) => row.features.length).length} 条随 Feature 处理 ·
+              当前可读 {rows.length} 个问题
             </p>
           </div>
           <button type="button" onClick={() => dialog.current?.close()} aria-label="关闭分类结果">
             关闭
           </button>
         </header>
-        <div className={styles.resultsBody}>
-          <p className={styles.explanation}>
-            从选定问题的标题与正文提炼模块、类型、表现和环境。当前是初始样本，尚未全量自动分类或验证准确率；候选需要人工核对。
+        <div className={styles.controls}>
+          <p className={styles.meta}>
+            按问题标题进行首次语义归类，疑难项参考正文；候选未经准确率验证，可在研判中修正。已有 Feature 绑定优先。
           </p>
+          <div className={styles.search}>
+            <input
+              aria-label="搜索分类结果"
+              placeholder="搜索标题或编号"
+              value={query}
+              onChange={(e) => {
+                setQuery(e.target.value);
+                setLimit(40);
+              }}
+            />
+            <select
+              aria-label="分类结果来源状态"
+              value={state}
+              onChange={(e) => {
+                setState(e.target.value);
+                setLimit(40);
+              }}
+            >
+              <option value="all">全部状态</option>
+              <option value="OPEN">来源开放</option>
+              <option value="CLOSED">来源已关闭</option>
+            </select>
+          </div>
+          <nav className={styles.categories} aria-label="分类分组">
+            {[{ key: 'all', label: '全部', count: scoped.length }, ...groups].map((group) => (
+              <button
+                key={group.key}
+                type="button"
+                aria-pressed={category === group.key || (group.key === 'feature' && category.startsWith('feature:'))}
+                onClick={() => choose(group.key)}
+              >
+                {group.label} · {group.count}
+              </button>
+            ))}
+          </nav>
+          {(category === 'feature' || category.startsWith('feature:')) && (
+            <label className={styles.featureFilter}>
+              选择 Feature
+              <select aria-label="Feature 分组" value={category} onChange={(e) => choose(e.target.value)}>
+                <option value="feature">全部已绑定 Feature</option>
+                {features.map((feature) => (
+                  <option key={feature} value={`feature:${feature}`}>
+                    {feature} · {scoped.filter((row) => row.features.includes(feature)).length}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          <p className={styles.meta} role="status">
+            当前显示 {Math.min(limit, visible.length)} / {visible.length} 条
+          </p>
+        </div>
+        <div className={styles.resultsBody}>
           {!results.length && <p>当前可读取的来源还没有分类结果。</p>}
           <div className={styles.results}>
-            {results.map(({ source, fact, result }) => (
-              <article key={`${source.profile.id}:${result.id}`} className={styles.result}>
+            {visible.slice(0, limit).map(({ source, fact, result, features }) => (
+              <article key={issueRefKey(issueRef(source.profile.id, fact))} className={styles.result}>
                 <p className={styles.meta}>
                   {source.preference.value.name}
                   {source.profile.synthetic ? ' · 合成测试' : ''}
+                  {fact.state === 'CLOSED' ? ' · 来源已关闭' : ' · 来源开放'}
                 </p>
                 <h3>
                   <button
@@ -119,17 +209,33 @@ export function IssueClassificationResults({
                     #{fact.number} · {fact.title}
                   </button>
                 </h3>
-                <ClassificationFacets result={result} />
-                <p className={styles.evidence}>
-                  依据：<span>{result.evidence}</span>
-                </p>
-                <p className={styles.meta}>
-                  {result.model} · {result.generatedAt.slice(0, 10)}
-                  {fact.updatedAt !== result.source.updatedAt ? ' · 来源已更新，需复核' : ''}
-                </p>
+                {features.length ? (
+                  <p className={styles.featureBadge}>{features.join(' · ')} · 随 Feature 处理</p>
+                ) : result ? (
+                  <ClassificationFacets result={result} />
+                ) : (
+                  <p className={styles.meta}>尚未分类</p>
+                )}
+                {result && (
+                  <>
+                    <p className={styles.evidence}>
+                      依据：<span>{result.evidence}</span>
+                    </p>
+                    <p className={styles.meta}>
+                      {result.model} · {result.generatedAt.slice(0, 10)}
+                      {fact.updatedAt !== result.source.updatedAt ? ' · 来源已更新，需复核' : ''}
+                    </p>
+                  </>
+                )}
               </article>
             ))}
           </div>
+          {!visible.length && <p>当前类别和筛选条件下没有问题。</p>}
+          {visible.length > limit && (
+            <button type="button" className={styles.more} onClick={() => setLimit((n) => n + 40)}>
+              显示更多问题（剩余 {visible.length - limit}）
+            </button>
+          )}
         </div>
         <footer className={styles.footer}>点击问题标题进入研判，可将候选加入本地草稿，再由你保存。</footer>
       </dialog>

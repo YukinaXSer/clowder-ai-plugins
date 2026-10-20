@@ -192,6 +192,25 @@ test('classification results require full source identity, a readable issue and 
     (await service.load()).sources[0].classifications?.map((c) => c.id),
     [candidate.id],
   );
+  Object.assign(fact, { labels: ['feature:F128', 'feature:f070'] });
+  assert.deepEqual(
+    (await service.load(true)).sources[0].classifications,
+    [],
+    'Feature binding overrides old semantic candidates',
+  );
+  Object.assign(fact, { labels: ['feature'], title: 'F128 mentioned without a Feature label' });
+  assert.equal(
+    (await service.load(true)).sources[0].classifications?.length,
+    1,
+    'generic feature kind and title mentions do not bind a Feature',
+  );
+  Object.assign(fact, { unavailable: true });
+  assert.deepEqual(
+    (await service.load(true)).sources[0].classifications,
+    [],
+    'unavailable issues have no current classification',
+  );
+  Object.assign(fact, { unavailable: false });
   grant = false;
   const denied = await service.load();
   assert.equal(denied.sources[0].classifications?.length ?? 0, 0);

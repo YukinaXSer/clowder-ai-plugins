@@ -1,6 +1,70 @@
 # Validation record
 
-## Visible classification results — 2026-10-14
+## First full classification and category browsing — 2026-10-20
+
+Accepted source: `thread_mucwsgsjtlbabfcq#0001792467519190-000035-6016964e`;
+implementation reassigned to 砚砚 by `0001792468889994-000066-b4e4fc29`.
+The operator asked for current issues, a first classification visible by category,
+and existing Feature bindings to take precedence. PR #80 remains open; no merge.
+
+- Fresh public catalog at **04:03 UTC**: **813** issues, **288 open / 525 closed**.
+  All **708 unbound titles** received one primary proposal, including **4 待澄清**.
+  **105 issues / 32 explicit Features** remain Feature-routed. Full source metadata,
+  labels, body hashes, taxonomy and the unaccepted proposals ship in
+  `data/first-classification.v1.json`; the historical twelve-result seed is unchanged.
+- Method: GPT-6-astra title-first semantic review, selected ambiguous body reads.
+  Comments were not reviewed. Type/environment supplement explicit source/title
+  markers; symptom remains empty. No trained model, automated continuous classifier,
+  measured accuracy, confidence scores or automatic acceptance is claimed.
+- Queue **按类别查看** and overview category counts/search/state filters expose the
+  results. **随 Feature 处理** opens Feature subgroups; title references and bare
+  `feature` do not bind. The overview pages 40 cards at a time. Adding a source
+  Feature label suppresses an older candidate on refresh, without deleting local work.
+- The isolated example Host now uses the exported paginated READ engine and the
+  canonical `gh` CLI (fixed `github.com` and repository) instead of expired port 3192.
+  Cache/detail archives remain within its explicitly supplied isolated dataRoot.
+  No production configuration, remote labels, SDK contract or runtime dependency changed.
+
+Verification:
+
+- Core Feature-precedence regression observed RED, then GREEN; UI category journey
+  likewise failed on the missing category control before export, then passed.
+- Build, TypeScript, boundary/export hash checks; **5 sync + 19 source/port +
+  15 UI + 1 corpus integrity** tests passed.
+- Actual packed tgz: three browser journeys and a clean consumer passed.
+  They cover category/Feature filtering, mixed-case and multiple bindings, generic
+  feature handling, refresh withdrawal, manual tag preservation, explicit save/reload,
+  source revocation, mobile layout, existing fuzzy linking and source detail paging.
+- A new public READ Host test verifies cold load, cache after restart, refresh,
+  immutable comment page continuation and explicit isolated storage.
+- Real-data dogfood used `http://localhost:5196` from the packed preview in
+  `/Users/yuki/.cat-cafe/preview-builds/issue-coordination-v1`. It read **813 public +
+  2 clearly marked synthetic** issues; checked every primary category count,
+  opened **F113**'s 12 issues with no semantic candidate cards, searched **#1591**,
+  fetched its actual body, and checked desktop 1440px / mobile 390px rendering.
+  Zero page errors or horizontal mobile overflow. Evidence:
+  `artifacts/classification-2026-10-20/live-journey.json` and screenshots in that folder.
+  Synthetic persistence tests use disposable stores; live dogfood does not save notes.
+- Before restarting the expired preview, its recorded data directory
+  `/Users/yuki/.cat-cafe/preview-data/issue-coordination-v1` did not exist.
+  No old-note recovery or before/after preservation claim is made for that missing
+  directory. Other origins and stores were not migrated or modified.
+
+Ownership: existing Issue workbench model/UI/read-source cell, no map expansion.
+Core export is pinned to `21c6f12e9bcc3d1308f92d0b2584835b1071eb5b`.
+Package data and acceptance Host remain plugin-owned.
+Core capability-tip checks passed with existing unrelated anchor warnings.
+The architecture-ownership command is absent in this checkout, not recorded as
+passed. The fallback scan covers the entire historical branch and flags logical
+predicates/sort tie-breakers as well as recovery. The new grouping helpers add a
+counter initialization, a deterministic tie-breaker and a Feature/unavailable
+predicate, not chained fallback tiers. The Host has a single persisted-cache read
+and explicit refresh path; it removes the dependency on a second preview server.
+`tips_exempt: Pre-SDK standalone package; its entry/action is documented in this package README, not registered in the Core capability-tip catalog.`
+This is author validation. The latest independent review remains outstanding and
+historical approvals do not cover this head; production install/cutover is still open.
+
+## Visible classification results — 2026-10-14 (historical)
 
 Core export: `5517539aa1e80a789775c470c2517486150a9d5d`.
 Accepted source: `thread_mucwsgsjtlbabfcq#0001791981133558-000152-e727fe85`:

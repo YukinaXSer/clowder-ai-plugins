@@ -4,8 +4,13 @@ import {
   type CoordinationSnapshot,
   type IssueInvestigation,
   type IssueSourceFact,
+  issueCategory,
+  issueCategoryCounts,
+  issueClassificationFor,
+  issueFeatureBindings,
   issueRef,
   issueRefKey,
+  matchesIssueCategory,
   newInvestigation,
   safeIssueUrl,
   type Versioned,
@@ -32,6 +37,7 @@ export function CoordinationWorkbench({
     [filter, setFilter] = useState('all'),
     [query, setQuery] = useState('');
   const [view, setView] = useState<'queue' | 'reading' | 'notes'>('queue');
+  const [category, setCategory] = useState('all');
   const [localOnly, setLocalOnly] = useState(false),
     [busy, setBusy] = useState(false),
     [error, setError] = useState('');
@@ -98,7 +104,7 @@ export function CoordinationWorkbench({
       });
     })
     .sort((a, b) => b.fact.updatedAt.localeCompare(a.fact.updatedAt) || a.key.localeCompare(b.key));
-  const visible = rows.filter(
+  const scoped = rows.filter(
     (r) =>
       (filter === 'all' || r.source.profile.id === filter) &&
       (!localOnly || r.saved || drafts[r.key]?.dirty) &&
@@ -106,6 +112,8 @@ export function CoordinationWorkbench({
         .toLowerCase()
         .includes(query.toLowerCase()),
   );
+  const visible = scoped.filter((r) => matchesIssueCategory(r, category));
+  const groups = issueCategoryCounts(scoped);
   const row = rows.find((r) => r.key === selected);
   useEffect(() => {
     if (!selected && rows[0]) setSelected(rows[0].key);
@@ -224,6 +232,25 @@ export function CoordinationWorkbench({
               </select>
             </label>
             <label>
+              按类别查看
+              <select
+                aria-label="问题类别"
+                value={category}
+                onChange={(e) => {
+                  setCategory(e.target.value);
+                  const first = scoped.find((r) => matchesIssueCategory(r, e.target.value));
+                  if (first) setSelected(first.key);
+                }}
+              >
+                <option value="all">全部类别 · {scoped.length}</option>
+                {groups.map((g) => (
+                  <option key={g.key} value={g.key}>
+                    {g.label} · {g.count}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
               搜索
               <input placeholder="标题、编号、模块或标记" value={query} onChange={(e) => setQuery(e.target.value)} />
             </label>
@@ -248,6 +275,10 @@ export function CoordinationWorkbench({
                   {r.source.profile.synthetic ? ' · 合成' : ''}
                 </span>
                 <span>{r.fact.title}</span>
+                <span className={styles.categoryLabel}>
+                  {issueCategory(r).label}
+                  {issueCategory(r).key === 'feature' ? ` · ${issueFeatureBindings(r.fact).join('、')}` : ''}
+                </span>
                 <span className={styles.muted}>
                   {r.fact.unavailable ? '来源暂不可用' : r.fact.state === 'CLOSED' ? '来源已关闭' : '来源开放'} ·{' '}
                   {verified[r.saved?.value.verification ?? 'pending']}
@@ -325,9 +356,8 @@ export function CoordinationWorkbench({
                 )}
                 <CoordinationEditor
                   subject={`${row.source.preference.value.name} #${row.fact.number} · ${row.fact.title}`}
-                  classification={row.source.classifications?.find(
-                    (result) => result.source.issueId === row.fact.id && result.source.number === row.fact.number,
-                  )}
+                  classification={issueClassificationFor(row.source, row.fact)}
+                  featureBindings={issueFeatureBindings(row.fact)}
                   sourceUpdatedAt={row.fact.updatedAt}
                   value={current.value}
                   change={(value) => setDrafts((d) => ({ ...d, [row.key]: { ...current, value, dirty: true } }))}

@@ -8,6 +8,7 @@ import {
   type IssueRef,
   type IssueRelation,
   type IssueSourceProfile,
+  issueFeatureBindings,
   issueRefKey,
   relationKey,
   type SourcePreference,
@@ -29,7 +30,13 @@ function readableClassifications(binding: CoordinationBinding, issues: IssueSour
       source.provider === binding.profile.provider &&
       source.instance === binding.profile.instance &&
       source.repositoryId === binding.profile.repositoryId &&
-      issues.some((issue) => issue.id === source.issueId && issue.number === source.number),
+      issues.some(
+        (issue) =>
+          issue.id === source.issueId &&
+          issue.number === source.number &&
+          !issue.unavailable &&
+          !issueFeatureBindings(issue).length,
+      ),
   );
 }
 export class CoordinationDenied extends Error {
