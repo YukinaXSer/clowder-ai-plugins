@@ -1,4 +1,4 @@
-import type { ModulePluginHostShape, PluginActionHandler, PluginHostActionContext, PluginModuleEntrypoint } from '@clowder-ai/plugin-sdk';
+import type { ModulePluginHostShape, PluginActionHandler, PluginHostActionContext, PluginModuleEntrypoint, PluginOwnerOperationContext } from '@clowder-ai/plugin-sdk';
 import { GhTeamProvider } from './github.js';
 import { IssueTeamRuntime, WORKBENCH_METHODS } from './runtime.js';
 import type { TeamContext, TeamProvider } from './types.js';
@@ -27,10 +27,13 @@ export function createIssueTeamModule(provider?: TeamProvider): PluginModuleEntr
           } };
           const runtime = new IssueTeamRuntime(context, provider ?? new GhTeamProvider());
           let lastRecovery: unknown = null;
-          const recover = async () => {
+          const recover = async (authority?: PluginOwnerOperationContext) => {
             current();
-            try { lastRecovery = { state: 'checked', results: await runtime.recover(), checkedAt: Date.now() }; }
-            catch (error) { current(); lastRecovery = { state: 'needs-setup', reason: error instanceof Error ? error.message : 'Setup required' }; }
+            try { lastRecovery = { state: 'checked', results: await runtime.recover(authority), checkedAt: Date.now() }; }
+            catch (error) {
+              current(); authority?.signal.throwIfAborted(); await authority?.assertCurrent();
+              lastRecovery = { state: 'needs-setup', reason: error instanceof Error ? error.message : 'Setup required' };
+            }
             return { render: 'status', data: lastRecovery };
           };
           const owner = async (authority?: PluginHostActionContext) => {
@@ -59,7 +62,7 @@ export function createIssueTeamModule(provider?: TeamProvider): PluginModuleEntr
             if (caller) throw new Error('Use native receive from a conversation');
             await owner(authority);
             if (authority?.kind !== 'owner-operation' || authority.operationKey !== 'teamStatus' || authority.actionId !== 'retry') throw new Error('Matching retry action authority required');
-            return recover();
+            return recover(authority);
           };
           for (const method of WORKBENCH_METHODS) {
             actions['issue.workbench.' + method] = async (params, caller, authority) => {

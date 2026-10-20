@@ -9,19 +9,30 @@ const errorText = (error: unknown) => error instanceof Error ? error.message.sli
 const requestInput = issueInput.extend({ requestId: z.string().regex(/^[A-Za-z0-9_.:-]{1,128}$/) });
 const revisionInput = idInput.extend({ expectedRevision: z.number().int().positive() });
 export const WORKBENCH_METHODS = ['summary', 'get', 'analyze', 'retry', 'republish', 'feedback'] as const;
+type RequestAuthority = { assertCurrent(): void | Promise<void>; signal?: AbortSignal };
 
 /** One Host instance owns the scheduler and storage. The queue serializes local
  * actions; storage CAS fences overlapping/restarted instances. No TTL or shadow Tasks. */
 export class IssueTeamRuntime {
   private readonly abort = new AbortController();
   private tail: Promise<unknown> = Promise.resolve();
-  private authority?: PluginOwnerOperationContext;
+  private authority?: RequestAuthority;
   constructor(private readonly context: TeamContext, private readonly provider: TeamProvider) {}
-  private run<T>(action: () => Promise<T>): Promise<T> {
-    const promise = this.tail.catch(() => {}).then(() => { this.current(); return action(); });
+  private run<T>(action: () => Promise<T>, authority?: RequestAuthority): Promise<T> {
+    const promise = this.tail.catch(() => {}).then(async () => {
+      // Bind authority inside the queue: a later call must never replace the
+      // active request's fence. Scheduled work has its own installation policy.
+      this.authority = authority;
+      try {
+        await this.authorized();
+        const result = await action();
+        await this.authorized();
+        return result;
+      } finally { this.authority = undefined; }
+    });
     this.tail = promise; return promise;
   }
-  private current() { this.abort.signal.throwIfAborted(); this.authority?.signal.throwIfAborted(); }
+  private current() { this.abort.signal.throwIfAborted(); this.authority?.signal?.throwIfAborted(); }
   private async authorized() { this.current(); await this.authority?.assertCurrent(); this.current(); }
   private async caller(caller?: TeamCaller): Promise<TeamCaller> {
     if (!caller || !caller.threadId || !caller.catId || !caller.source?.sourceMessageId) throw new Error('Current Host caller context required');
@@ -262,7 +273,7 @@ export class IssueTeamRuntime {
     const revision = await this.save(row, entry.revision);
     await this.allowed(row.issue.repo);
     if (await this.context.config.get('shareProgress') !== true) throw new Error('Progress sharing changed; intent retained');
-    this.current();
+    await this.authorized();
     row.receipt.commentId = await this.provider.publishReceipt(row.issue, receipt, this.abort.signal, allowCreate);
     await this.save(row, revision); return row;
   }
@@ -287,6 +298,7 @@ export class IssueTeamRuntime {
         await this.authorized();
         // Revision changes even if POST fails; the confirmation is consumed once.
         revision = await this.save(row, revision);
+        await this.authorized();
         row.assignment.commentId = await this.provider.publishDispatch(current, {
           schema: 'issue-workbench.dispatch.v1', id: row.id, issueId: current.id, assignee: row.assignment.login,
           score: row.analysis.score, reason: row.analysis.reason, sourceVersion: row.sourceVersion,
@@ -306,6 +318,7 @@ export class IssueTeamRuntime {
       // authorize another publication, even after a lost network response.
       row.receipt.commentAttempted = true;
       revision = await this.save(row, revision);
+      await this.authorized();
       row.receipt.commentId = await this.provider.publishReceipt(row.issue, row.receipt.value, this.abort.signal, republishRevision !== undefined);
       await this.save(row, revision); return row;
     }
@@ -321,79 +334,76 @@ export class IssueTeamRuntime {
           owner.operationKey !== 'teamWorkbench' || owner.actionId !== method || !owner.userId || !owner.requestId) {
         throw new Error('Matching authenticated owner action authority required');
       }
-      this.authority = owner;
-      try {
-        await this.authorized();
-        switch (method) {
-          case 'summary': {
-            const args = z.object({ repo: repository.optional(), number: z.number().int().positive().optional(), kind: z.enum(['analysis', 'inbox']).optional(),
-              offset: z.number().int().min(0).default(0), limit: z.number().int().min(1).max(100).default(30) }).strict().parse(input);
-            let rows: RecordValue[] = [];
-            let configurationError: string | undefined;
-            try { rows = await this.rows(); } catch (error) { configurationError = errorText(error); }
-            if (args.kind === 'inbox' && !configurationError) {
-              const login = await this.provider.identity(this.abort.signal);
-              rows = rows.filter(row => row.kind !== 'inbox' || row.login === login);
-            }
-            const selected = rows.filter(row => (!args.repo || row.issue.repo === args.repo) && (!args.number || row.issue.number === args.number) && (!args.kind || row.kind === args.kind))
-              .sort((a, b) => {
-                if (a.kind === 'inbox' && b.kind === 'inbox') {
-                  const inactive = Number(a.status === 'inactive') - Number(b.status === 'inactive');
-                  if (inactive) return inactive;
-                  if (a.score !== b.score) return (b.score ?? -1) - (a.score ?? -1);
-                }
-                return (b.kind === 'analysis' ? b.createdAt ?? b.provenance?.recordedAt ?? 0 : b.receivedAt) -
-                  (a.kind === 'analysis' ? a.createdAt ?? a.provenance?.recordedAt ?? 0 : a.receivedAt) || a.id.localeCompare(b.id);
-              });
-            const keys = ['repositories', 'analysisCatId', 'analysisThreadId', 'automaticAssignment', 'receiveAssignments', 'shareProgress'];
-            const flags = new Set(['automaticAssignment', 'receiveAssignments', 'shareProgress']);
-            const settings = Object.fromEntries(await Promise.all(keys.map(async key => {
-              const value = await this.context.config.get(key);
-              return [key, flags.has(key) ? value === true : value];
-            })));
-            await this.authorized();
-            return { rows: selected.slice(args.offset, args.offset + args.limit).map(row => ({ ...row, issue: { ...row.issue, body: '' } })),
-              total: selected.length, nextOffset: args.offset + args.limit < selected.length ? args.offset + args.limit : null,
-              statistics: statistics(rows), settings, configurationError };
+      await this.authorized();
+      switch (method) {
+        case 'summary': {
+          const args = z.object({ repo: repository.optional(), number: z.number().int().positive().optional(), kind: z.enum(['analysis', 'inbox']).optional(),
+            offset: z.number().int().min(0).default(0), limit: z.number().int().min(1).max(100).default(30) }).strict().parse(input);
+          let rows: RecordValue[] = [];
+          let configurationError: string | undefined;
+          try { rows = await this.rows(); } catch (error) { configurationError = errorText(error); }
+          if (args.kind === 'inbox' && !configurationError) {
+            const login = await this.provider.identity(this.abort.signal);
+            rows = rows.filter(row => row.kind !== 'inbox' || row.login === login);
           }
-          case 'get': return await this.detail(idInput.parse(input).id);
-          case 'analyze': {
-            const args = requestInput.parse(input);
-            const id = hash(['owner', owner.userId, args.repo, args.number, args.requestId]);
-            const existing = await this.context.storage.get(prefix + id);
-            if (existing) {
-              const row = (await this.row(id)).value;
-              if (row.kind !== 'analysis' || row.requesterKind !== 'owner' || row.ownerUserId !== owner.userId) throw new Error('Request belongs to another owner');
-              return await this.deliver(row, existing.revision);
-            }
-            const threadId = await this.context.config.get('analysisThreadId'), catId = await this.context.config.get('analysisCatId');
-            if (typeof threadId !== 'string' || !threadId) throw new Error('Select an analysis thread in plugin Settings');
-            if (typeof catId !== 'string' || !catId) throw new Error('Select an analysis cat in plugin Settings');
-            const issue = await this.issue(args.repo, args.number);
-            const job: Job = { kind: 'analysis', id, issue, sourceVersion: issueVersion(issue), features: features(issue),
-              threadId, catId, requester: owner.userId, requesterKind: 'owner', ownerUserId: owner.userId,
-              ownerOperationId: owner.requestId, status: 'pending', createdAt: Date.now() };
-            return await this.deliver(job, await this.save(job, null));
-          }
-          case 'retry': return await this.retryRecord(idInput.parse(input).id);
-          case 'republish': {
-            const args = revisionInput.parse(input);
-            return await this.retryRecord(args.id, args.expectedRevision);
-          }
-          case 'feedback': {
-            const args = revisionInput.extend({ verdict: z.enum(['accepted', 'corrected', 'rejected']), reason: z.string().trim().min(1).max(1000) }).parse(input);
-            const { value: job, revision } = await this.row(args.id);
-            if (revision !== args.expectedRevision) throw new Error('Record changed; reload before saving feedback');
-            if (job.kind !== 'analysis' || !job.analysis) throw new Error('Analysis required before feedback');
-            if (job.feedback) (job.feedbackHistory ??= []).push(job.feedback);
-            job.feedback = { verdict: args.verdict, reason: args.reason, recordedAt: Date.now(),
-              ownerUserId: owner.userId, ownerOperationId: owner.requestId };
-            await this.save(job, revision); return job;
-          }
-          default: throw new Error('Unknown owner action');
+          const selected = rows.filter(row => (!args.repo || row.issue.repo === args.repo) && (!args.number || row.issue.number === args.number) && (!args.kind || row.kind === args.kind))
+            .sort((a, b) => {
+              if (a.kind === 'inbox' && b.kind === 'inbox') {
+                const inactive = Number(a.status === 'inactive') - Number(b.status === 'inactive');
+                if (inactive) return inactive;
+                if (a.score !== b.score) return (b.score ?? -1) - (a.score ?? -1);
+              }
+              return (b.kind === 'analysis' ? b.createdAt ?? b.provenance?.recordedAt ?? 0 : b.receivedAt) -
+                (a.kind === 'analysis' ? a.createdAt ?? a.provenance?.recordedAt ?? 0 : a.receivedAt) || a.id.localeCompare(b.id);
+            });
+          const keys = ['repositories', 'analysisCatId', 'analysisThreadId', 'automaticAssignment', 'receiveAssignments', 'shareProgress'];
+          const flags = new Set(['automaticAssignment', 'receiveAssignments', 'shareProgress']);
+          const settings = Object.fromEntries(await Promise.all(keys.map(async key => {
+            const value = await this.context.config.get(key);
+            return [key, flags.has(key) ? value === true : value];
+          })));
+          await this.authorized();
+          return { rows: selected.slice(args.offset, args.offset + args.limit).map(row => ({ ...row, issue: { ...row.issue, body: '' } })),
+            total: selected.length, nextOffset: args.offset + args.limit < selected.length ? args.offset + args.limit : null,
+            statistics: statistics(rows), settings, configurationError };
         }
-      } finally { this.authority = undefined; }
-    });
+        case 'get': return await this.detail(idInput.parse(input).id);
+        case 'analyze': {
+          const args = requestInput.parse(input);
+          const id = hash(['owner', owner.userId, args.repo, args.number, args.requestId]);
+          const existing = await this.context.storage.get(prefix + id);
+          if (existing) {
+            const row = (await this.row(id)).value;
+            if (row.kind !== 'analysis' || row.requesterKind !== 'owner' || row.ownerUserId !== owner.userId) throw new Error('Request belongs to another owner');
+            return await this.deliver(row, existing.revision);
+          }
+          const threadId = await this.context.config.get('analysisThreadId'), catId = await this.context.config.get('analysisCatId');
+          if (typeof threadId !== 'string' || !threadId) throw new Error('Select an analysis thread in plugin Settings');
+          if (typeof catId !== 'string' || !catId) throw new Error('Select an analysis cat in plugin Settings');
+          const issue = await this.issue(args.repo, args.number);
+          const job: Job = { kind: 'analysis', id, issue, sourceVersion: issueVersion(issue), features: features(issue),
+            threadId, catId, requester: owner.userId, requesterKind: 'owner', ownerUserId: owner.userId,
+            ownerOperationId: owner.requestId, status: 'pending', createdAt: Date.now() };
+          return await this.deliver(job, await this.save(job, null));
+        }
+        case 'retry': return await this.retryRecord(idInput.parse(input).id);
+        case 'republish': {
+          const args = revisionInput.parse(input);
+          return await this.retryRecord(args.id, args.expectedRevision);
+        }
+        case 'feedback': {
+          const args = revisionInput.extend({ verdict: z.enum(['accepted', 'corrected', 'rejected']), reason: z.string().trim().min(1).max(1000) }).parse(input);
+          const { value: job, revision } = await this.row(args.id);
+          if (revision !== args.expectedRevision) throw new Error('Record changed; reload before saving feedback');
+          if (job.kind !== 'analysis' || !job.analysis) throw new Error('Analysis required before feedback');
+          if (job.feedback) (job.feedbackHistory ??= []).push(job.feedback);
+          job.feedback = { verdict: args.verdict, reason: args.reason, recordedAt: Date.now(),
+            ownerUserId: owner.userId, ownerOperationId: owner.requestId };
+          await this.save(job, revision); return job;
+        }
+        default: throw new Error('Unknown owner action');
+      }
+    }, owner);
   }
   async invoke(method: string, input: unknown, nativeCaller?: TeamCaller): Promise<unknown> {
     return this.run(async () => {
@@ -438,9 +448,9 @@ export class IssueTeamRuntime {
         }
         default: throw new Error('Unknown issue team action');
       }
-    });
+    }, nativeCaller);
   }
-  async recover() {
+  async recover(authority?: PluginOwnerOperationContext) {
     return this.run(async () => {
       const results: Array<{ id: string; error?: string }> = [];
       for (const row of await this.rows()) {
@@ -454,7 +464,7 @@ export class IssueTeamRuntime {
       }
       try { await this.inbox(); } catch (error) { this.current(); results.push({ id: 'inbox', error: errorText(error) }); }
       return results;
-    });
+    }, authority);
   }
   async stop() { this.abort.abort(new Error('Issue team runtime stopped')); await this.tail.catch(() => {}); }
 }

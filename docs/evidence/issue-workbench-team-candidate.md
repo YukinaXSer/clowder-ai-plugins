@@ -63,3 +63,26 @@ PR 保持不合入。授权源：`thread_mucwsgsjtlbabfcq#0001792487469228-00017
 安全（独立 owner authority）、契约（消费公开 SDK，无共享修改）、外部写入（需安装配置和确认）。
 Architecture cell：插件业务与公开 Host adapter。Map delta：插件原生团队运行时与界面；
 不复制 Host Task 权威。未完成项继续保留在同一 canonical Task。
+
+## 月野兔额度耗尽后的作者接续检查
+
+接续授权：`thread_mucwsgsjtlbabfcq#0001792496061606-000036-a10cdea1`。
+月野兔本轮仅留下接单消息，没有提供两个候选 HEAD 的独立 verdict。
+以下是作者自检和修复证据，不替代独立审查；两个 PR 继续不合入。
+
+发现并复现了同一授权时序缺口：native caller 只在入口和少数局部步骤检查，
+GitHub 查询期间调用失效后仍可能写入；Settings `teamStatus/retry` 只检查入口，
+没有将 owner authority 传到异步恢复流程。另有读取结果返回前的同类缺口。
+
+修复将授权绑定到每次排队操作，覆盖原生调用、owner action 和 owner recovery；
+写入前、返回前复检，结束后清理上下文。定时恢复继续按已保存安装策略执行，
+不继承上一次失效请求。`test/team-authority.test.ts` 通过真实 runtime/module 入口
+检查：查询期间失效阻止派工、读取失效、详情回执读取后失效、保存回报意图后失效、
+Settings 重试失效及后续定时恢复。初始三条用例（派工、原文读取、Settings 重试）
+已观察到修复前 `Missing expected rejection`，修复后转绿；其余两条补查同类边界。
+
+PR #1639 的 grants 策略、声明交集与安装身份保留逻辑已回读；本次没有改动
+Core，也没有将源码自检表述为独立放行。完整 35 步门禁与 5 条打包页面旅程通过；
+其中团队行为检查为 27 项，包含本次 5 项。验证时记录的三份源码/测试 SHA256
+均与提交前文件匹配。本轮日志与摘要记录在
+`packages/issue-workbench/artifacts/team-authority-2026-10-20/verification.json`。
