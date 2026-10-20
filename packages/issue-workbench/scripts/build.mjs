@@ -9,6 +9,7 @@ process.chdir(root);
 rmSync('dist', { recursive: true, force: true });
 execFileSync('pnpm', ['exec','tsc'], { stdio: 'inherit' });
 await build({ entryPoints: ['src/index.ts'], outfile: 'dist/index.js', bundle: true, platform: 'node', format: 'esm', target: 'node22', legalComments: 'linked' });
+const teamBundle = await build({ entryPoints: ['src/team/plugin-entrypoint.ts'], outfile: 'dist/team-plugin.js', bundle: true, platform: 'node', format: 'esm', target: 'node22', legalComments: 'linked', metafile: true });
 await build({ entryPoints: ['src/browser.tsx'], outfile: 'dist/browser.js', bundle: true, platform: 'browser', format: 'esm', target: 'es2022', jsx: 'automatic', minify: true, define: { 'process.env.NODE_ENV': '"production"' }, legalComments: 'linked' });
 await build({ entryPoints: ['examples/demo.ts'], outfile: 'dist/demo.js', bundle: true, platform: 'browser', format: 'esm', target: 'es2022', external: ['./browser.js'] });
 await build({ entryPoints: ['examples/coordination.ts'], outfile: 'dist/coordination.js', bundle: true, platform: 'browser', format: 'esm', target: 'es2022', external: ['./browser.js'] });
@@ -31,5 +32,19 @@ for (const name of ['react', 'react-dom', 'scheduler', 'marked', 'dompurify']) {
   const licenses = readdirSync(directory).filter(file => /^license(?:\.|$)/i.test(file));
   if (!licenses.length) throw new Error('Missing license for ' + name);
   mkdirSync(join('dist/licenses', name), { recursive: true });
+  for (const file of licenses) copyFileSync(join(directory, file), join('dist/licenses', name, file));
+}
+// Bundled validator code remains part of the artifact's license closure.
+const seenPackages = new Set();
+for (const input of Object.keys(teamBundle.metafile.inputs)) {
+  let directory = dirname(join(root, input));
+  while (!existsSync(join(directory, 'package.json')) && dirname(directory) !== directory) directory = dirname(directory);
+  if (!existsSync(join(directory, 'package.json')) || seenPackages.has(directory) || directory === root.replace(/\/$/, '')) continue;
+  seenPackages.add(directory);
+  const dependency = JSON.parse(readFileSync(join(directory, 'package.json'), 'utf8'));
+  const name = dependency.name;
+  const licenses = readdirSync(directory).filter(file => /^licen[cs]e(?:\.|$)/i.test(file));
+  mkdirSync(join('dist/licenses', name), { recursive: true });
+  if (!licenses.length) throw new Error('Missing bundled dependency license: ' + name);
   for (const file of licenses) copyFileSync(join(directory, file), join('dist/licenses', name, file));
 }

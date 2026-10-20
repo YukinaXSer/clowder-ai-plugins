@@ -40,7 +40,7 @@
     "build": "node scripts/build.mjs",
     "typecheck": "tsc --noEmit --emitDeclarationOnly false",
     "lint": "pnpm typecheck && node scripts/check-boundaries.mjs",
-    "test": "pnpm test:sync && pnpm test:source && pnpm test:ui && pnpm test:data",
+    "test": "pnpm test:sync && pnpm test:source && pnpm test:ui && pnpm test:data && pnpm test:team",
     "test:data": "node --test test/classification-data.test.mjs",
     "test:sync": "node --test test/sync.test.mjs",
     "test:source": "node --import tsx --test test/source/*.test.ts test/ports.test.ts",
@@ -52,9 +52,11 @@
     "sync:core": "node scripts/sync-from-core.mjs",
     "sync:verify": "node scripts/sync-from-core.mjs --verify",
     "preview": "node scripts/preview.mjs",
-    "check:manifest": "node scripts/check-manifest.mjs"
+    "check:manifest": "node scripts/check-manifest.mjs",
+    "test:team": "node --import tsx --test test/team*.test.ts"
   },
   "devDependencies": {
+    "@clowder-ai/plugin-sdk": "workspace:0.2.0-beta.21",
     "@types/node": "22.13.10",
     "@types/react": "18.3.18",
     "@types/react-dom": "18.3.5",
@@ -67,6 +69,7 @@
     "react-dom": "18.3.1",
     "tsx": "4.21.0",
     "typescript": "5.9.3",
-    "vitest": "4.0.18"
+    "vitest": "4.0.18",
+    "zod": "3.25.76"
   }
 }

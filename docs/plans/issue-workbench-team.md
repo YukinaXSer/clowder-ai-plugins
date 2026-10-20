@@ -1,0 +1,93 @@
+# Issue 工作台：对话研判与团队派工
+
+授权：`thread_mucwsgsjtlbabfcq#0001792487469228-000178-8c6b1ebb`。
+需求：同线程 `0001792486825380-000173-1db6a6b7`。
+沿用 PR #80，不合入；成员账号与分工待用户提供，开发与隔离验证继续。
+
+Before：人复制问题给猫分析，抄结论，逐个找负责人，催对方启动后接收，手工统计。
+After：猫在对话中读取同一问题、提交有依据的研判；按已配置分工自动指派；
+接收者启动后补收，回报可追溯，工作台按分类/成员/优先级查看同一份结果。
+
+## 权威与边界
+
+- GitHub：问题、状态、标签、真实账号与 assignees；共享派工/回执使用有作者身份的 Issue 评论。
+- 插件：结构化研判、版本绑定、路由规则、发送意图、投递回执、反馈统计。
+- Host：当前调用身份、线程可见性、可路由猫、消息投递、用户授权、实例存储。
+- 用户：成员账号/分工、允许自动写入的仓库、本人团队收件线程与协调猫。
+- 自动指派不等于自动修代码；接收后是否开工由接收方自己的授权决定。
+- 模型输出是候选，有原文证据及提交猫/调用来源。人工反馈统计不冒充模型训练。
+- 未配置身份/分工时显示可操作的缺项，不猜账号、猫或目标线程。
+- 已绑定 Feature 继续“随 Feature 处理”；分工优先使用 Feature，其他问题才按模块路由。
+- 原只读工作台、用户本地记录与 Core export 不迁移/删除。新团队扩展由插件原生维护。
+
+Architecture cell：插件业务与公开 Host adapter。
+Map delta：增加插件原生 team runtime，复用 FeatureContext；不增加 Host 私有接口。
+Why：各成员拥有独立 Host，跨成员真相不能只存在分配者浏览器里。
+
+## 已核实的接口与差距
+
+现行公开 SDK `0.2.0-beta.21`：
+`config/storage/threads/messaging/tasks`，工具调用的独立 `PluginActionContext`。
+旧 `ownerThreads/participantRoster` 已退役，不复活。
+当前 Core 工位依赖 SDK `0.1.0-beta.17`，不能据新 SDK 合成测试宣称已安装。
+候选模块、打包闭包、隔离 Host 验收与实际 Host 安装分别记录。
+
+现有 `github-operations` 首次注册只建基线。团队接收需要首次也完整补收
+当前账号被分配的 Open Issues，不借用其“没有新事件”等于“没有待办”的语义。
+GitHub 访问走固定 `gh api --hostname github.com`，不接受任意 URL、shell 或凭据参数。
+
+## 状态契约
+
+1. 分析请求绑定 repo/issue、正文摘要、source version、明确线程与猫。
+   写入 pending 后发送；Host 幂等键固定。不可路由保留 pending，绝不换猫。
+2. 猫提交分析必须来自 Host 当前调用，匹配请求线程/猫；核对源版本，
+   保存依据、分数及原因、类别、建议。陈旧结果保留可查但不得自动派工。
+3. 路由从安装配置取得，不接受 Issue 正文或模型输出指定负责人/收件线程。
+   匹配唯一启用规则才自动派工；多规则冲突、已有其他负责人、Closed 都明确待判断。
+4. 远端写之前存发送意图；写后读回。写入失败、响应丢失可恢复；
+   只追加指定 assignee，不删除原有成员。已有其他负责人不能被自动覆盖。
+5. 共享事件标记带稳定 dispatch ID，只有符合当前仓库权限的作者事件可作优先级依据。
+   接收端只接受自己当前获分配的问题。评论发送重试先查已有标记，
+   发送结果未知时不得盲目重复 POST。
+6. 启动/定时完整核对获准仓库和当前 GitHub 账号；分页失败不能提交空快照。
+   撤销/关闭后不发旧待办；再次分配有新版本。去重状态持久且没有 TTL。
+7. 收件线程/猫只由接收者安装配置指定。Host 返回消息 ID 仅表示已投递；
+   接手必须由该线程的有效猫调用确认，不能推断已读/执行。
+8. 反馈明确采纳/修改/拒绝与理由，关联原分析 ID；统计区分样本数、
+   反馈数、各分数/类别、采纳率，不制造置信度或“训练完成”。
+9. 停用/销毁中断外部 I/O，等待当前操作收束；配置改变后旧目标保持记录，
+   不将旧意图悄悄发送到新线程。错误可重试，保存的工作不清除。
+
+## 实施与验收
+
+- **团队业务与 GitHub provider**：公共 SDK 存储 CAS；固定 gh provider；
+  分析版本、自动路由、共享派工记录、离线补收、身份与幂等行为测试。
+- **可调用模块**：candidate manifest 的 tools/schedule/Settings，
+  原生工具支持读取问题、请求/提交分析、执行路由、收件及反馈统计；
+  所有写操作使用 Host 独立身份，不从输入采信 userId/catId。
+- **工作台联动**：沿用三栏，增加当前问题研判/优先级/负责人的展示和联动入口，
+  不能只在隐藏 JSON 看结果。新 UI 先给可判断设计，再做实际页面验收。
+- **打包与安装**：从 packed artifact 的空白 consumer 启动模块；
+  用隔离数据与 Host adapter 验证重启/失败/权限/重复请求。
+真正两账号两团队旅程仍须已配置成员与接收端，不能拿 fixture 代替。
+- **验证命令**：仓库实际入口 `pnpm --filter @clowder-ai/issue-workbench lint`、
+  `test`、`build`、`test:browser`、`test:artifact`，提交前 `pnpm gate:ci`。
+  Core 镜像源变更按现有 sync 脚本先提交 Core，再同步指定 SHA。
+
+验收必须覆盖：9 分阻塞问题 → 按配置分配给离线成员 → 启动补收 →
+本地猫接手 → 回执/修复材料 → 统计反馈。对真实安装、真实派工、模型调用、
+离线恢复分别给证据，未完成项保留在同一 Task。
+
+## 2026-10-20 接入核验
+
+本地 Core main `466d4549fe2d75c9cc5c96b9497f47e464d13cf2`：
+`packages/api/src/domains/plugin/manager/builtin-contribution-supervisor.ts`
+的 `requestedContributions()` 仅接受 MCP stdio；其他贡献抛出
+`UNSUPPORTED_CONTRIBUTION`。该 checkout 没有公开 SDK 的 module Host adapter。
+这证明当前已核实的 Core 基线不能直接运行本候选，不证明所有部署都不支持。
+现行公共 SDK 本身可以执行模块，已用于隔离模块旅程测试。
+
+已写入 `integration.json` 的剩余项包括 installed-host-module-support、
+team-workbench-ui-binding、real-cat-dispatch-and-acceptance、two-account-dogfood。
+`hostInstallable` 保持 false，未新增目录/安装宣告，未改变生产 Host。
+搜索未找到可核验的 F202 owner thread；不猜测跨线程收件人或发礼貌 ACK。

@@ -1,5 +1,4 @@
-# Declaration candidate only: no executable Host contribution is advertised.
-# Rename to plugin.yaml only with the fixed SDK adapter and installed journey.
+# SDK candidate only; promote to plugin.yaml after installed Host acceptance.
 pluginId: dev.clowder.issue-workbench
 version: 0.1.0-alpha.0
 contractVersion: 0.1.0
@@ -8,13 +7,338 @@ icon:
   type: svg
   src: assets/icon.svg
 description:
-  default: Pre-SDK READ workbench package. Host installation is not enabled yet.
+  default: Issue classification, evidence-backed cat analysis and configured GitHub team assignment.
+    SDK candidate; installed Host acceptance pending.
   translations:
-    zh-CN: SDK 接入前的只读问题工作台包，尚未开放宿主安装。
+    zh-CN: 问题分类、猫猫研判与 GitHub 团队派工候选；真实宿主安装验收待完成。
 features:
-  - id: read-workbench
-    name: Read and organize issues
+  - id: team-workbench
+    name: 对话研判与团队派工
     resources: []
-    capabilities: []
+    contributions:
+      - type: tool
+        id: team-inspect
+      - type: tool
+        id: team-analyze
+      - type: tool
+        id: team-submit
+      - type: tool
+        id: team-get
+      - type: tool
+        id: team-list
+      - type: tool
+        id: team-receive
+      - type: tool
+        id: team-report
+      - type: tool
+        id: team-feedback
+      - type: tool
+        id: team-statistics
+      - type: identity
+        id: issue-workbench
+      - type: schedule
+        id: team-reconcile
+    capabilities:
+      - plugin.config.read
+      - plugin.state.get
+      - plugin.state.set
+      - thread.listMetadata
+      - thread.readContent
+      - messaging.send
+      - schedule.register
 runtime:
   transport: builtin
+  entrypoint: dist/team-plugin.js
+configuration:
+  - key: repositories
+    label: 允许处理的仓库
+    kind: string
+    required: false
+    description: owner/repository，以逗号分隔。仅这些仓库可读写；空值停用同步。
+  - key: analysisCatId
+    label: 研判猫
+    kind: string
+    required: false
+    description: 对话请求交给这只猫，在原对话中分析。不可用时保留待发送，不替换猫。
+  - key: routingRules
+    label: 成员分工
+    kind: string
+    required: false
+    description: JSON 数组，每项 login、categories、features；Feature 绑定优先。只有唯一匹配才自动派工。
+  - key: automaticAssignment
+    label: 按分工自动指派
+    kind: boolean
+    required: false
+    description: 开启后允许将研判结果写入以上仓库：添加 assignee，并公开发布分数和理由。保留已有负责人；不会自动修代码。
+  - key: receiveAssignments
+    label: 启动后接收我的分配
+    kind: boolean
+    required: false
+    description: 使用本机 GitHub CLI 登录账号，首次启用也补收已有 Open Issues。
+  - key: inboxThreadId
+    label: 本团队收件线程
+    kind: string
+    required: false
+  - key: inboxCatId
+    label: 本团队协调猫
+    kind: string
+    required: false
+  - key: shareProgress
+    label: 共享接手与修复进度
+    kind: boolean
+    required: false
+    description: 允许本团队协调猫将明确提交的进度说明和 GitHub 证据链接作为评论发回已分配的问题。
+  - key: teamStatus
+    label: 团队联动状态
+    kind: operation
+    required: false
+    actions:
+      - id: status
+        label: 运行状态
+        render: status
+        action:
+          method: issue.team.health
+      - id: retry
+        label: 重试同步与待发送通知
+        render: button
+        action:
+          method: issue.team.retry
+        next: status
+contributions:
+  - type: tool
+    id: team-inspect
+    name: issue_team_inspect
+    description: "Read a current issue from an enabled repository. Use when analyzing an issue in
+      conversation. Not for PRs, assignment or cached source truth. Output: current title, body,
+      labels, state and assignees; GitHub READ only."
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        repo: &a1
+          type: string
+          pattern: ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$
+        number: &a2
+          type: integer
+          minimum: 1
+      required:
+        - repo
+        - number
+    action:
+      method: issue.team.inspect
+  - type: tool
+    id: team-analyze
+    name: issue_team_analyze
+    description: "Request evidence-backed analysis by the configured cat in this conversation. Use when
+      asking the team to assess an issue. Not for automatic repair or arbitrary routing. Output: a
+      durable request and an idempotent Host message; unavailable targets remain pending."
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        repo: *a1
+        number: *a2
+        requestId:
+          type: string
+          pattern: ^[A-Za-z0-9_.:-]{1,128}$
+      required:
+        - repo
+        - number
+        - requestId
+    action:
+      method: issue.team.analyze
+  - type: tool
+    id: team-submit
+    name: issue_team_submit
+    description: "Submit the requested semantic analysis. Use as the assigned analysis cat in the
+      original thread. Not for stale sources, invented quotes or editing member rules. Output:
+      persisted analysis; if owner-enabled, automatically adds the configured GitHub assignee and
+      publishes score/reason. Feature ownership is preserved."
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        id: &a3
+          type: string
+          pattern: ^[a-f0-9]{64}$
+        analysis:
+          type: object
+          additionalProperties: false
+          required:
+            - category
+            - score
+            - reason
+            - evidence
+            - blocksRuntime
+            - workaround
+          properties:
+            category:
+              type: string
+              minLength: 1
+              maxLength: 80
+            score:
+              type:
+                - integer
+                - "null"
+              minimum: 1
+              maximum: 10
+            reason:
+              type: string
+              minLength: 1
+              maxLength: 1000
+            evidence:
+              type: string
+              minLength: 1
+              maxLength: 1200
+            blocksRuntime:
+              type: boolean
+            workaround:
+              type: string
+              maxLength: 1000
+      required:
+        - id
+        - analysis
+    action:
+      method: issue.team.submit
+  - type: tool
+    id: team-get
+    name: issue_team_get
+    description: "Read one analysis or inbox record and authored GitHub progress reports. Use when
+      following an exact team record. Not for assuming a report is verified Host execution or
+      closing an issue. Output: source, analysis, delivery/assignment state and reports."
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        id: *a3
+      required:
+        - id
+    action:
+      method: issue.team.get
+  - type: tool
+    id: team-list
+    name: issue_team_list
+    description: "List a bounded page of team records. Use to review conversation analysis and personal
+      inbox progress. Not for refreshing GitHub or model training. Output: stored summaries and
+      continuation offset."
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        offset:
+          type: integer
+          minimum: 0
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 100
+      required: []
+    action:
+      method: issue.team.list
+  - type: tool
+    id: team-receive
+    name: issue_team_receive
+    description: "Reconcile the configured account current assignments, including first-start backlog.
+      Use for startup recovery or explicit refresh. Not for reassigning issues or automatically
+      starting repairs. Output: durable inbox records and idempotent notifications to the configured
+      team."
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties: {}
+      required: []
+    action:
+      method: issue.team.receive
+  - type: tool
+    id: team-report
+    name: issue_team_report
+    description: "Publish a progress report from the configured receiver conversation using its own
+      GitHub account. Use after an authorized member accepts, starts, blocks or prepares a fix. Not
+      for fabricated verification, stale assignments or publishing private notes. Output: durable
+      receipt and public issue comment with explicitly supplied summary/evidence; requires progress
+      sharing enabled."
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        id: *a3
+        status:
+          type: string
+          enum:
+            - accepted
+            - working
+            - blocked
+            - ready
+        summary:
+          type: string
+          minLength: 1
+          maxLength: 1000
+        evidenceUrls:
+          type: array
+          maxItems: 10
+          items:
+            type: string
+            maxLength: 500
+      required:
+        - id
+        - status
+        - summary
+        - evidenceUrls
+    action:
+      method: issue.team.report
+  - type: tool
+    id: team-feedback
+    name: issue_team_feedback
+    description: "Record explicit acceptance, correction or rejection of a semantic analysis from its
+      requesting conversation. Use when the owner has assessed the result in a current direct
+      owner-authenticated message; its source is retained. Not for cat self-approval or inferring
+      feedback from silence or training a model. Output: a persisted feedback judgment included in
+      statistics."
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties:
+        id: *a3
+        verdict:
+          type: string
+          enum:
+            - accepted
+            - corrected
+            - rejected
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 1000
+      required:
+        - id
+        - verdict
+        - reason
+    action:
+      method: issue.team.feedback
+  - type: tool
+    id: team-statistics
+    name: issue_team_statistics
+    description: "Summarize real analysis and explicit feedback. Use to inspect category distribution,
+      reviewed samples and acceptance rate. Not for claims of trained weights, model confidence or
+      treating unreviewed output as accepted. Output: counts, distribution and a nullable acceptance
+      rate."
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties: {}
+      required: []
+    action:
+      method: issue.team.statistics
+  - type: identity
+    id: issue-workbench
+    displayName: Issue Workbench
+  - type: schedule
+    id: team-reconcile
+    schedule:
+      kind: interval
+      everyMs: 60000
+    action:
+      method: issue.team.poll
+    policy:
+      overlap: skip
+      timeoutMs: 120000

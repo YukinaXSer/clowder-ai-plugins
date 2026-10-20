@@ -1,4 +1,4 @@
-# Issue Workbench — pre-SDK package
+# Issue Workbench — standalone workbench and SDK candidate
 
 A standalone extraction of the existing Clowder Issue workbench. It reads GitHub
 observations, keeps versioned Markdown archives, and provides a browser workbench
@@ -6,10 +6,42 @@ for local annotations, solutions, evidence and task/label drafts.
 
 **Status:** this alpha builds, packs and runs independently of the Core checkout.
 It does **not** yet install/activate through Plugin Manager. `plugin.candidate.yaml`
-is an independently versioned declaration candidate, with no executable contribution;
+now declares a bundled SDK team module candidate;
 `integration.json` records the missing Host integration. It is deliberately absent
 from the public catalog and automatic npm publishing. Do not rename the candidate
 manifest or advertise an installable plugin until the fixed SDK adapter is verified.
+
+### Team module candidate
+
+`dist/team-plugin.js` uses the public SDK `0.2.0-beta.21` and installation-scoped
+Host storage, current invocation identity, thread visibility and message delivery.
+Its nine `issue_team_*` actions support reading an Issue, requesting analysis by an
+explicitly configured cat, submitting evidence-backed classifications/priority,
+configured automatic GitHub assignment, startup inbox recovery, progress reports,
+explicit feedback and statistics. The existing browser preview is unchanged and
+**does not expose or activate these actions**.
+
+Assignment is off until the owner enables it and supplies allowed repositories and
+member rules. The GitHub CLI identity belongs to each member's own environment.
+Feature bindings take precedence over semantic categories. Existing different
+assignees, changed source text, ambiguous rules and revoked settings stop automatic
+assignment. Dispatch records publish the score and reason as Issue comments only
+under that explicit policy. Reports require the currently assigned receiver's
+GitHub account and a separate progress-sharing setting.
+
+Initial startup includes previously assigned Open Issues. Provider assignment
+event IDs distinguish reassignment from restart. A durable Host message ID means
+delivered, not accepted or executing. Receiver-authored progress is not a Host
+execution verdict. Unknown comment publication outcomes are not retried with a
+blind POST. Analysis/feedback counts are descriptive statistics, not trained
+weights, measured classifier accuracy or automatic human acceptance.
+
+The source of this new extension is `src/team/`, owned by the plugin; the existing
+Core export remains unchanged. See [the implementation plan](../../docs/plans/issue-workbench-team.md).
+Remaining acceptance: compatible installed Host, workbench UI binding, lifecycle
+and grants, safe migration, and two real accounts/teams. The checked local Core
+main still has an MCP-stdio-only builtin contribution supervisor; package-module
+support must be resolved before promoting this candidate to an installable plugin.
 
 ## What is in the artifact
 
@@ -62,7 +94,7 @@ needed. Switching state preserves investigation drafts.
 These are source-platform states. A Closed issue does not imply this repository's
 fix has been verified; local verification remains separately labeled **本仓**.
 
-Use **按类别查看** in the issue queue, or click **分类结果 · 708** in the GitHub preview header. Open
+Use **按类别查看** in the issue queue, or click **分类结果** in the GitHub preview header. Open
 `http://localhost:5196/?legacy=1&classifications=1` to show the overview immediately.
 The first full pass observed **813 issues: 288 open, 525 closed** on 2026-10-20.
 **105 already bound to 32 Features** stay with those Features; **708** have a
