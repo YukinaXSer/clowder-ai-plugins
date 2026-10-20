@@ -51,10 +51,13 @@ Remaining acceptance: compatible installed Host and workbench surface, lifecycle
 and grants, safe migration, and two real accounts/teams. Core main
 `c086765ddb7181722f03f9f53c7a7ee17a29f147` supports public modules and the matching
 SDK. [Core companion #1639](https://github.com/zts212653/clowder-ai/pull/1639)
-adds its declared grant policy. The prepared candidate passes isolated real Host
-admission/loading, owner Settings actions, publication confirmation rejection,
-GitHub READ, disable/refusal and re-enable/read checks. User
-installation, live-cat invocation and the remaining product journey are still pending.
+was withdrawn on 2026-10-20 at the owner's request: its Issue-specific grant policy,
+tests and acceptance script were reverted, and the PR was closed without merging.
+Earlier isolated Host checks used that withdrawn policy and are historical evidence,
+not proof of current installation or grants. Development is limited to plugin PR #80;
+the team integration must be reassessed against existing public Host capabilities
+and supported installation authorization. User installation, live-cat invocation
+and the remaining product journey are still pending; `hostInstallable` remains false.
 
 ### Embedding the team workbench
 

@@ -73,7 +73,8 @@ GitHub 访问走固定 `gh api --hostname github.com`，不接受任意 URL、sh
 真正两账号两团队旅程仍须已配置成员与接收端，不能拿 fixture 代替。
 - **验证命令**：仓库实际入口 `pnpm --filter @clowder-ai/issue-workbench lint`、
   `test`、`build`、`test:browser`、`test:artifact`，提交前 `pnpm gate:ci`。
-  Core 镜像源变更按现有 sync 脚本先提交 Core，再同步指定 SHA。
+  当前已导出的 Core 镜像切片保留；后续开发仅更新插件 PR #80，不再通过修改
+  Core 扩大本任务范围。现有公开接口不能满足的缺口须先报告证据与替代方案。
 
 验收必须覆盖：9 分阻塞问题 → 按配置分配给离线成员 → 启动补收 →
 本地猫接手 → 回执/修复材料 → 统计反馈。对真实安装、真实派工、模型调用、
@@ -92,11 +93,20 @@ GitHub 访问走固定 `gh api --hostname github.com`，不接受任意 URL、sh
 `dev.clowder.issue-workbench` 原先无 Host policy；未知插件的有效 grants 为空。
 接入应复用现有载体与授权流程，不另造一套 Host。
 
-已在原 Core 工位整理独立配套分支 `feat/issue-workbench-host-grants`，
+以下为已撤回方案的历史记录，不能作为当前接入能力或待合入依赖：
+曾在原 Core 工位整理独立配套分支 `feat/issue-workbench-host-grants`，
 `9819504e04897144b5464d202dd574bb826f6750`：专属策略与回归已通过；
 真实 Host 的隔离制品准入、加载、GitHub READ、停用与重新启用通过。
 原源导出分支保留，插件镜像钉在 `b6c608a672ae06d477490efe2d77718d60947c72`。
 用户实例仍未安装；完整对话/派工/界面旅程继续在同一任务中完成。
+
+2026-10-20 15:18 UTC，用户明确要求回撤宿主扩改
+（`thread_mucwsgsjtlbabfcq#0001792509520767-000070-c6435188`）。
+PR #1639 的授权策略、测试及验收脚本已用撤销提交 `459935be8` 回撤，
+完整分支文件树恢复为扩改前基线 `c086765ddb7181722f03f9f53c7a7ee17a29f147`，
+PR 已关闭且从未合入。本地原源分支的同一改动也已由 `30a4a5efa` 撤销。
+后续只开发插件 PR #80，不能把恢复这项 Host 白名单作为默认前置条件。
+原有隔离载体验证依赖已撤回策略，不证明现行宿主可以安装或授权本插件。
 
 已写入 `integration.json` 的剩余项包括 installed-host-admission、
 installed-host-workbench-surface、real-cat-dispatch-and-acceptance、two-account-dogfood。
