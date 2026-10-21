@@ -3,7 +3,7 @@
   "stage": "sdk-candidate",
   "hostInstallable": false,
   "pluginId": "dev.clowder.issue-workbench",
-  "candidateManifest": "plugin.candidate.yaml",
+  "canonicalManifest": "plugin.yaml",
   "sdkVersion": "0.2.0-beta.21",
   "implemented": [
     "read-source-engine",
@@ -22,7 +22,7 @@
     "assignment-withdrawal-and-reopening"
   ],
   "pending": [
-    "installed-host-admission",
+    "production-host-grants",
     "installed-host-workbench-surface",
     "host-lifecycle-and-grants",
     "durable-work-migration",

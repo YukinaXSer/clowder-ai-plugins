@@ -1,5 +1,24 @@
 # Validation record
 
+## Unmodified Host integration — 2026-10-21
+
+The exact tarball now carries canonical `plugin.yaml`; the previous package failed
+real Host admission because only a candidate filename was present. `test:host`
+exercises the existing Host implementation in isolated projects and a private Redis
+server: install/configure/enable/disable, owner authorization and confirmation,
+native analysis tools, messages, queues, browser operations, invitation/receipt,
+offline recovery and withdrawal. Sender/receiver databases are independent.
+
+The default Host policy still grants this plugin no capabilities. Functional
+tests supply explicit test grants and fixtures for login, model and GitHub; no
+production data, real member task or real external write is involved. Source and
+critical compiled Host inputs are checked unchanged. Instructions and precise
+scope: [HOST-TESTING.md](HOST-TESTING.md); [evidence](../../docs/evidence/issue-workbench-installed-host.md).
+Overall `hostInstallable:false` and live acceptance gaps remain explicit.
+Canonical manifest discovery also activates the repository's existing bilingual
+installation-guide gate. The default README is now Chinese, `README.en.md` retains
+the English guide, and the artifact check verifies both guides plus `HOST-TESTING.md`.
+
 ## Explicit classification batches — 2026-10-21
 
 The team drawer now prepares a complete Open Issue batch and shows its size before

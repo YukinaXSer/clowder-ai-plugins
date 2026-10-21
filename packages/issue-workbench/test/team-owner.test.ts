@@ -6,7 +6,7 @@ import type { ModulePluginHostShape, PluginOwnerOperationContext } from '@clowde
 import { createIssueTeamModule } from '../src/team/plugin-entrypoint.js';
 import { setup } from './helpers/team-fixture.js';
 
-const manifest = parse(readFileSync(new URL('../plugin.candidate.yaml', import.meta.url), 'utf8'));
+const manifest = parse(readFileSync(new URL('../plugin.yaml', import.meta.url), 'utf8'));
 function host(s: ReturnType<typeof setup>): ModulePluginHostShape {
   return { ...s.context, dataPath: '/isolated-test', secrets: { get: async () => undefined },
     messaging: { ...s.context.messaging, send: ({ threadId, ...draft }) => s.context.messaging.send(threadId, draft) },

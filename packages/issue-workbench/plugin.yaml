@@ -1,4 +1,4 @@
-# SDK candidate only; promote to plugin.yaml after installed Host acceptance.
+# Canonical package admission; production grants and live acceptance remain pending.
 pluginId: dev.clowder.issue-workbench
 version: 0.1.0-alpha.0
 contractVersion: 0.1.0

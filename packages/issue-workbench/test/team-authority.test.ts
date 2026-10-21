@@ -73,7 +73,7 @@ test('a receiver invocation expiring while saving its intent cannot publish a pu
 test('Settings retry retains its owner authority throughout recovery without poisoning scheduled recovery', async () => {
   const s = setup();
   s.config.automaticAssignment = false;
-  const manifest = parse(readFileSync(new URL('../plugin.candidate.yaml', import.meta.url), 'utf8'));
+  const manifest = parse(readFileSync(new URL('../plugin.yaml', import.meta.url), 'utf8'));
   const host = { ...s.context, dataPath: '/isolated-test', secrets: { get: async () => undefined },
     messaging: { ...s.context.messaging, send: ({ threadId, ...draft }) => s.context.messaging.send(threadId, draft) },
   } as ModulePluginHostShape;

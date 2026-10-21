@@ -7,7 +7,7 @@ import { createIssueTeamModule } from '../src/team/plugin-entrypoint.js';
 import type { SharedReceipt } from '../src/team/types.js';
 import { setup } from './helpers/team-fixture.js';
 
-const manifest = parse(readFileSync(new URL('../plugin.candidate.yaml', import.meta.url), 'utf8'));
+const manifest = parse(readFileSync(new URL('../plugin.yaml', import.meta.url), 'utf8'));
 function moduleHost(s: ReturnType<typeof setup>): ModulePluginHostShape {
   return { ...s.context, dataPath: '/isolated-fixture', secrets: { get: async () => undefined }, tasks: {} as any, streams: {} as any,
     messaging: { ...s.context.messaging, send: ({ threadId, ...draft }) => s.context.messaging.send(threadId, draft) } } as ModulePluginHostShape;

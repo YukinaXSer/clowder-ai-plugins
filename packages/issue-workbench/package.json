@@ -31,10 +31,12 @@
     "sync-state.json",
     "sync-policy.json",
     "README.md",
+    "README.en.md",
     "VALIDATION.md",
+    "HOST-TESTING.md",
     "LICENSE",
     "THIRD_PARTY_NOTICES.md",
-    "plugin.candidate.yaml"
+    "plugin.yaml"
   ],
   "scripts": {
     "build": "node scripts/build.mjs",
@@ -53,7 +55,8 @@
     "sync:verify": "node scripts/sync-from-core.mjs --verify",
     "preview": "node scripts/preview.mjs",
     "check:manifest": "node scripts/check-manifest.mjs",
-    "test:team": "node --import tsx --test test/team*.test.ts"
+    "test:team": "node --import tsx --test test/team*.test.ts",
+    "test:host": "node scripts/test-installed-host.mjs"
   },
   "devDependencies": {
     "@clowder-ai/plugin-sdk": "workspace:0.2.0-beta.21",
