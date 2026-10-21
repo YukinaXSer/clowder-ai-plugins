@@ -65,16 +65,11 @@ configuration:
     kind: string
     required: false
     description: 工作台发起的研判发送到此对话；猫在对话中发起时仍使用当前对话。
-  - key: teamGroupName
-    label: 工作人员 group 名称
+  - key: teamOrganization
+    label: GitHub Organization
     kind: string
     required: false
-    description: 插件内维护的成员组名称；不会自动读取 GitHub Organization Team。
-  - key: teamMembers
-    label: group 成员
-    kind: string
-    required: false
-    description: 成员的 GitHub 用户名，以逗号或空格分隔。只有此名单内的用户可被派工或接收任务；仓库协作者和分工规则不会自动获得成员资格。空值停止派工。
+    description: 填组织名或链接，例如 meow-club 或 https://github.com/meow-club。成员从 GitHub 读取；本机 gh 账号须为组织有效成员并有组织成员读取权限（read:org 或 Members:read）。旧手工名单不再用于派工，读取失败时保留研判供重试。
   - key: routingRules
     label: 成员分工
     kind: string

@@ -25,11 +25,24 @@ and recover uncertain publications through the Host's owner-operation route.
 The standalone READ preview shows an honest disconnected state until an embedding
 Host provides that authorized route; opening the preview does not install a module.
 
-Configure a staff group first: **teamGroupName** names it and **teamMembers**
-lists its GitHub logins, separated by commas or whitespace. This is an explicit
-owner-maintained plugin roster, not a GitHub Organization Team sync. Repository
-collaborators and routing-rule entries do not become members implicitly. Until a
-group is configured, analysis remains available but assignment is disabled.
+Set **teamOrganization** to a GitHub Organization name or profile URL, for example
+`meow-club` or `https://github.com/meow-club`. The plugin reads its current members
+through the local authenticated `gh` CLI, including all result pages. The signed-in
+account must be an active organization member with organization-member read access
+(classic/OAuth `read:org`, or fine-grained **Members: read**). No new credential is
+stored in plugin settings. This links the whole Organization, not a GitHub Team.
+
+The team panel shows the organization and member count. **团队记录 → 刷新组织成员**
+reloads the roster and displays member profile links. Public-only visibility, failed
+reads and incomplete pages never become an authoritative roster; analysis/history
+remain available, with an actionable error and refresh. Members are re-read before
+assignment, publication and intake, and repository assignability is checked separately.
+
+Migration: `teamGroupName` / `teamMembers` are no longer used as membership authority.
+Configure the organization once; old records and settings data are not deleted.
+Missing configuration never falls back to the old list. Repository collaborators,
+routing-rule entries and Issue prose cannot add organization members. Pending
+assignment intent bound to the old policy requires a fresh analysis/confirmation.
 
 A member who opened an Issue is the first assignment choice. The author comes
 from GitHub's `user.login`, never a mention in the Issue body. Other Issues use
@@ -45,7 +58,7 @@ and retries. A failed one-time assignment does not authorize a background retry.
 
 The receiving member uses their own GitHub CLI account and configures their own
 **inboxThreadId** / **inboxCatId**. Their plugin must enable **receiveAssignments**
-and include that account in its staff group. The sender does not guess a remote
+and connect the same organization; that account must be one of its active members. The sender does not guess a remote
 cat identity. For member-authored Issues, the workbench, dispatch comment and
 receiving cat's notice suggest inviting the reporter to acceptance before merge.
 This is a recommendation, not a merge gate or an acceptance result. Reports require

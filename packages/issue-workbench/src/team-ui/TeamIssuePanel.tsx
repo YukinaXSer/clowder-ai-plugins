@@ -5,6 +5,7 @@ import type { TeamRecordDetail } from '../team/records.js';
 import { TeamRecordView } from './TeamRecordView';
 import { TeamRecovery } from './TeamRecovery';
 import { TeamAssignment } from './TeamAssignment';
+import { TeamOrganization } from './TeamOrganization';
 import styles from './team.module.css';
 
 export function TeamIssuePanel({ host, profile, fact }: { host: TeamHost; profile: IssueSourceProfile; fact: IssueSourceFact }) {
@@ -52,10 +53,9 @@ export function TeamIssuePanel({ host, profile, fact }: { host: TeamHost; profil
         await load(result.id);
       })}>{row?.kind === 'analysis' && row.analysis ? '重新研判' : '请猫分析'}</button>
       {configured && <p className={styles.muted}>{summary?.settings.automaticAssignment
-        ? '研判后仅向 group 成员自动派工，组员自提的问题优先本人；会公开发布分数和理由。'
+        ? '研判后仅向关联组织的成员自动派工，成员自提的问题优先本人；会公开发布分数和理由。'
         : '自动指派未开启。研判结果保存在本工作台，可选择组员并确认派工。'}</p>}
-      {configured && (!summary?.settings.teamGroupName || !summary?.settings.teamMembers) &&
-        <p className={styles.notice}>请在插件设置中配置工作人员 group 和成员；未配置时可以研判，但不派工。</p>}
+      {summary && <TeamOrganization group={summary.group} />}
       {busy && <p role="status">正在读取或处理…</p>}
       {row && <>
         <TeamRecordView row={row} />

@@ -2,6 +2,7 @@ import type { ModulePluginHostShape, PluginActionHandler, PluginHostActionContex
 import { GhTeamProvider } from './github.js';
 import { IssueTeamRuntime, WORKBENCH_METHODS } from './runtime.js';
 import type { TeamContext, TeamProvider } from './types.js';
+export { GhTeamProvider } from './github.js';
 
 export const TEAM_METHODS = ['inspect', 'analyze', 'submit', 'get', 'list', 'receive', 'report', 'feedback', 'statistics'] as const;
 

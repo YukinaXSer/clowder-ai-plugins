@@ -7,7 +7,8 @@ export interface TeamSummary {
   statistics: TeamStatistics;
   settings: { repositories?: string; analysisCatId?: string; analysisThreadId?: string;
     automaticAssignment?: boolean; receiveAssignments?: boolean; shareProgress?: boolean;
-    teamGroupName?: string; teamMembers?: string };
+    teamOrganization?: string };
+  group?: { organization?: string; members: string[]; error?: string };
   configurationError?: string;
 }
 export interface TeamHost {

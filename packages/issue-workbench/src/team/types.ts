@@ -41,6 +41,8 @@ export interface SharedReceipt {
 }
 export interface TeamProvider {
   identity(signal: AbortSignal): Promise<string>;
+  /** Complete organization roster, including concealed members; throws if access is unverified. */
+  organizationMembers(organization: string, signal: AbortSignal): Promise<string[]>;
   issue(repo: string, number: number, signal: AbortSignal): Promise<TeamIssue>;
   assignable(repo: string, login: string, signal: AbortSignal): Promise<boolean>;
   canWrite(repo: string, login: string, signal: AbortSignal): Promise<boolean>;

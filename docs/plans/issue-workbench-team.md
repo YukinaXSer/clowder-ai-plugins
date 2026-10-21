@@ -152,3 +152,24 @@ Owner 操作使用 Host 独立 authority，不伪造聊天消息或调用猫。�
 真实 group、已安装 Host 入口、双账号/在线猫旅程仍留在原 Task，不能用隔离测试替代。
 
 tips_exempt: 此插件候选不发布到 Host 能力目录，操作说明直接放在设置与派工确认面板。
+
+
+## 2026-10-21 Organization 成员来源（替代手工 group）
+
+用户来源：`thread_mucwsgsjtlbabfcq#0001792547645594-000008-95c47697`。
+成员关联整个 GitHub Organization，以用户给出的 `https://github.com/meow-club`
+作为真实只读验收对象；插件不硬编码该组织，也不把 Organization 解释为 Team。
+
+- `teamOrganization` 接受组织名或 github.com 组织主页链接。旧 `teamGroupName` /
+  `teamMembers` 不再授权成员；保留已有存储和历史派工。缺配置时引导设置。
+- provider 先验证当前登录账号在组织中的 active membership，避免将 HTTP 200
+  的公开成员子集当完整名册，再分页读取 `/orgs/{org}/members`，规范化去重排序。
+- 组织来源、完整名单与分工规则共同参与派工策略指纹；每次外部副作用前重读。
+  成员变化/组织切换/读取失败均保留研判和历史，停止新的派工或发布，允许刷新重试。
+- 原团队面板显示组织与人数；团队记录抽屉展示成员链接和刷新按钮。
+  提交者优先、手动确认、仓库权限检查与既有负责人保护继续适用。
+- 真实只读名单与隔离的 Issue/研判/派工演示分开标示；不执行真实 GitHub 写操作。
+
+接口依据：[GitHub organization members](https://docs.github.com/en/rest/orgs/members#list-organization-members)。
+当前 CLI 用户为组织成员时可返回公开及隐藏成员；细粒度权限要求 Members:read。
+仍未完成：已安装 Host 入口/授权、真实猫与双账号旅程、适用的独立审查。

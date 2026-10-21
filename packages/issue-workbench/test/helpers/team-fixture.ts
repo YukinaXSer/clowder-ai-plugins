@@ -6,7 +6,7 @@ export function setup() {
   const config: Record<string, unknown> = {
     repositories: 'fixture/repo', analysisCatId: 'analyst', inboxCatId: 'receiver',
     inboxThreadId: 'inbox', receiveAssignments: true, automaticAssignment: true,
-    teamGroupName: 'Fixture staff', teamMembers: 'alice,bob',
+    teamOrganization: 'fixture-org',
     routingRules: JSON.stringify([{ login: 'alice', categories: ['runtime'], features: ['F123'] }]),
   };
   const issues: TeamIssue[] = [{
@@ -47,7 +47,9 @@ export function setup() {
     },
     log: () => {},
   };
+  const members = ['alice', 'bob'];
   const provider: TeamProvider = {
+    organizationMembers: async () => [...members],
     identity: async () => login,
     issue: async (_repo, number) => structuredClone(issues.find(issue => issue.number === number)!),
     canWrite: async () => login === 'maintainer',
@@ -65,7 +67,7 @@ export function setup() {
   });
   const runtime = () => new IssueTeamRuntime(context, provider);
   const analysis = { category: 'runtime', score: 9, reason: 'Core startup is blocked', evidence: 'The café cannot start.', blocksRuntime: true, workaround: '' };
-  return { runtime, context, provider, caller, config, issues, sends, writes, dispatches, analysis,
+  return { runtime, context, provider, caller, config, members, issues, sends, writes, dispatches, analysis,
     feedbackFromCat: () => { feedbackCat = 'analyst'; },
     login: (value: string) => { login = value; }, failSend: (value: boolean) => { failSend = value; },
     routable: (value: boolean) => { routable = value; }, epoch: (value: string) => { epoch = value; } };

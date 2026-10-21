@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { z } from 'zod';
-import { dispatchSchema, issueInput, issueVersion, login, receiptSchema, repository } from './schema.js';
+import { dispatchSchema, issueInput, issueVersion, login, organization, receiptSchema, repository } from './schema.js';
 import type { AssignmentObservation, SharedDispatch, SharedReceipt, TeamIssue, TeamProvider } from './types.js';
 
 type GhCall = (args: string[], signal: AbortSignal) => Promise<string>;
@@ -64,6 +64,23 @@ export class GhTeamProvider implements TeamProvider {
   }
   async identity(signal: AbortSignal) {
     return z.object({ login }).parse(await this.api('user', signal)).login;
+  }
+  async organizationMembers(input: string, signal: AbortSignal) {
+    const org = organization.parse(input);
+    try {
+      // A non-member can receive HTTP 200 with only public members. Verify the
+      // authenticated user's active membership before treating this as a roster.
+      const membership = z.object({ state: z.literal('active'), organization: z.object({ login }) })
+        .parse(await this.api(`user/memberships/orgs/${org}`, signal));
+      if (membership.organization.login !== org) throw new Error('Organization mismatch');
+      const members = z.array(z.object({ login, type: z.string() })).parse(
+        await this.api(`orgs/${org}/members?per_page=100&filter=all&role=all`, signal, undefined, true));
+      return [...new Set(members.filter(member => member.type === 'User').map(member => member.login))].sort();
+    } catch (error) {
+      signal.throwIfAborted();
+      const status = /HTTP (\d{3})/.exec(String(error))?.[1];
+      throw new Error(`无法读取 GitHub Organization ${org} 的完整成员名单${status ? `（HTTP ${status}）` : ''}；请确认本机 gh 登录账号是该组织的有效成员，并具有组织成员读取权限（read:org / Members:read），然后刷新重试。`);
+    }
   }
   async issue(repo: string, number: number, signal: AbortSignal) {
     return this.decode(repository.parse(repo), await this.api(this.path(repo, number), signal));

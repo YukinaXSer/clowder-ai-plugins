@@ -10,7 +10,8 @@ async function analyzed(s: ReturnType<typeof setup>, r = s.runtime()) {
 test('a routing rule cannot turn a non-group user into a worker; unconfigured groups do not dispatch', async () => {
   for (const members of ['bob', '', undefined]) {
     const s = setup();
-    s.config.teamMembers = members;
+    s.members.splice(0, s.members.length, ...(members ? members.split(',') : []));
+    if (members === undefined) delete s.config.teamOrganization;
     const { job } = await analyzed(s);
     assert.equal(s.writes.length, 0);
     assert.equal(s.dispatches.length, 0);
@@ -21,7 +22,7 @@ test('a routing rule cannot turn a non-group user into a worker; unconfigured gr
 
 test('a member reporter takes priority over Feature routing without changing the classification', async () => {
   const s = setup();
-  s.config.teamMembers = 'Alice, BOB';
+  s.members.splice(0, s.members.length, 'Alice', 'BOB');
   s.issues[0].author = 'bob';
   s.issues[0].labels = ['feature:F123'];
   s.provider.assignable = async () => true;
@@ -44,7 +45,7 @@ test('an outside or unavailable reporter never becomes a worker implicitly', asy
   assert.equal(job.assignment.basis, 'category');
   assert.equal(s.dispatches[0].acceptanceSuggestedFor, undefined);
 
-  const unavailable = setup(); unavailable.config.teamMembers = 'alice,bob'; unavailable.issues[0].author = 'bob';
+  const unavailable = setup(); unavailable.issues[0].author = 'bob';
   const result = await analyzed(unavailable);
   assert.equal(unavailable.writes.length, 0, 'cannot silently replace the member reporter when GitHub refuses them');
   assert.match(result.job.assignment.reason, /assign/i);
@@ -52,7 +53,7 @@ test('an outside or unavailable reporter never becomes a worker implicitly', asy
 
 test('member removal while permission checks are pending blocks both assignment and publication', async () => {
   const s = setup();
-  s.provider.assignable = async () => { s.config.teamMembers = 'bob'; return true; };
+  s.provider.assignable = async () => { s.members.splice(0, s.members.length, 'bob'); return true; };
   await analyzed(s);
   assert.equal(s.writes.length, 0);
   assert.equal(s.dispatches.length, 0);
@@ -61,7 +62,7 @@ test('member removal while permission checks are pending blocks both assignment 
   const add = changedAfterAssign.provider.addAssignee;
   changedAfterAssign.provider.addAssignee = async (...args) => {
     await add(...args);
-    changedAfterAssign.config.teamMembers = 'bob';
+    changedAfterAssign.members.splice(0, changedAfterAssign.members.length, 'bob');
   };
   await analyzed(changedAfterAssign);
   assert.deepEqual(changedAfterAssign.writes, ['alice']);
@@ -74,7 +75,7 @@ test('confirmed republish cannot bypass current group membership', async () => {
   s.provider.publishDispatch = async () => { throw new Error('response lost'); };
   const { job } = await analyzed(s, r);
   const detail = await r.invoke('get', { id: job.id }, s.caller()) as any;
-  s.config.teamMembers = 'bob';
+  s.members.splice(0, s.members.length, 'bob');
   let publications = 0;
   s.provider.publishDispatch = async () => { publications++; return 'comment'; };
   await assert.rejects(r.invokeOwner('republish', { id: job.id, expectedRevision: detail.revision }, {

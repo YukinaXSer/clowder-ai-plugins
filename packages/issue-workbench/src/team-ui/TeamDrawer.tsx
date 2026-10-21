@@ -3,6 +3,7 @@ import type { TeamHost, TeamSummary } from '../ports/team.js';
 import type { TeamRecordDetail } from '../team/records.js';
 import { TeamRecordView } from './TeamRecordView';
 import { TeamRecovery } from './TeamRecovery';
+import { TeamOrganization } from './TeamOrganization';
 import styles from './team.module.css';
 
 function Contents({ host }: { host: TeamHost }) {
@@ -10,6 +11,7 @@ function Contents({ host }: { host: TeamHost }) {
   const [offset, setOffset] = useState(0), [summary, setSummary] = useState<TeamSummary>();
   const [detail, setDetail] = useState<TeamRecordDetail>(), [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [refresh, setRefresh] = useState(0);
   const version = useRef(0);
   useEffect(() => {
     const current = ++version.current;
@@ -19,7 +21,7 @@ function Contents({ host }: { host: TeamHost }) {
       .catch(error => { if (version.current === current) setError(error.message); })
       .finally(() => { if (version.current === current) setBusy(false); });
     return () => { version.current++; };
-  }, [host, tab, offset]);
+  }, [host, tab, offset, refresh]);
   async function read(id: string) {
     const current = ++version.current; setBusy(true); setError('');
     try { const next = await host.get(id); if (version.current === current) setDetail(next); }
@@ -39,6 +41,8 @@ function Contents({ host }: { host: TeamHost }) {
   }
   const stats = summary?.statistics;
   return <>
+    <TeamOrganization group={summary?.group} showMembers />
+    <button type="button" disabled={busy} onClick={() => setRefresh(value => value + 1)}>刷新组织成员</button>
     <nav className={styles.actions} aria-label="团队记录视图">
       {(['inbox', 'analysis', 'statistics'] as const).map(value => <button type="button" key={value}
         aria-pressed={tab === value} onClick={() => { setTab(value); setOffset(0); }}>

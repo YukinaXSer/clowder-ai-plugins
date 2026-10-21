@@ -1,5 +1,8 @@
 # Issue 工作台 group 与提交者优先：作者自验
 
+后续变更：2026-10-21 用户已明确从 GitHub Organization 关联人员，手工名单方案
+由 [Organization 接入](issue-workbench-organization.md) 替代。以下保留当时自验事实。
+
 需求来源：`thread_mucwsgsjtlbabfcq#0001792510714026-000073-37b4fb6b`。
 工作分支：Plugins `feat/issue-workbench`，本轮开始 HEAD `8150f16f599f41e586b010660d527db6a361f662`。
 只更新 PR #80；未修改宿主、SDK 或生产配置。宿主 #1639 保持已撤回状态。
@@ -13,7 +16,7 @@
 | 组员自己提的问题优先本人猫猫 | GitHub API 的 `user.login` 为作者真相；组员作者优先于 Feature/分类规则；本人插件按本机账号补收，再通知本人配置的猫。无法指派时保留待处理，不静默换人。 |
 | 合入前建议本人验收 | 面板、GitHub 派工评论、收件猫通知均显示建议；明确不是已验收、独立审查或自动合入。 |
 
-group 来源已询问，尚未收到确定标识。本轮显式采用插件内维护的成员组，
+历史状态（2026-10-20）：group 来源已询问，尚未收到确定标识。本轮显式采用插件内维护的成员组，
 不宣称 GitHub Organization Team 自动同步，不填写猜测的真实账号。
 
 ## 观察到的失败与修正

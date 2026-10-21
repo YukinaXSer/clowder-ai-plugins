@@ -1,5 +1,32 @@
 # Validation record
 
+## GitHub Organization roster — 2026-10-21
+
+Source: `thread_mucwsgsjtlbabfcq#0001792547645594-000008-95c47697`.
+`teamOrganization` replaces manual membership authority. The current authenticated
+user's active membership is verified before paginated organization reads. The
+roster is refreshed before assignment/publication/intake, while repository permission
+and explicit owner confirmation remain independent checks. Missing/failed access
+retains analysis/history and offers refresh instead of using a stale/manual list.
+
+Observed RED: organization provider absent; runtime assigned the old manual member
+instead of the organization member, and still assigned when organization access
+failed. All 44 team checks now pass. The packed browser journey verifies organization
+source/count, refreshed member links, failed refresh clearing choices while preserving
+analysis, selection/confirmation/reload and existing recovery. Typecheck and build pass.
+The production bundled provider read 10 `meow-club` members via the local authenticated
+GitHub CLI; the local UI displays and refreshes them. Real membership reads are
+separate from synthetic Issue/cat/assignment data; no real GitHub writes occurred.
+
+Evidence and full-gate result: `artifacts/organization-2026-10-21/` and
+[Organization acceptance](../../docs/evidence/issue-workbench-organization.md).
+All 35 repository gate steps and all six packed browser/READ journeys passed
+in the managed full run (426 seconds). All 114 captured file digests matched
+on readback before this documentation-only result update. The fixed artifact
+toolchain, canonical gate step list and existing Feishu pack exemption are unchanged.
+Author-only verification; installed Host authorization, live-cat/two-account
+acceptance and merge remain pending.
+
 ## Adjustable workspace columns — 2026-10-21
 
 Source: `thread_mucwsgsjtlbabfcq#0001792546356337-000000-2a0451b4`

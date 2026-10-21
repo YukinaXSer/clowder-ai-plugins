@@ -37,7 +37,7 @@ test('authority expiry during the final group refresh cannot leak an assignment'
   const get = s.context.config.get;
   s.context.config.get = async key => {
     const value = await get(key);
-    if (checkedPermission && key === 'teamMembers') current = false;
+    if (checkedPermission && key === 'teamOrganization') current = false;
     return value;
   };
   const caller = { ...s.caller(), assertCurrent: async () => { if (!current) throw new Error('Invocation expired'); } };

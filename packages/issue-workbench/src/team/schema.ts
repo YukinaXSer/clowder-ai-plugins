@@ -6,6 +6,13 @@ export const repository = z.string().max(200).regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-
   .refine(value => value.split('/').every(segment => segment !== '.' && segment !== '..'), 'Repository must not contain path traversal')
   .transform(value => value.toLowerCase());
 export const login = z.string().regex(/^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/).transform(value => value.toLowerCase());
+/** Accept an organization slug or its github.com profile URL, never an arbitrary endpoint. */
+export const organization = z.string().trim().max(200).transform(value => {
+  const url = /^https:\/\/github\.com\/([A-Za-z0-9-]+)\/?$/i.exec(value);
+  return url ? url[1] : value;
+}).pipe(z.string().regex(/^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$/,
+  '请填写 GitHub Organization 名称或组织链接，例如 https://github.com/meow-club')
+  .transform(value => value.toLowerCase()));
 export const issueInput = z.object({ repo: repository, number: z.number().int().positive() }).strict();
 export const idInput = z.object({ id: z.string().regex(/^[a-f0-9]{64}$/) }).strict();
 export const analysisSchema = z.object({

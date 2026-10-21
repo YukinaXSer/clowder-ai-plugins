@@ -1,9 +1,10 @@
 import { z } from 'zod';
-import { features, hash, login, rulesSchema } from './schema.js';
-import type { TeamAnalysis, TeamContext, TeamIssue } from './types.js';
+import { features, hash, login, organization, rulesSchema } from './schema.js';
+import type { TeamAnalysis, TeamContext, TeamIssue, TeamProvider } from './types.js';
 
 export interface AssignmentOptions {
   groupName: string;
+  organization?: string;
   members: string[];
   preferredLogin?: string;
   basis?: 'reporter' | 'feature' | 'category';
@@ -11,27 +12,30 @@ export interface AssignmentOptions {
   error?: string;
 }
 
-/** Explicit owner-maintained roster. Routing rules and repository access do not
- * create membership; no GitHub Team synchronization is implied by this source. */
-export async function readGroup(context: TeamContext) {
-  const name = await context.config.get('teamGroupName');
-  const raw = await context.config.get('teamMembers');
-  if (typeof name !== 'string' || !name.trim() || typeof raw !== 'string' || !raw.trim()) {
-    throw new Error('请在插件设置中配置 group 名称和成员 GitHub 用户名；未配置成员组时不派工');
+/** GitHub owns membership. Legacy manual lists and routing rules cannot add staff.
+ * Read afresh at each effect boundary; a failed read never grants cached authority. */
+export async function readGroup(context: TeamContext, provider: TeamProvider, signal: AbortSignal) {
+  const raw = await context.config.get('teamOrganization');
+  if (typeof raw !== 'string' || !raw.trim()) {
+    throw new Error('请在插件设置中关联 GitHub Organization，例如 meow-club；旧手工成员名单不会用于派工');
   }
-  const groupName = z.string().trim().min(1).max(80).parse(name);
-  const members = [...new Set(z.array(login).min(1).max(100).parse(raw.split(/[\s,，]+/).filter(Boolean)))].sort();
-  return { groupName, members };
+  const org = organization.parse(raw);
+  const members = [...new Set(z.array(login).parse(await provider.organizationMembers(org, signal)))].sort();
+  signal.throwIfAborted();
+  if (organization.parse(await context.config.get('teamOrganization')) !== org) {
+    throw new Error('关联组织已变化，请刷新成员名单后重试');
+  }
+  return { groupName: org, organization: org, members };
 }
 
-export async function requireMember(context: TeamContext, target: string) {
-  const group = await readGroup(context);
-  if (!group.members.includes(login.parse(target))) throw new Error('目标用户已不在当前 group 成员名单中');
+export async function requireMember(context: TeamContext, provider: TeamProvider, signal: AbortSignal, target: string) {
+  const group = await readGroup(context, provider, signal);
+  if (!group.members.includes(login.parse(target))) throw new Error('目标用户已不在当前 GitHub Organization 成员名单中');
   return group;
 }
 
-export async function assignmentPlan(context: TeamContext, issue: TeamIssue, analysis?: TeamAnalysis) {
-  const group = await readGroup(context);
+export async function assignmentPlan(context: TeamContext, provider: TeamProvider, signal: AbortSignal, issue: TeamIssue, analysis?: TeamAnalysis) {
+  const group = await readGroup(context, provider, signal);
   const rawRules = await context.config.get('routingRules');
   const reporter = issue.author && group.members.includes(issue.author) ? issue.author : undefined;
   const options: AssignmentOptions = { ...group, acceptanceSuggestedFor: reporter };
