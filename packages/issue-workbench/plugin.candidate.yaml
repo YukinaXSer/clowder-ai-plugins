@@ -75,16 +75,26 @@ configuration:
     kind: string
     required: false
     description: JSON 数组，每项 login、categories、features。组员自己提的问题优先本人；其他问题按 Feature 绑定、分类分工选择组员。只有唯一匹配才自动派工。
+  - key: dispatchMode
+    label: 自动派工方式
+    kind: select
+    required: false
+    options:
+      - value: invitation
+        label: 通知成员接手
+      - value: assignment
+        label: 设置 GitHub 负责人
+    description: 选择邀请只在评论中通知成员；设置负责人另需仓库指派权限。留空保留原有设置负责人行为；两者均须开启自动指派。
   - key: automaticAssignment
     label: 按分工自动指派
     kind: boolean
     required: false
-    description: 开启后按当前 group 派工：添加 assignee，并公开发布分数和理由。组员自提的问题优先本人，并建议本人参与合入前验收。保留已有负责人；不会自动修代码或合入。
+    description: 开启后按当前 group 派工：按自动派工方式发送任务邀请或添加 assignee，并公开发布分数和理由。组员自提的问题优先本人，并建议本人参与合入前验收。保留已有负责人；不会自动修代码或合入。
   - key: receiveAssignments
     label: 启动后接收我的分配
     kind: boolean
     required: false
-    description: 使用本机 GitHub CLI 登录账号，该账号须在 group 中；任务发送到下面配置的本人猫猫和收件对话。首次启用也补收已有 Open Issues。
+    description: 使用本机 GitHub CLI 登录账号，该账号须在 group 中；任务发送到下面配置的本人猫猫和收件对话。首次启用及离线重启均补收已有 Open Issues 和当前组织成员发给本账号的任务邀请；邀请只进入待接手，不自动修复。
   - key: inboxThreadId
     label: 本团队收件线程
     kind: string
@@ -97,7 +107,7 @@ configuration:
     label: 共享接手与修复进度
     kind: boolean
     required: false
-    description: 允许本团队协调猫将明确提交的进度说明和 GitHub 证据链接作为评论发回已分配的问题。
+    description: 允许本团队协调猫将明确提交的进度说明和 GitHub 证据链接作为评论发回当前分配或邀请的问题。
   - key: teamStatus
     label: 团队联动状态
     kind: operation
@@ -138,12 +148,12 @@ configuration:
       - id: assign
         label: 确认指派
         render: row
-        confirm: 将此 Issue 指派给所选 group 成员，并公开发布研判分数、理由及验收建议；不会自动修代码或合入。
+        confirm: 按所选方式向组织成员发送公开任务邀请，或设置 GitHub 负责人；公开研判分数、理由及验收建议。邀请待对方接手，不会自动修代码或合入。
         action: { method: issue.workbench.assign }
       - id: assignIssue
         label: 确认直接指派
         render: row
-        confirm: 将此 Issue 指派给所选组织成员，并公开记录主人直接指派；没有猫猫研判分数。不会自动修代码或合入。
+        confirm: 按所选方式向组织成员发送公开任务邀请，或设置 GitHub 负责人；没有猫猫研判分数。邀请待对方接手，不会自动修代码或合入。
         action: { method: issue.workbench.assignIssue }
       - id: republish
         label: 确认重新发布
@@ -210,7 +220,7 @@ contributions:
     name: issue_team_submit
     description: "Submit the requested semantic analysis. Use as the assigned analysis cat in the
       original thread. Not for stale sources, invented quotes or editing member rules. Output:
-      persisted analysis; if owner-enabled, assigns only current group members, preferring a member
+      persisted analysis; if owner-enabled, invites or assigns only current group members according to the saved delivery mode, preferring a member
       reporter before Feature/category rules, suggests reporter acceptance before merge, and
       publishes score/reason. Existing Feature classifications and different assignees are preserved."
     inputSchema:
@@ -297,7 +307,7 @@ contributions:
   - type: tool
     id: team-receive
     name: issue_team_receive
-    description: "Reconcile the configured account current assignments, including first-start backlog.
+    description: "Reconcile current assignments and authenticated organization-member task invitations for the local account, including first-start and offline backlog.
       Use for startup recovery or explicit refresh. Not for reassigning issues or automatically
       starting repairs. Output: durable inbox records and idempotent notifications to the configured
       team."

@@ -15,7 +15,7 @@ export interface TeamSummary {
   statistics: TeamStatistics;
   settings: { repositories?: string; analysisCatId?: string; analysisThreadId?: string;
     automaticAssignment?: boolean; receiveAssignments?: boolean; shareProgress?: boolean;
-    teamOrganization?: string };
+    teamOrganization?: string; dispatchMode?: 'assignment' | 'invitation' };
   group?: { organization?: string; members: string[]; error?: string };
   configurationError?: string;
   issueContext?: TeamIssueContext;
@@ -29,8 +29,8 @@ export interface TeamHost {
   get(id: string): Promise<TeamRecordDetail>;
   analyze(input: { repo: string; number: number; requestId: string; catId?: string }): Promise<TeamRecord>;
   retry(id: string): Promise<TeamRecord>;
-  assign(input: { id: string; expectedRevision: number; login: string }): Promise<TeamRecord>;
-  assignIssue(input: { repo: string; number: number; sourceVersion: string; requestId: string; login: string }): Promise<TeamRecord>;
+  assign(input: { id: string; expectedRevision: number; login: string; delivery?: 'assignment' | 'invitation' }): Promise<TeamRecord>;
+  assignIssue(input: { repo: string; number: number; sourceVersion: string; requestId: string; login: string; delivery?: 'assignment' | 'invitation' }): Promise<TeamRecord>;
   republish(id: string, expectedRevision: number): Promise<TeamRecord>;
   feedback(input: { id: string; expectedRevision: number; verdict: 'accepted' | 'corrected' | 'rejected'; reason: string }): Promise<TeamRecord>;
   planClassification(input: { repo: string; catId: string; requestId: string }): Promise<ClassificationQueueView>;

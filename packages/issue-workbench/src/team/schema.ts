@@ -29,7 +29,7 @@ export const rulesSchema = z.array(z.object({
   features: z.array(z.string().regex(/^F\d+$/)).max(100),
 }).strict()).max(100);
 export const dispatchSchema = z.object({
-  schema: z.literal('issue-workbench.dispatch.v1'), id: idInput.shape.id,
+  schema: z.literal('issue-workbench.dispatch.v1'), delivery: z.literal('invitation').optional(), id: idInput.shape.id,
   issueId: z.string().min(1), assignee: login,
   score: z.number().int().min(1).max(10).nullable(),
   reason: z.string().max(1000), sourceVersion: idInput.shape.id,

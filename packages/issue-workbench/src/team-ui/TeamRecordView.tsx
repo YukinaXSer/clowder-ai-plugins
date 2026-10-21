@@ -31,14 +31,14 @@ export function TeamRecordView({ row }: { row: TeamRecordDetail }) {
       <p role="status">{row.status === 'delivered' ? '已发送，等待研判' : '待发送'}</p>}
     {row.kind !== 'assignment' && row.error && <p role="alert">{row.error}</p>}
     {row.kind !== 'inbox' && row.assignment && <p>
-      {row.assignment.status === 'assigned' ? '分配与公开记录已写入 GitHub'
+      {row.assignment.status === 'invited' ? '任务邀请已发布，等待成员接手' : row.assignment.status === 'assigned' ? '分配与公开记录已写入 GitHub'
         : row.assignment.status === 'needs-decision' ? '分配需要确认' : '分配待核对'}
       {row.assignment.reason ? ` · ${row.assignment.reason}` : ''}
     </p>}
     {row.kind === 'inbox' && <p>{row.status === 'inactive' ? '原分配已结束' : row.status === 'delivered' ? '团队已收取' : '等待投递'}
       {row.withdrawal?.status === 'pending' ? ' · 变更提醒待发送' : row.withdrawal?.status === 'delivered' ? ' · 变更提醒已发送' : ''}</p>}
     {row.kind === 'inbox' && row.receipt && <p>{row.receipt.commentId ? '回执已发布' : '回执发布结果待核对'}</p>}
-    <p>{row.sharedReceipts.length ? '历史成员报告（按当时分配记录）' : '暂无成员接手回执'}</p>
+    <p>{row.sharedReceipts.length ? '历史成员报告（按当时任务记录）' : '暂无成员接手回执'}</p>
     {row.sharedReceipts.map(report => <div key={report.id} className={styles.report}>
       <strong>{report.login} · {reports[report.status]}</strong>
       <p>{report.summary}</p>

@@ -2,26 +2,42 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { z } from 'zod';
 import { dispatchSchema, issueInput, issueVersion, login, organization, receiptSchema, repository } from './schema.js';
-import type { AssignmentObservation, SharedDispatch, SharedReceipt, TeamIssue, TeamProvider } from './types.js';
+import type { AssignmentObservation, InvitationPage, SharedDispatch, SharedReceipt, TeamIssue, TeamProvider } from './types.js';
 
 type GhCall = (args: string[], signal: AbortSignal) => Promise<string>;
 const execute = promisify(execFile);
+// Provider authors can be bot/deleted identities. Only human targets use login.
+const authorLogin = z.string().min(1).max(100).transform(value => value.toLowerCase());
 const issueSchema = z.object({
   node_id: z.string().min(1), number: z.number().int().positive(), title: z.string(),
   body: z.string().nullable(), state: z.enum(['open', 'closed']),
   updated_at: z.string().optional(),
-  user: z.object({ login }).nullable(),
+  user: z.object({ login: authorLogin }).nullable(),
   labels: z.array(z.object({ name: z.string() })),
   assignees: z.array(z.object({ login })), html_url: z.string(), pull_request: z.unknown().optional(),
 });
 const commentSchema = z.object({
-  id: z.number().int().positive(), body: z.string(), user: z.object({ login }),
+  id: z.number().int().positive(), body: z.string(), user: z.object({ login: authorLogin }).nullable(),
   created_at: z.string(), updated_at: z.string(),
 });
 const marker = (id: string) => `<!-- issue-workbench.dispatch.v1:${id} -->`;
 const escapeMention = (text: string) => text.replaceAll('@', '＠');
 export const dispatchBody = (dispatch: SharedDispatch) =>
-  `Issue Workbench · @${dispatch.assignee}\n\n优先级：${dispatch.score ?? '待研判'}${dispatch.score === null ? '' : '/10'}\n${escapeMention(dispatch.reason)}\n${dispatch.acceptanceSuggestedFor ? `\n建议合入前邀请 Issue 提交者 @${dispatch.acceptanceSuggestedFor} 参与验收；此建议不表示已验收，也不替代独立审查。\n` : ''}\n${marker(dispatch.id)}\n\`\`\`json\n${JSON.stringify(dispatch)}\n\`\`\``;
+  `Issue Workbench · @${dispatch.assignee}${dispatch.delivery === 'invitation' ? ' · 任务邀请（待接手，未设置 GitHub 负责人）' : ''}\n\n优先级：${dispatch.score ?? '待研判'}${dispatch.score === null ? '' : '/10'}\n${escapeMention(dispatch.reason)}\n${dispatch.acceptanceSuggestedFor ? `\n建议合入前邀请 Issue 提交者 @${dispatch.acceptanceSuggestedFor} 参与验收；此建议不表示已验收，也不替代独立审查。\n` : ''}\n${marker(dispatch.id)}\n\`\`\`json\n${JSON.stringify(dispatch)}\n\`\`\``;
+
+function invitationDispatch(comment: z.infer<typeof commentSchema>, target: string, trustedSenders: string[]) {
+  if (comment.created_at !== comment.updated_at || (!comment.user || !trustedSenders.includes(comment.user.login))) return null;
+  const match = /<!-- issue-workbench\.dispatch\.v1:([a-f0-9]{64}) -->\n```json\n([^\n]+)\n```$/.exec(comment.body);
+  if (!match) return null;
+  try {
+    const dispatch = dispatchSchema.parse(JSON.parse(match[2]));
+    // Compare to the original JSON, not schema property order. An invitation is
+    // an exact protocol record; arbitrary mentions never become executable work.
+    if (dispatch.delivery !== 'invitation' || dispatch.id !== match[1] || dispatch.assignee !== target ||
+        dispatchBody(JSON.parse(match[2])) !== comment.body) return null;
+    return dispatch;
+  } catch { return null; }
+}
 
 /** All paths are constructed here from validated repository/number/login.
  * No user-controlled URL, host, credential, executable or shell enters gh. */
@@ -110,7 +126,7 @@ export class GhTeamProvider implements TeamProvider {
     const dispatch = dispatchSchema.parse(input), actor = await this.identity(signal);
     if (dispatch.issueId !== issue.id || dispatch.sourceVersion !== issueVersion(issue)) throw new Error('Dispatch source mismatch');
     const comments = await this.comments(issue, signal);
-    const existing = comments.filter(comment => comment.user.login === actor && comment.body.includes(marker(dispatch.id)));
+    const existing = comments.filter(comment => comment.user?.login === actor && comment.body.includes(marker(dispatch.id)));
     const body = dispatchBody(dispatch);
     if (existing.length) {
       if (existing.length !== 1 || existing[0].body !== body) throw new Error('Shared dispatch marker has conflicting content');
@@ -129,10 +145,11 @@ export class GhTeamProvider implements TeamProvider {
       let parsed;
       try { parsed = dispatchSchema.safeParse(JSON.parse(match[2])); } catch { continue; }
       if (!parsed.success || parsed.data.id !== match[1] || parsed.data.issueId !== issue.id ||
+          parsed.data.delivery === 'invitation' ||
           parsed.data.assignee !== target || parsed.data.sourceVersion !== issueVersion(issue)) continue;
       // Editing metadata after the fact is not an authenticated new dispatch.
       if (comment.updated_at !== comment.created_at) continue;
-      if (await this.canWrite(issue.repo, comment.user.login, signal)) return parsed.data;
+      if (comment.user && login.safeParse(comment.user.login).success && await this.canWrite(issue.repo, comment.user.login, signal)) return parsed.data;
     }
     return null;
   }
@@ -141,7 +158,7 @@ export class GhTeamProvider implements TeamProvider {
     if (receipt.issueId !== issue.id || receipt.login !== actor) throw new Error('Receipt identity mismatch');
     const tag = `<!-- issue-workbench.receipt.v1:${receipt.id} -->`;
     const body = `Issue Workbench · ${receipt.status}\n\n${escapeMention(receipt.summary)}\n${receipt.evidenceUrls.join('\n')}\n\n${tag}\n\`\`\`json\n${JSON.stringify(receipt)}\n\`\`\``;
-    const existing = (await this.comments(issue, signal)).filter(comment => comment.user.login === actor && comment.body.includes(tag));
+    const existing = (await this.comments(issue, signal)).filter(comment => comment.user?.login === actor && comment.body.includes(tag));
     if (existing.length) {
       if (existing.length !== 1 || existing[0].body !== body) throw new Error('Receipt marker conflict');
       return String(existing[0].id);
@@ -151,13 +168,14 @@ export class GhTeamProvider implements TeamProvider {
       await this.api(`${this.path(issue.repo, issue.number)}/comments`, signal, { body }),
     ).id);
   }
-  async receipts(issue: TeamIssue, signal: AbortSignal): Promise<SharedReceipt[]> {
+  async receipts(issue: TeamIssue, signal: AbortSignal, trustedSenders: string[] = []): Promise<SharedReceipt[]> {
     const receipts: SharedReceipt[] = [];
+    const comments = await this.comments(issue, signal);
     const timeline = z.array(z.object({
       id: z.number().int().positive().optional(), event: z.string(), created_at: z.string().optional(),
       assignee: z.object({ login }).optional(),
     })).parse(await this.api(`${this.path(issue.repo, issue.number)}/timeline?per_page=100`, signal, undefined, true));
-    for (const comment of await this.comments(issue, signal)) {
+    for (const comment of comments) {
       const match = /<!-- issue-workbench\.receipt\.v1:([a-f0-9]{64}) -->\n```json\n([^\n]+)\n```$/.exec(comment.body);
       if (!match || comment.created_at !== comment.updated_at) continue;
       try {
@@ -165,12 +183,60 @@ export class GhTeamProvider implements TeamProvider {
         const assignment = timeline.filter(event =>
           ['assigned', 'unassigned'].includes(event.event) && event.assignee?.login === receipt.login &&
           event.created_at && Date.parse(event.created_at) <= Date.parse(comment.created_at)).at(-1);
-        if (receipt.id === match[1] && receipt.issueId === issue.id && receipt.login === comment.user.login &&
-            assignment?.event === 'assigned' && String(assignment.id) === receipt.assignmentId) receipts.push(receipt);
+        const invitation = comments.find(candidate => {
+          const dispatch = invitationDispatch(candidate, receipt.login, trustedSenders);
+          return dispatch?.issueId === issue.id && receipt.assignmentId === `invitation:${candidate.id}` &&
+            Date.parse(candidate.created_at) <= Date.parse(comment.created_at);
+        });
+        if (receipt.id === match[1] && receipt.issueId === issue.id && receipt.login === comment.user?.login &&
+            (invitation || assignment?.event === 'assigned' && String(assignment.id) === receipt.assignmentId)) receipts.push(receipt);
       } catch { /* Ordinary comments are not structured progress. */ }
     }
     // These are authored reports with assignment IDs, not Host execution truth.
     return receipts;
+  }
+  private observeInvitation(issue: TeamIssue, comment: z.infer<typeof commentSchema>, target: string, senders: string[]): AssignmentObservation | null {
+    const dispatch = invitationDispatch(comment, target, senders);
+    if (!dispatch || dispatch.issueId !== issue.id || dispatch.sourceVersion !== issueVersion(issue) ||
+        issue.state !== 'open' || issue.assignees.some(assignee => assignee !== target)) return null;
+    return { issue, assignmentId: `invitation:${comment.id}`, dispatch, delivery: 'invitation' };
+  }
+  async invitation(issue: TeamIssue, assignmentId: string, target: string, trustedSenders: string[], signal: AbortSignal) {
+    target = login.parse(target);
+    const comment = (await this.comments(issue, signal)).find(row => `invitation:${row.id}` === assignmentId);
+    return comment ? this.observeInvitation(issue, comment, target, trustedSenders) : null;
+  }
+  async invitations(repo: string, target: string, trustedSenders: string[], signal: AbortSignal, page = 1, since?: string): Promise<InvitationPage> {
+    repo = repository.parse(repo); target = login.parse(target);
+    // Read one bounded page. The runtime commits continuation only after its
+    // deliveries are persisted; old invitations are revalidated independently.
+    z.number().int().min(1).max(1_000_000).parse(page);
+    if (since) z.string().datetime().parse(since);
+    const query = `per_page=100&sort=updated&direction=desc&page=${page}${since ? `&since=${encodeURIComponent(since)}` : ''}`;
+    const comments = z.array(commentSchema.extend({ issue_url: z.string() })).parse(
+      await this.api(`${this.path(repo)}/issues/comments?${query}`, signal));
+    const result: AssignmentObservation[] = [];
+    const issues = new Map<number, TeamIssue | null>();
+    for (const comment of comments) {
+      if (!invitationDispatch(comment, target, trustedSenders)) continue;
+      let url: URL;
+      try { url = new URL(comment.issue_url); } catch { continue; }
+      const match = /^\/repos\/([^/]+\/[^/]+)\/issues\/([1-9][0-9]*)$/.exec(url.pathname);
+      if (url.origin !== 'https://api.github.com' || url.username || url.password || url.search || url.hash ||
+          !match || match[1].toLowerCase() !== repo || !Number.isSafeInteger(Number(match[2]))) continue;
+      const number = Number(match[2]);
+      if (!issues.has(number)) {
+        const raw = issueSchema.parse(await this.api(this.path(repo, number), signal));
+        issues.set(number, raw.pull_request === undefined ? this.decode(repo, raw) : null);
+      }
+      const issue = issues.get(number);
+      if (!issue) continue;
+      const observed = this.observeInvitation(issue, comment, target, trustedSenders);
+      if (observed) result.push(observed);
+    }
+    const dates = comments.map(comment => Date.parse(comment.updated_at)).filter(Number.isFinite);
+    return { observations: result, nextPage: comments.length === 100 ? page + 1 : null,
+      ...(dates.length ? { newestUpdatedAt: new Date(Math.max(...dates)).toISOString() } : {}) };
   }
   async assigned(repo: string, target: string, signal: AbortSignal): Promise<AssignmentObservation[]> {
     repo = repository.parse(repo); target = login.parse(target);

@@ -57,6 +57,9 @@ export function setup() {
     assignable: async (_repo, target) => target === 'alice',
     addAssignee: async (issue, target) => { writes.push(target); issues.find(item => item.id === issue.id)!.assignees.push(target); },
     publishDispatch: async (_issue, dispatch) => { if (!dispatches.some(item => item.id === dispatch.id)) dispatches.push(dispatch); return 'comment-1'; },
+    invitations: async (_repo, target, senders) => ({ nextPage: null, observations: dispatches.filter(d => d.delivery === 'invitation' && d.assignee === target && senders.includes('bob'))
+      .flatMap(d => issues.filter(issue => issue.id === d.issueId && issue.state === 'open').map(issue => ({ issue: structuredClone(issue), assignmentId: 'invitation:' + d.id, dispatch: d, delivery: 'invitation' as const }))) }),
+    invitation: async (issue, id, target, senders, signal) => (await provider.invitations(issue.repo, target, senders, signal)).observations.find(row => row.assignmentId === id) ?? null,
     assigned: async (_repo, target) => issues.filter(issue => issue.state === 'open' && issue.assignees.includes(target))
       .map(issue => ({ issue: structuredClone(issue), assignmentId: epoch, dispatch: dispatches.at(-1) ?? null })),
     publishReceipt: async () => 'receipt-comment',

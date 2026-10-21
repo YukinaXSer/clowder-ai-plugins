@@ -75,7 +75,7 @@ function Contents({ host }: { host: TeamHost }) {
         aria-pressed={detail?.id === row.id} onClick={() => void read(row.id)}>
         <strong>{row.issue.repo}#{row.issue.number} · {row.issue.title}</strong>
         <span>{row.kind === 'inbox' ? `${row.score ?? '待研判'}${row.score === null ? '' : ' / 10'} · ${row.status === 'inactive' ? '原分配已结束' : row.status === 'delivered' ? '团队已收取' : '待投递'}`
-          : row.kind === 'assignment' ? `主人直接指派 · ${row.assignment?.status === 'assigned' ? '已指派' : '待核对'}` : row.analysis ? `${row.analysis.score ?? '待研判'} · ${row.analysis.category}` : row.status === 'delivered' ? '等待研判' : '待发送'}</span>
+          : row.kind === 'assignment' ? `主人直接指派 · ${row.assignment?.status === 'invited' ? '已邀请 · 待接手' : row.assignment?.status === 'assigned' ? '已指派' : '待核对'}` : row.analysis ? `${row.analysis.score ?? '待研判'} · ${row.analysis.category}` : row.status === 'delivered' ? '等待研判' : '待发送'}</span>
       </button>)}</div>
       <div className={styles.actions}>
         <button type="button" disabled={busy || !offset} onClick={() => setOffset(Math.max(0, offset - 30))}>上一页</button>

@@ -424,3 +424,30 @@ Select the result (or use arrow keys and Enter), enter the relation/evidence and
 save. Search covers all readable issues; only the first 30 matches are shown until
 you narrow the query. Editing the query clears the previous choice. Saving creates
 a local relation and never changes the source platforms.
+
+### Notify a GitHub member to take a task
+
+In the existing member control, choose **通知成员接手** (default) and confirm the
+public invitation. This posts a task comment mentioning the member without
+changing GitHub assignees. **设置 GitHub 负责人** remains a separate choice with its
+own assignment permission. `邀请已发布` does not mean the member accepted.
+
+The recipient installs/enables the candidate in a compatible Host, logs into their
+own GitHub account, saves the allowed repositories and organization, and enables
+**启动后接收我的分配** with their local inbox thread/cat. Login alone does not run a
+listener. Startup and the 60-second schedule reconcile persistent Issue comments,
+including offline backlog, and deduplicate already delivered work. Notifications
+can be read or cleared without losing the task. Only unchanged protocol comments
+from current organization members are accepted; ordinary mentions are not tasks.
+Reports return to the Issue only when progress sharing is explicitly enabled.
+
+For automatic classification dispatch, save `dispatchMode=invitation` and enable
+`automaticAssignment`. Existing installations with an unset mode retain assignment
+behavior. Invitation attempts never probe assignee write permission; actual comment
+API failures remain visible for retry. Source changes, deleted/edited invitations,
+closure or another assignee deactivate delivery without deleting history.
+
+This candidate still needs the previously identified generic Host integration and
+real installation acceptance. The packed two-installation journey uses isolated
+fixtures; it does not prove real members were notified. See
+[invitation evidence](../../docs/evidence/issue-workbench-github-invitations.md).

@@ -11,7 +11,7 @@ export function TeamRecovery({ host, row, busy, act }: {
     ? !!row.assignment?.commentAttempted && !row.assignment.commentId
     : !!row.receipt?.commentAttempted && !row.receipt.commentId;
   const retryable = row.kind !== 'assignment' && (row.error || uncertain || (row.kind !== 'inbox'
-    ? row.assignment && row.assignment.status !== 'assigned'
+    ? row.assignment && !['assigned', 'invited'].includes(row.assignment.status)
     : row.status === 'pending' || row.withdrawal?.status === 'pending'));
   return <>
     {retryable && <button type="button" disabled={busy}

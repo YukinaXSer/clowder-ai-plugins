@@ -60,6 +60,7 @@ test('packed workbench: owner click, cat result, feedback, stale source and deni
   assert.equal(s.sends.size, 0, 'opening an issue loads choices without waking a cat');
   await mkdir('artifacts/assignment-flow-2026-10-21', { recursive: true });
   await page.screenshot({ path: 'artifacts/assignment-flow-2026-10-21/open-issue.png', fullPage: true });
+  await page.getByLabel('派工方式', { exact: true }).selectOption('assignment');
   await page.getByRole('button', { name: '指派任务', exact: true }).click();
   assert.deepEqual(s.writes, [], 'opening confirmation alone cannot assign');
   await page.getByRole('button', { name: '确认指派', exact: true }).click();
@@ -127,6 +128,7 @@ test('packed workbench: owner click, cat result, feedback, stale source and deni
   await member.waitFor();
   await page.getByText('建议合入前邀请 @alice 参与验收', { exact: true }).waitFor();
   assert.deepEqual(s.writes, ['alice'], 'reading classification cannot assign again');
+  await page.getByLabel('派工方式', { exact: true }).selectOption('assignment');
   await page.getByRole('button', { name: '指派任务', exact: true }).click();
   assert.deepEqual(s.writes, ['alice'], 'opening confirmation cannot assign again');
   await mkdir('artifacts/assignment-flow-2026-10-21', { recursive: true });
@@ -246,4 +248,79 @@ test('packed workbench: owner click, cat result, feedback, stale source and deni
   assert.equal(await modes.getByRole('button', { name: '人工研判', exact: true }).getAttribute('aria-pressed'), 'true');
   assert.deepEqual(errors, []);
   assert.deepEqual(s.writes, ['alice'], 'only the explicit confirmation assigns in the fixture; no real GitHub writes');
+});
+
+test('packed invitation: READ sender confirms, recipient cold-starts independently, and notification is not acceptance', { timeout: 90000 }, async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'issue-invitation-browser-'));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const [pack] = JSON.parse(execFileSync(process.execPath, ['scripts/pack-publish-artifact.mjs', 'packages/issue-workbench', directory], { cwd: repo, encoding: 'utf8' }));
+  execFileSync('tar', ['-xzf', join(directory, pack.filename), '-C', directory]);
+  const { createIssueTeamModule } = await import(pathToFileURL(join(directory, 'package/dist/team-plugin.js')).href);
+  const { coordinationPreview, fixtureBindings } = await import(pathToFileURL(join(directory, 'package/dist/coordination-host.mjs')).href);
+  const s = setup(); s.login('bob'); s.config.automaticAssignment = false; s.config.receiveAssignments = false;
+  s.issues[0].author = 'alice';
+  const start = state => createIssueTeamModule(state.provider).create({ pluginId: 'dev.clowder.issue-workbench', runtime: { entrypoint: 'dist/team-plugin.js' } }).start({
+    ...state.context, dataPath: directory,
+    messaging: { ...state.context.messaging, send: ({ threadId, ...draft }) => state.context.messaging.send(threadId, draft) },
+  });
+  const sender = await start(s); t.after(() => sender.stop());
+  const binding = fixtureBindings()[0];
+  binding.profile = { ...binding.profile, provider: 'github', instance: 'https://github.com', repository: 'fixture/repo', synthetic: false };
+  const catalog = await binding.catalog();
+  const fact = { ...catalog.issues[0], id: 'issue-1', number: 1, title: s.issues[0].title,
+    body: s.issues[0].body, updatedAt: s.issues[0].updatedAt, state: 'OPEN' };
+  binding.catalog = async () => ({ ...catalog, issues: [fact] });
+  binding.detail = async () => ({ fact: { ...fact, comments: [] } });
+  const server = coordinationPreview({ dataRoot: join(directory, 'data'), dist: join(directory, 'package/dist'), bindings: [binding],
+    teamAction: async (method, payload, confirmed) => {
+      if (['assign', 'assignIssue', 'republish'].includes(method)) assert.equal(confirmed, true);
+      return sender.actions['issue.workbench.' + method]({ input: { payload: JSON.stringify(payload) } }, undefined, {
+        kind: 'owner-operation', pluginInstanceId: 'isolated-test', userId: 'owner', operationKey: 'teamWorkbench',
+        actionId: method, requestId: 'browser-' + method, signal: new AbortController().signal, assertCurrent: async () => {},
+      });
+    } });
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  t.after(() => new Promise(resolve => { server.closeAllConnections(); server.close(resolve); }));
+  const browser = await chromium.launch({ headless: true, ...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE } : {}) });
+  t.after(() => browser.close());
+  const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } }); page.setDefaultTimeout(6000);
+  const errors = []; page.on('pageerror', error => errors.push(error.message));
+  await page.goto('http://127.0.0.1:' + server.address().port);
+  await page.getByLabel('派工方式', { exact: true }).waitFor();
+  assert.equal(await page.getByLabel('派工方式', { exact: true }).inputValue(), 'invitation');
+  await page.getByRole('button', { name: '通知成员接手', exact: true }).click();
+  await page.getByRole('button', { name: '确认发送邀请', exact: true }).waitFor();
+  assert.equal(s.dispatches.length, 0);
+  await mkdir('artifacts/github-delivery-2026-10-21', { recursive: true });
+  await page.screenshot({ path: 'artifacts/github-delivery-2026-10-21/invitation-desktop.png', fullPage: true });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole('button', { name: /^研判/ }).click();
+  await page.getByRole('button', { name: '确认发送邀请', exact: true }).scrollIntoViewIfNeeded();
+  await page.screenshot({ path: 'artifacts/github-delivery-2026-10-21/invitation-mobile.png', fullPage: true });
+  assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+  await page.getByRole('button', { name: '确认发送邀请', exact: true }).click();
+  await page.getByText('任务邀请已发布，等待成员接手', { exact: true }).waitFor();
+  assert.deepEqual(s.writes, []); assert.deepEqual(s.issues[0].assignees, []); assert.equal(s.dispatches.length, 1);
+  await page.reload(); await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.getByText('任务邀请已发布，等待成员接手', { exact: true }).waitFor();
+  assert.equal(s.dispatches.length, 1); assert.equal(s.sends.size, 0);
+  const receiver = setup(); receiver.login('alice'); receiver.config.automaticAssignment = false;
+  receiver.provider.issue = s.provider.issue;
+  receiver.provider.invitations = s.provider.invitations; receiver.provider.invitation = s.provider.invitation;
+  const recipient = await start(receiver);
+  await recipient.actions['issue.team.poll']({});
+  const inbox = Object.values(await receiver.context.storage.list()).map(entry => entry.value).find(row => row.kind === 'inbox');
+  assert.equal(inbox.delivery, 'invitation'); assert.equal(inbox.receipt, undefined); assert.equal(receiver.sends.size, 1);
+  assert.match([...receiver.sends.values()][0].draft.payload.elements[0].payload.text, /邀请待接手/);
+  await recipient.stop();
+  const restarted = await start(receiver); t.after(() => restarted.stop());
+  await restarted.actions['issue.team.poll']({}); assert.equal(receiver.sends.size, 1);
+  receiver.config.shareProgress = true;
+  const reports = [];
+  receiver.provider.publishReceipt = async (_issue, receipt) => { reports.push(receipt); return 'receipt-1'; };
+  s.provider.receipts = async () => reports;
+  await restarted.actions['issue.team.report']({ id: inbox.id, status: 'accepted', summary: '已接手并准备复现', evidenceUrls: [] }, receiver.caller('receiver', 'inbox'));
+  await page.getByRole('button', { name: '刷新团队结果', exact: true }).click();
+  await page.getByText('alice · 已接手', { exact: true }).waitFor();
+  assert.deepEqual(s.writes, []); assert.deepEqual(errors, []);
 });

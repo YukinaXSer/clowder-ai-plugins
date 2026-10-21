@@ -525,3 +525,14 @@ final push, plus required Typecheck + Conformance CI, before merge.
 
 Final tgz filename/size/integrity are recorded in the PR after this document is
 included in the pack, avoiding a self-referential package hash.
+
+## GitHub invitation delta (2026-10-21)
+
+65 team checks and both packed team browser journeys pass, including a READ sender,
+a separate receiving Host store, restart deduplication and an explicitly authored
+acceptance report displayed back at the sender. Existing assignee mutation retains
+its own confirmation. Evidence and known installed-Host gap are recorded in
+`docs/evidence/issue-workbench-github-invitations.md` in the repository.
+The full repository gate is separately recorded in
+`artifacts/github-delivery-2026-10-21/verification.json`; no real GitHub messages,
+production configuration changes or installed lifecycle completion are implied.

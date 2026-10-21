@@ -32,13 +32,14 @@ export interface Job {
   error?: string;
   analysis?: TeamAnalysis;
   provenance?: { catId: string; invocationId: string; sourceMessageId: string; recordedAt: number };
-  assignment?: { status: 'pending' | 'assigned' | 'needs-decision'; login?: string; reason?: string; commentAttempted?: boolean; commentId?: string; rulesHash?: string;
+  assignment?: { status: 'pending' | 'assigned' | 'invited' | 'needs-decision'; delivery?: 'invitation' | 'assignment'; login?: string; reason?: string; commentAttempted?: boolean; commentId?: string; rulesHash?: string;
     basis?: 'reporter' | 'feature' | 'category' | 'manual'; groupName?: string; acceptanceSuggestedFor?: string };
   feedback?: TeamFeedback;
   feedbackHistory?: TeamFeedback[];
 }
 export interface Inbox {
   kind: 'inbox'; id: string; issue: TeamIssue; assignmentId: string; login: string;
+  delivery?: 'invitation';
   receivedAt: number;
   threadId: string; catId: string; score: number | null; reason: string;
   status: 'pending' | 'delivered' | 'inactive'; messageId?: string; error?: string;
@@ -69,7 +70,7 @@ export function statistics(rows: TeamRecord[]) {
   const jobs = rows.filter((row): row is Job => row.kind === 'analysis' && !!row.analysis);
   const reviews = jobs.filter(job => job.feedback), accepted = reviews.filter(job => job.feedback!.verdict === 'accepted').length;
   const distribution: Record<string, number> = {};
-  const scores: Record<string, number> = {}, assignments: Record<string, number> = {};
+  const scores: Record<string, number> = {}, assignments: Record<string, number> = {}, invitations: Record<string, number> = {};
   for (const job of jobs) {
     const key = job.features.length ? '随 Feature 处理' : job.analysis!.category;
     distribution[key] = (distribution[key] ?? 0) + 1;
@@ -77,6 +78,9 @@ export function statistics(rows: TeamRecord[]) {
     scores[score] = (scores[score] ?? 0) + 1;
   }
   for (const row of rows) {
+    if (row.kind !== 'inbox' && row.assignment?.status === 'invited' && row.assignment.login) {
+      invitations[row.assignment.login] = (invitations[row.assignment.login] ?? 0) + 1;
+    }
     if (row.kind !== 'inbox' && row.assignment?.status === 'assigned' && row.assignment.login) {
       assignments[row.assignment.login] = (assignments[row.assignment.login] ?? 0) + 1;
     }
@@ -84,6 +88,6 @@ export function statistics(rows: TeamRecord[]) {
   return { analyzed: jobs.length, uniqueIssues: new Set(jobs.map(job => job.issue.repo + ':' + job.issue.id)).size,
     feedback: reviews.length, accepted, corrected: reviews.filter(job => job.feedback!.verdict === 'corrected').length,
     rejected: reviews.filter(job => job.feedback!.verdict === 'rejected').length, acceptanceRate: reviews.length ? accepted / reviews.length : null,
-    distribution, scores, assignments, method: 'cat-semantic-analysis-with-explicit-feedback', trainingPerformed: false as const };
+    distribution, scores, assignments, invitations, method: 'cat-semantic-analysis-with-explicit-feedback', trainingPerformed: false as const };
 }
 export type TeamStatistics = ReturnType<typeof statistics>;

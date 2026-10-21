@@ -16,6 +16,7 @@ export interface TeamIssue {
 }
 export interface SharedDispatch {
   schema: 'issue-workbench.dispatch.v1';
+  delivery?: 'invitation';
   id: string;
   issueId: string;
   assignee: string;
@@ -28,6 +29,7 @@ export interface AssignmentObservation {
   issue: TeamIssue;
   /** Provider assignment event ID, not issue updatedAt or a local clock. */
   assignmentId: string;
+  delivery?: 'invitation';
   dispatch: SharedDispatch | null;
 }
 export interface SharedReceipt {
@@ -40,6 +42,11 @@ export interface SharedReceipt {
   summary: string;
   evidenceUrls: string[];
 }
+export interface InvitationPage {
+  observations: AssignmentObservation[];
+  nextPage: number | null;
+  newestUpdatedAt?: string;
+}
 export interface TeamProvider {
   /** Complete paginated Open Issue catalog; partial reads must reject. */
   openIssues(repo: string, signal: AbortSignal): Promise<TeamIssue[]>;
@@ -51,9 +58,11 @@ export interface TeamProvider {
   canWrite(repo: string, login: string, signal: AbortSignal): Promise<boolean>;
   addAssignee(issue: TeamIssue, login: string, signal: AbortSignal): Promise<void>;
   publishDispatch(issue: TeamIssue, dispatch: SharedDispatch, signal: AbortSignal, allowCreate: boolean): Promise<string>;
+  invitations(repo: string, login: string, trustedSenders: string[], signal: AbortSignal, page?: number, since?: string): Promise<InvitationPage>;
+  invitation(issue: TeamIssue, assignmentId: string, login: string, trustedSenders: string[], signal: AbortSignal): Promise<AssignmentObservation | null>;
   assigned(repo: string, login: string, signal: AbortSignal): Promise<AssignmentObservation[]>;
   publishReceipt(issue: TeamIssue, receipt: SharedReceipt, signal: AbortSignal, allowCreate: boolean): Promise<string>;
-  receipts(issue: TeamIssue, signal: AbortSignal): Promise<SharedReceipt[]>;
+  receipts(issue: TeamIssue, signal: AbortSignal, trustedSenders?: string[]): Promise<SharedReceipt[]>;
 }
 export type TeamContext = Pick<FeatureContext, 'pluginInstanceId' | 'config' | 'storage' | 'threads' | 'messaging' | 'log'>;
 export type TeamCaller = PluginActionContext;
