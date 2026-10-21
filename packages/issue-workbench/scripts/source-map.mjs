@@ -1,4 +1,5 @@
 import { columnsAdapter } from './columns-adapter.mjs';
+import { teamToolsAdapter } from './team-tools-adapter.mjs';
 const web = 'packages/web/src/components/settings/issue-workbench/';
 const api = 'packages/api/src/domains/community/';
 function once(text, from, to) {
@@ -43,7 +44,7 @@ export const mappings = [
   ...['IssueCoordinationStore.ts','IssueCoordinationService.ts'].map(name => ({ source: api + name, target: 'src/source/' + name,
     transform: text => text.replaceAll("'../../../../shared/src/issue-coordination.js'", "'../model/issue-coordination.js'").replaceAll("'@cat-cafe/shared'", "'../model/index.js'") })),
   ...['IssueSourceState.tsx','issue-source-state.module.css','IssueClassifications.tsx','classifications.module.css','CoordinationWorkbench.tsx','CoordinationSources.tsx','CoordinationEditor.tsx','CoordinationLinks.tsx','IssueRelationPicker.tsx','CoordinationReading.tsx','coordination.module.css'].map(name => ({ source: web + name, target: 'src/ui/' + name,
-    transform: text => columnsAdapter(name, text.replaceAll("'@cat-cafe/shared'", "'../model/issue-coordination.js'")) })),
+    transform: text => teamToolsAdapter(name, columnsAdapter(name, text.replaceAll("'@cat-cafe/shared'", "'../model/issue-coordination.js'"))) })),
   { source: 'packages/api/test/issue-coordination.test.ts', target: 'test/source/issue-coordination.test.ts', transform: text => text
     .replaceAll("'../src/domains/community/", "'../../src/source/").replaceAll("'../../shared/src/", "'../../src/model/") },
   { source: 'packages/shared/src/issue-source.ts', target: 'src/model/issue-source.ts', transform: x => x },

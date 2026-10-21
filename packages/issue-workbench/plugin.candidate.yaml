@@ -140,6 +140,11 @@ configuration:
         render: row
         confirm: 将此 Issue 指派给所选 group 成员，并公开发布研判分数、理由及验收建议；不会自动修代码或合入。
         action: { method: issue.workbench.assign }
+      - id: assignIssue
+        label: 确认直接指派
+        render: row
+        confirm: 将此 Issue 指派给所选组织成员，并公开记录主人直接指派；没有猫猫研判分数。不会自动修代码或合入。
+        action: { method: issue.workbench.assignIssue }
       - id: republish
         label: 确认重新发布
         render: row

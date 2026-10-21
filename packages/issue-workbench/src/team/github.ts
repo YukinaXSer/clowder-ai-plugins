@@ -9,6 +9,7 @@ const execute = promisify(execFile);
 const issueSchema = z.object({
   node_id: z.string().min(1), number: z.number().int().positive(), title: z.string(),
   body: z.string().nullable(), state: z.enum(['open', 'closed']),
+  updated_at: z.string().optional(),
   user: z.object({ login }).nullable(),
   labels: z.array(z.object({ name: z.string() })),
   assignees: z.array(z.object({ login })), html_url: z.string(), pull_request: z.unknown().optional(),
@@ -60,7 +61,8 @@ export class GhTeamProvider implements TeamProvider {
     const url = `https://github.com/${repo}/issues/${raw.number}`;
     if (raw.html_url.toLowerCase() !== url.toLowerCase()) throw new Error('GitHub issue repository mismatch');
     return { repo, number: raw.number, id: raw.node_id, title: raw.title, body: raw.body ?? '', state: raw.state,
-      author: raw.user?.login ?? null, labels: raw.labels.map(label => label.name), assignees: raw.assignees.map(assignee => assignee.login), url };
+      author: raw.user?.login ?? null, labels: raw.labels.map(label => label.name), assignees: raw.assignees.map(assignee => assignee.login), url,
+      ...(raw.updated_at ? { updatedAt: raw.updated_at } : {}) };
   }
   async identity(signal: AbortSignal) {
     return z.object({ login }).parse(await this.api('user', signal)).login;

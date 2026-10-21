@@ -1,4 +1,11 @@
-import type { TeamRecord, TeamRecordDetail, TeamStatistics } from '../team/records.js';
+import type { TeamClassification, TeamRecord, TeamRecordDetail, TeamStatistics } from '../team/records.js';
+import type { AssignmentOptions } from '../team/group.js';
+import type { TeamIssue, TeamAnalysis } from '../team/types.js';
+
+export interface TeamIssueContext {
+  currentIssue: TeamIssue; sourceVersion: string; assignmentOptions: AssignmentOptions;
+  features: string[]; analysis?: TeamAnalysis;
+}
 
 export interface TeamSummary {
   rows: TeamRecord[];
@@ -10,13 +17,18 @@ export interface TeamSummary {
     teamOrganization?: string };
   group?: { organization?: string; members: string[]; error?: string };
   configurationError?: string;
+  issueContext?: TeamIssueContext;
+  analysisCats?: Array<{ catId: string; displayName: string }>;
+  analysisRouteError?: string;
+  classifications?: TeamClassification[];
 }
 export interface TeamHost {
-  summary(input?: { repo?: string; number?: number; kind?: 'analysis' | 'inbox'; offset?: number }): Promise<TeamSummary>;
+  summary(input?: { repo?: string; number?: number; kind?: 'analysis' | 'assignment' | 'inbox'; offset?: number }): Promise<TeamSummary>;
   get(id: string): Promise<TeamRecordDetail>;
-  analyze(input: { repo: string; number: number; requestId: string }): Promise<TeamRecord>;
+  analyze(input: { repo: string; number: number; requestId: string; catId?: string }): Promise<TeamRecord>;
   retry(id: string): Promise<TeamRecord>;
   assign(input: { id: string; expectedRevision: number; login: string }): Promise<TeamRecord>;
+  assignIssue(input: { repo: string; number: number; sourceVersion: string; requestId: string; login: string }): Promise<TeamRecord>;
   republish(id: string, expectedRevision: number): Promise<TeamRecord>;
   feedback(input: { id: string; expectedRevision: number; verdict: 'accepted' | 'corrected' | 'rejected'; reason: string }): Promise<TeamRecord>;
   settingsUrl?: string;
@@ -47,6 +59,7 @@ export function createTeamClient(request: (path: string, options?: RequestInit) 
     analyze: input => call('analyze', input),
     retry: id => call('retry', { id }),
     assign: input => call('assign', input, true),
+    assignIssue: input => call('assignIssue', input, true),
     republish: (id, expectedRevision) => call('republish', { id, expectedRevision }, true),
     feedback: input => call('feedback', input),
     settingsUrl,

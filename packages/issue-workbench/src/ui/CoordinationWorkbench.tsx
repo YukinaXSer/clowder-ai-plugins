@@ -34,14 +34,17 @@ export function CoordinationWorkbench({
   showClassifications = false,
   tools,
   issueTools,
+  projectSnapshot,
 }: {
   host: CoordinationHost;
   showClassifications?: boolean;
   tools?: ReactNode;
-  issueTools?: (profile: IssueSourceProfile, fact: IssueSourceFact) => ReactNode;
+  projectSnapshot?: (snapshot: CoordinationSnapshot) => CoordinationSnapshot;
+  issueTools?: (profile: IssueSourceProfile, fact: IssueSourceFact, category: string) => ReactNode;
 }) {
   const columns = useWorkbenchColumns();
-  const [snapshot, setSnapshot] = useState<CoordinationSnapshot>({ sources: [], relations: [] });
+  const [sourceSnapshot, setSnapshot] = useState<CoordinationSnapshot>({ sources: [], relations: [] });
+  const snapshot = projectSnapshot ? projectSnapshot(sourceSnapshot) : sourceSnapshot;
   const [selected, setSelected] = useState(''),
     [filter, setFilter] = useState('all'),
     [query, setQuery] = useState('');
@@ -369,7 +372,7 @@ export function CoordinationWorkbench({
               </section>
               <ColumnSeparator {...columns.notes} />
               <section id={columns.notes.controls} className={styles.inspector} aria-label="本仓研判">
-                {issueTools?.(row.source.profile, row.fact)}
+                {issueTools?.(row.source.profile, row.fact, issueCategory(row).label)}
                 {current.dirty && row.saved && row.saved.revision !== current.revision && (
                   <details className={styles.notice} open>
                     <summary>其他页面已保存新版本，请核对差异</summary>

@@ -6,6 +6,7 @@ export interface TeamIssue {
   id: string;
   title: string;
   body: string;
+  updatedAt?: string;
   /** GitHub user.login, never inferred from issue prose. Null means unavailable. */
   author: string | null;
   state: 'open' | 'closed';

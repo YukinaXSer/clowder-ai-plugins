@@ -25,17 +25,17 @@ test('packed workbench: owner click, cat result, feedback, stale source and deni
   });
   t.after(() => active.stop());
   const binding = fixtureBindings()[0];
-  binding.profile = { ...binding.profile, provider: 'github', repository: 'fixture/repo', synthetic: false };
+  binding.profile = { ...binding.profile, provider: 'github', instance: 'https://github.com', repository: 'fixture/repo', synthetic: false };
   const originalCatalog = await binding.catalog();
   const fact = () => ({ ...originalCatalog.issues[0], id: 'issue-1', number: 1,
-    title: s.issues[0].title, body: s.issues[0].body, state: s.issues[0].state.toUpperCase() });
+    title: s.issues[0].title, body: s.issues[0].body, updatedAt: s.issues[0].updatedAt, state: s.issues[0].state.toUpperCase() });
   binding.catalog = async () => ({ ...originalCatalog, issues: [fact()] });
   binding.detail = async () => ({ fact: { ...fact(), comments: [] } });
   let granted = true, operations = 0;
   const server = coordinationPreview({ dataRoot: join(directory, 'data'), dist: join(directory, 'package/dist'), bindings: [binding],
     teamAction: async (method, payload, confirmed) => {
       if (!granted) throw Object.assign(new Error('来源未授权'), { status: 403 });
-      if (['republish', 'assign'].includes(method) && !confirmed) throw Object.assign(new Error('Confirm first'), { status: 400 });
+      if (['republish', 'assign', 'assignIssue'].includes(method) && !confirmed) throw Object.assign(new Error('Confirm first'), { status: 400 });
       return active.actions['issue.workbench.' + method]({ input: { payload: JSON.stringify(payload) } }, undefined, {
         kind: 'owner-operation', pluginInstanceId: 'isolated-test', userId: 'owner', operationKey: 'teamWorkbench',
         actionId: method, requestId: 'browser-' + ++operations, signal: new AbortController().signal,
@@ -51,14 +51,38 @@ test('packed workbench: owner click, cat result, feedback, stale source and deni
   const errors = []; page.on('pageerror', error => errors.push(error.message));
   await page.goto('http://127.0.0.1:' + server.address().port);
   await page.getByRole('region', { name: '团队研判' }).getByText('GitHub 组织：fixture-org · 2 位成员', { exact: true }).waitFor();
+  const initialMember = page.getByLabel('指派给组员', { exact: true });
+  await initialMember.waitFor();
+  assert.equal(await initialMember.inputValue(), 'alice');
+  assert.equal(s.sends.size, 0, 'opening an issue loads choices without waking a cat');
+  await mkdir('artifacts/assignment-flow-2026-10-21', { recursive: true });
+  await page.screenshot({ path: 'artifacts/assignment-flow-2026-10-21/open-issue.png', fullPage: true });
+  await page.getByRole('button', { name: '指派任务', exact: true }).click();
+  assert.deepEqual(s.writes, [], 'opening confirmation alone cannot assign');
+  await page.getByRole('button', { name: '确认指派', exact: true }).click();
+  await page.getByText('分配与公开记录已写入 GitHub', { exact: true }).waitFor();
+  assert.deepEqual(s.writes, ['alice'], 'direct assignment works before any cat request');
+  assert.equal(s.sends.size, 0);
+  assert.equal(s.dispatches[0].score, null);
+  await page.reload();
+  await page.getByText('分配与公开记录已写入 GitHub', { exact: true }).waitFor();
+  assert.deepEqual(s.writes, ['alice']);
+  await page.getByLabel('分析猫猫', { exact: true }).selectOption('receiver');
   await page.getByRole('button', { name: '请猫分析', exact: true }).click();
   await page.getByText('已发送，等待研判', { exact: true }).waitFor();
-  const [job] = Object.values(await s.context.storage.list()).map(entry => entry.value);
+  const job = Object.values(await s.context.storage.list()).map(entry => entry.value).find(row => row.kind === 'analysis');
   assert.equal(job.requesterKind, 'owner');
   assert.equal(s.sends.size, 1);
-  await active.actions['issue.team.submit']({ id: job.id, analysis: s.analysis }, s.caller());
-  await page.getByRole('button', { name: '刷新团队结果', exact: true }).click();
+  assert.equal(job.catId, 'receiver');
+  await active.actions['issue.team.submit']({ id: job.id, analysis: s.analysis }, s.caller('receiver'));
+  // GitHub comments/assignment can advance updated_at without changing analyzed content.
+  s.issues[0].updatedAt = '2026-10-15T10:00:00Z';
+  // Results arrive automatically; no refresh button is required to classify.
   await page.getByText('9 / 10', { exact: true }).waitFor();
+  await page.getByText('当前分类：runtime', { exact: true }).waitFor();
+  await page.getByRole('region', { name: '模型候选分类', exact: true }).waitFor();
+  await page.getByLabel('问题类别', { exact: true }).selectOption('area:runtime');
+  assert.equal(await page.locator('aside').getByText('runtime', { exact: true }).count(), 1);
   const member = page.getByLabel('指派给组员', { exact: true });
   assert.equal(await member.inputValue(), 'alice', 'member reporter is the first choice');
   assert.deepEqual(await member.locator('option').evaluateAll(options => options.map(option => option.value).filter(Boolean)), ['alice', 'bob']);
@@ -72,16 +96,16 @@ test('packed workbench: owner click, cat result, feedback, stale source and deni
   await page.getByRole('button', { name: '刷新团队结果', exact: true }).click();
   await member.waitFor();
   await page.getByText('建议合入前邀请 @alice 参与验收', { exact: true }).waitFor();
-  assert.deepEqual(s.writes, [], 'reading classification cannot assign');
+  assert.deepEqual(s.writes, ['alice'], 'reading classification cannot assign again');
   await page.getByRole('button', { name: '指派任务', exact: true }).click();
-  assert.deepEqual(s.writes, [], 'opening confirmation cannot assign');
-  await mkdir('artifacts/organization-2026-10-21', { recursive: true });
+  assert.deepEqual(s.writes, ['alice'], 'opening confirmation cannot assign again');
+  await mkdir('artifacts/assignment-flow-2026-10-21', { recursive: true });
   await page.getByRole('button', { name: '确认指派', exact: true }).scrollIntoViewIfNeeded();
-  await page.screenshot({ path: 'artifacts/organization-2026-10-21/confirm-desktop.png', fullPage: true });
+  await page.screenshot({ path: 'artifacts/assignment-flow-2026-10-21/confirm-desktop.png', fullPage: true });
   await page.setViewportSize({ width: 390, height: 844 });
   await page.getByRole('button', { name: /^研判/ }).click();
   await page.getByRole('button', { name: '确认指派', exact: true }).scrollIntoViewIfNeeded();
-  await page.screenshot({ path: 'artifacts/organization-2026-10-21/confirm-mobile.png', fullPage: true });
+  await page.screenshot({ path: 'artifacts/assignment-flow-2026-10-21/confirm-mobile.png', fullPage: true });
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.getByRole('button', { name: '确认指派', exact: true }).click();
@@ -91,6 +115,7 @@ test('packed workbench: owner click, cat result, feedback, stale source and deni
   await page.reload();
   await page.getByText('分配与公开记录已写入 GitHub', { exact: true }).waitFor();
   assert.deepEqual(s.writes, ['alice'], 'reloading the persisted result cannot assign twice');
+  await page.getByRole('region', { name: '模型候选分类', exact: true }).waitFor();
   await page.getByLabel('反馈理由', { exact: true }).fill('已人工复现，启动受阻');
   await page.getByRole('button', { name: '采纳研判', exact: true }).click();
   await page.getByText('反馈已保存', { exact: true }).waitFor();
@@ -130,14 +155,15 @@ test('packed workbench: owner click, cat result, feedback, stale source and deni
   s.issues[0].body += ' New information.';
   await page.getByRole('button', { name: '刷新团队结果', exact: true }).click();
   await page.getByText('原文已更新，请重新研判', { exact: true }).waitFor();
-  await mkdir('artifacts/organization-2026-10-21', { recursive: true });
-  await page.screenshot({ path: 'artifacts/organization-2026-10-21/desktop.png', fullPage: true });
+  assert.equal(await page.getByRole('region', { name: '模型候选分类', exact: true }).count(), 0, 'stale classification leaves the shared view');
+  await mkdir('artifacts/assignment-flow-2026-10-21', { recursive: true });
+  await page.screenshot({ path: 'artifacts/assignment-flow-2026-10-21/desktop.png', fullPage: true });
   await page.setViewportSize({ width: 390, height: 844 });
   await page.getByRole('button', { name: /^研判/ }).click();
-  await page.screenshot({ path: 'artifacts/organization-2026-10-21/mobile.png', fullPage: true });
+  await page.screenshot({ path: 'artifacts/assignment-flow-2026-10-21/mobile.png', fullPage: true });
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
   await page.emulateMedia({ colorScheme: 'dark' });
-  await page.screenshot({ path: 'artifacts/organization-2026-10-21/dark.png', fullPage: true });
+  await page.screenshot({ path: 'artifacts/assignment-flow-2026-10-21/dark.png', fullPage: true });
   granted = false;
   await page.getByRole('button', { name: '刷新团队结果', exact: true }).click();
   await page.getByText('团队操作未获授权，请在插件设置中检查授权', { exact: true }).waitFor();

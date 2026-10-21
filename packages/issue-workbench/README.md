@@ -97,8 +97,8 @@ and the remaining product journey are still pending; `hostInstallable` remains f
 
 ### Embedding the team workbench
 
-Use the Host's authenticated request function; the browser never supplies a cat,
-thread caller identity or saved assignment policy:
+Use the Host's authenticated request function; the browser never supplies caller
+identity or saved assignment policy:
 
 ```ts
 import { createTeamClient, mountCoordination } from '@clowder-ai/issue-workbench/browser';
@@ -108,12 +108,27 @@ mountCoordination(element, coordinationHost, { team });
 
 The client uses the existing `/api/plugins/dev.clowder.issue-workbench/actions/teamWorkbench/*`
 owner route. Install/configure the module and grant its declared capabilities in
-the Host first. The Settings **analysisThreadId** and **analysisCatId** select the
-owner-click destination; native conversation requests retain their calling thread.
+the Host first. Settings **analysisThreadId** selects the owner-request thread and
+**analysisCatId** supplies its default cat. The issue panel lists that thread's
+Host-routable cats (including those not yet joined); an owner can select the target
+for one request. This is a destination, never a caller identity. Native conversation
+requests retain their calling thread and configured cat.
 Unsaved form values never become effective routing policy. The optional preview
 `teamAction` callback is an isolated test seam, not an authentication mechanism.
 Statistics count recorded analyses, explicit latest feedback, score/category
 frequency and historical published assignments by member, not current workload.
+
+Opening an issue automatically shows its existing classification and loads the
+organization members. Assignment no longer requires an analysis: select a member,
+then confirm. Direct assignment is recorded separately, publishes no invented score,
+and does not count as a cat analysis. **请猫分析** sends the selected cat a classification
+and rule-limited assignment task. Results refresh automatically while a request is
+pending. If automatic assignment is disabled, the task recommends a member for owner
+confirmation; it cannot bypass that setting. Viewing a page alone never wakes a cat
+or writes GitHub. New issues without existing classification remain **尚未分类** until
+analysis returns; Feature bindings retain precedence. Persisted results feed the queue,
+category filters and detail together, fenced by source identity and provider update
+stamp; source labels and authored local records are not overwritten.
 
 ## What is in the artifact
 

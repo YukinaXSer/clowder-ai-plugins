@@ -1,5 +1,25 @@
 # Validation record
 
+## Immediate assignment and selected analysis cat — 2026-10-21
+
+Source: `thread_mucwsgsjtlbabfcq#0001792553407782-000031-4e6d17f0`.
+The issue panel loads organization members independently of analysis, displays the
+existing classification, supports explicitly confirmed direct assignment, and lets
+owners select a Host-routable cat. Requests carry classification plus restricted
+assignment instructions; saved automatic-assignment policy still controls effects.
+Pending results refresh automatically across queue, filters and detail, using source
+identity and provider update stamps. Direct assignments have their own durable
+record kind and do not inflate analysis/feedback statistics.
+
+RED: no members before analysis; selected cat rejected by the old input schema;
+no direct-assignment context; packed preview did not route the new owner action;
+a failed direct assignment could be retried under later automatic policy; routable
+cats not yet joined were absent. Targeted checks and packed journey are green.
+Full validation and visual evidence are recorded in
+`artifacts/assignment-flow-2026-10-21/` (final gate in `verified-run/`) and
+[Acceptance record](../../docs/evidence/issue-workbench-assignment-flow.md).
+No real GitHub assignment/comment, Core change or installation is implied.
+
 ## GitHub Organization roster — 2026-10-21
 
 Source: `thread_mucwsgsjtlbabfcq#0001792547645594-000008-95c47697`.

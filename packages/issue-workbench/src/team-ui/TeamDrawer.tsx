@@ -7,7 +7,7 @@ import { TeamOrganization } from './TeamOrganization';
 import styles from './team.module.css';
 
 function Contents({ host }: { host: TeamHost }) {
-  const [tab, setTab] = useState<'inbox' | 'analysis' | 'statistics'>('inbox');
+  const [tab, setTab] = useState<'inbox' | 'analysis' | 'assignment' | 'statistics'>('inbox');
   const [offset, setOffset] = useState(0), [summary, setSummary] = useState<TeamSummary>();
   const [detail, setDetail] = useState<TeamRecordDetail>(), [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -44,9 +44,9 @@ function Contents({ host }: { host: TeamHost }) {
     <TeamOrganization group={summary?.group} showMembers />
     <button type="button" disabled={busy} onClick={() => setRefresh(value => value + 1)}>刷新组织成员</button>
     <nav className={styles.actions} aria-label="团队记录视图">
-      {(['inbox', 'analysis', 'statistics'] as const).map(value => <button type="button" key={value}
+      {(['inbox', 'analysis', 'assignment', 'statistics'] as const).map(value => <button type="button" key={value}
         aria-pressed={tab === value} onClick={() => { setTab(value); setOffset(0); }}>
-        {({ inbox: '我的收件', analysis: '研判记录', statistics: '反馈统计' })[value]}</button>)}
+        {({ inbox: '我的收件', analysis: '研判记录', assignment: '直接指派', statistics: '反馈统计' })[value]}</button>)}
     </nav>
     {busy && <p role="status">正在读取…</p>}
     {error && <p role="alert">{error}</p>}
@@ -61,19 +61,19 @@ function Contents({ host }: { host: TeamHost }) {
       <table><thead><tr><th>优先级</th><th>研判次数</th></tr></thead><tbody>
         {Object.entries(stats.scores).map(([score, count]) => <tr key={score}><td>{score}</td><td>{count}</td></tr>)}
       </tbody></table>
-      <table><thead><tr><th>历史派工成员</th><th>已公开派工的研判次数</th></tr></thead><tbody>
+      <table><thead><tr><th>历史派工成员</th><th>已公开派工次数</th></tr></thead><tbody>
         {Object.entries(stats.assignments).map(([login, count]) => <tr key={login}><td>{login}</td><td>{count}</td></tr>)}
       </tbody></table>
       <p className={styles.muted}>同一问题的多次研判分别计数；历史派工次数不代表当前待办量。</p>
       <p className={styles.muted}>统计来自保存的研判与明确的人工反馈，未进行模型训练。</p>
     </div>}
     {tab !== 'statistics' && summary && <>
-      {!summary.rows.length && <p>{tab === 'inbox' ? '暂无收件记录' : '暂无研判记录'}</p>}
+      {!summary.rows.length && <p>{tab === 'inbox' ? '暂无收件记录' : tab === 'assignment' ? '暂无直接指派记录' : '暂无研判记录'}</p>}
       <div className={styles.records}>{summary.rows.map(row => <button type="button" key={row.id}
         aria-pressed={detail?.id === row.id} onClick={() => void read(row.id)}>
         <strong>{row.issue.repo}#{row.issue.number} · {row.issue.title}</strong>
         <span>{row.kind === 'inbox' ? `${row.score ?? '待研判'}${row.score === null ? '' : ' / 10'} · ${row.status === 'inactive' ? '原分配已结束' : row.status === 'delivered' ? '团队已收取' : '待投递'}`
-          : row.analysis ? `${row.analysis.score ?? '待研判'} · ${row.analysis.category}` : row.status === 'delivered' ? '等待研判' : '待发送'}</span>
+          : row.kind === 'assignment' ? `主人直接指派 · ${row.assignment?.status === 'assigned' ? '已指派' : '待核对'}` : row.analysis ? `${row.analysis.score ?? '待研判'} · ${row.analysis.category}` : row.status === 'delivered' ? '等待研判' : '待发送'}</span>
       </button>)}</div>
       <div className={styles.actions}>
         <button type="button" disabled={busy || !offset} onClick={() => setOffset(Math.max(0, offset - 30))}>上一页</button>

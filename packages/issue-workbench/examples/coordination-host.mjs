@@ -83,7 +83,7 @@ export function coordinationPreview({ dataRoot, dist, bindings = fixtureBindings
       if (url.pathname === '/health' && req.method === 'GET') { res.setHeader('content-type','application/json'); res.end(JSON.stringify({ ok: true, mode: 'isolated-acceptance', revision: 'issue-coordination-v1' })); return; }
       // Explicit acceptance injection only. The ordinary READ preview has no
       // owner authority, no native caller and no automatic connection to a Host.
-      const team = /^\/api\/plugins\/dev\.clowder\.issue-workbench\/actions\/teamWorkbench\/(summary|get|analyze|assign|retry|republish|feedback)$/.exec(url.pathname);
+      const team = /^\/api\/plugins\/dev\.clowder\.issue-workbench\/actions\/teamWorkbench\/(summary|get|analyze|assign|assignIssue|retry|republish|feedback)$/.exec(url.pathname);
       if (team) {
         if (req.method !== 'POST' || !req.headers['content-type']?.startsWith('application/json')) { res.writeHead(403); res.end(); return; }
         if (!teamAction) { res.writeHead(503, { 'content-type': 'application/json' }); res.end(JSON.stringify({ error: 'Team Host is not connected' })); return; }

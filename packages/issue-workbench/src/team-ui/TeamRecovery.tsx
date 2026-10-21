@@ -7,12 +7,12 @@ export function TeamRecovery({ host, row, busy, act }: {
   act: (work: () => Promise<unknown>) => Promise<void>;
 }) {
   const [confirm, setConfirm] = useState(false);
-  const uncertain = row.kind === 'analysis'
+  const uncertain = row.kind !== 'inbox'
     ? !!row.assignment?.commentAttempted && !row.assignment.commentId
     : !!row.receipt?.commentAttempted && !row.receipt.commentId;
-  const retryable = row.error || uncertain || (row.kind === 'analysis'
+  const retryable = row.kind !== 'assignment' && (row.error || uncertain || (row.kind !== 'inbox'
     ? row.assignment && row.assignment.status !== 'assigned'
-    : row.status === 'pending' || row.withdrawal?.status === 'pending');
+    : row.status === 'pending' || row.withdrawal?.status === 'pending'));
   return <>
     {retryable && <button type="button" disabled={busy}
       onClick={() => void act(() => host.retry(row.id))}>重试此记录</button>}

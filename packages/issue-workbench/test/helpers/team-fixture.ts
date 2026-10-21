@@ -11,7 +11,7 @@ export function setup() {
   };
   const issues: TeamIssue[] = [{
     repo: 'fixture/repo', number: 1, id: 'issue-1', title: 'Cannot start',
-    body: 'The café cannot start. No workaround.', author: 'reporter', state: 'open', labels: [], assignees: [],
+    body: 'The café cannot start. No workaround.', updatedAt: '2026-10-14T10:00:00Z', author: 'reporter', state: 'open', labels: [], assignees: [],
     url: 'https://github.com/fixture/repo/issues/1',
   }];
   const sends = new Map<string, any>();

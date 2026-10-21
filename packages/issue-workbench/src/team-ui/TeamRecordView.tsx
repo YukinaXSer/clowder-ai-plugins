@@ -3,7 +3,7 @@ import styles from './team.module.css';
 
 export function TeamRecordView({ row }: { row: TeamRecordDetail }) {
   const analysis = row.kind === 'analysis' ? row.analysis : undefined;
-  const score = row.kind === 'analysis' ? row.analysis?.score : row.score;
+  const score = row.kind === 'inbox' ? row.score : row.analysis?.score;
   const reports = { accepted: '已接手', working: '处理中', blocked: '受阻', ready: '待验证' };
   return <div className={styles.result}>
     {row.sourceStale && <p className={styles.notice}>原文已更新，请重新研判</p>}
@@ -24,13 +24,13 @@ export function TeamRecordView({ row }: { row: TeamRecordDetail }) {
       <details><summary>依据与研判来源</summary>
         <blockquote>{analysis.evidence}</blockquote>
         <p>{analysis.blocksRuntime ? '运行受阻' : '未报告运行阻塞'} · {analysis.workaround || '未提供替代办法'}</p>
-        <p>研判猫：{row.catId}</p>
+        <p>研判猫：{row.kind === 'analysis' ? row.catId : ''}</p>
       </details>
     </>}
     {row.kind === 'analysis' && row.status !== 'analyzed' &&
       <p role="status">{row.status === 'delivered' ? '已发送，等待研判' : '待发送'}</p>}
-    {row.error && <p role="alert">{row.error}</p>}
-    {row.kind === 'analysis' && row.assignment && <p>
+    {row.kind !== 'assignment' && row.error && <p role="alert">{row.error}</p>}
+    {row.kind !== 'inbox' && row.assignment && <p>
       {row.assignment.status === 'assigned' ? '分配与公开记录已写入 GitHub'
         : row.assignment.status === 'needs-decision' ? '分配需要确认' : '分配待核对'}
       {row.assignment.reason ? ` · ${row.assignment.reason}` : ''}

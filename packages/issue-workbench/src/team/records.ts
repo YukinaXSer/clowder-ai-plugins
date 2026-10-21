@@ -19,6 +19,7 @@ export interface Job {
   features: string[];
   threadId: string;
   catId: string;
+  targetSelection?: 'owner';
   sourceMessageId?: string;
   requester: string;
   requesterKind?: 'cat' | 'owner';
@@ -46,7 +47,19 @@ export interface Inbox {
   withdrawal?: { status: 'pending' | 'delivered'; messageId?: string; error?: string };
   withdrawalHistory?: NonNullable<Inbox['withdrawal']>[];
 }
-export type TeamRecord = Job | Inbox;
+/** A direct owner assignment is not a cat analysis and has no cat provenance. */
+export interface OwnerAssignment extends Pick<Job, 'id' | 'issue' | 'sourceVersion' | 'features' | 'assignment' | 'createdAt'> {
+  kind: 'assignment'; ownerUserId: string; ownerOperationId: string;
+  requestedLogin: string;
+  analysis?: never;
+}
+export type DispatchRecord = Job | OwnerAssignment;
+export type TeamRecord = DispatchRecord | Inbox;
+export interface TeamClassification {
+  id: string; issue: TeamIssue; analysis: TeamAnalysis; catId: string; recordedAt: number; bodySha256: string;
+  /** Fresh provider stamp, only supplied after the analyzed content is revalidated. */
+  verifiedUpdatedAt?: string;
+}
 export type TeamRecordDetail = TeamRecord & {
   revision: number; currentIssue: TeamIssue; sourceStale: boolean; sharedReceipts: SharedReceipt[];
   assignmentOptions: AssignmentOptions;
@@ -61,8 +74,10 @@ export function statistics(rows: TeamRecord[]) {
     distribution[key] = (distribution[key] ?? 0) + 1;
     const score = job.analysis!.score === null ? '未评分' : String(job.analysis!.score);
     scores[score] = (scores[score] ?? 0) + 1;
-    if (job.assignment?.status === 'assigned' && job.assignment.login) {
-      assignments[job.assignment.login] = (assignments[job.assignment.login] ?? 0) + 1;
+  }
+  for (const row of rows) {
+    if (row.kind !== 'inbox' && row.assignment?.status === 'assigned' && row.assignment.login) {
+      assignments[row.assignment.login] = (assignments[row.assignment.login] ?? 0) + 1;
     }
   }
   return { analyzed: jobs.length, uniqueIssues: new Set(jobs.map(job => job.issue.repo + ':' + job.issue.id)).size,
