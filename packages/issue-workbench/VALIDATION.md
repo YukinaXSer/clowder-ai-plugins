@@ -1,5 +1,31 @@
 # Validation record
 
+## Adjustable workspace columns — 2026-10-21
+
+Source: `thread_mucwsgsjtlbabfcq#0001792546356337-000000-2a0451b4`
+(“三栏工作区要可以调整列宽，自适应”). The original two separators now support
+pointer and keyboard adjustment, bounded pane widths, persistent preferences and
+reset. Container-based layout preserves drafts while moving between three panes,
+queue plus reading/investigation, and one selected pane.
+
+Observed RED: the packed page had no separator. The first implementation also
+failed the embedded-width check because CSS modules gave the separator's named
+container query a different name. The corrected packed journey passed, including
+dragging both boundaries, refresh, keyboard/reset, clamping and restoration,
+1050px/600px embedded containers, 390px viewport, unavailable/corrupt storage,
+retained drafts and a visible save action. All six packed browser/READ journeys,
+typecheck/import boundaries and an idempotent source-export check passed.
+Desktop, dark and mobile screenshots were inspected in
+`artifacts/columns-2026-10-21/`.
+
+All 35 repository gate steps and all six packed browser/READ journeys passed
+again in the managed full run (423 seconds). All 112 captured file digests matched
+on readback before this documentation-only result update. The command/log and
+frozen inputs are recorded in `artifacts/columns-2026-10-21/verification.json`.
+The existing Feishu pack exemption is unchanged. This plugin-only layout increment uses an explicit
+export adapter of the same frozen source SHA. No Core modifications, new runtime
+dependencies, real GitHub assignments or Host installation are implied.
+
 ## Group membership and reporter preference — 2026-10-20
 
 Source: `thread_mucwsgsjtlbabfcq#0001792510714026-000073-37b4fb6b`.

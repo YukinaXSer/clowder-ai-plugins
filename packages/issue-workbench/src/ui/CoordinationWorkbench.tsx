@@ -1,4 +1,6 @@
 'use client';
+import { ColumnSeparator } from '../layout/ColumnSeparator';
+import { useWorkbenchColumns } from '../layout/useWorkbenchColumns';
 import {
   type CoordinationHost,
   type CoordinationSnapshot,
@@ -38,6 +40,7 @@ export function CoordinationWorkbench({
   tools?: ReactNode;
   issueTools?: (profile: IssueSourceProfile, fact: IssueSourceFact) => ReactNode;
 }) {
+  const columns = useWorkbenchColumns();
   const [snapshot, setSnapshot] = useState<CoordinationSnapshot>({ sources: [], relations: [] });
   const [selected, setSelected] = useState(''),
     [filter, setFilter] = useState('all'),
@@ -170,6 +173,8 @@ export function CoordinationWorkbench({
   }
   return (
     <main
+      ref={columns.ref}
+      style={columns.style}
       className={styles.shell}
       data-testid="issue-coordination"
       data-preview-revision="issue-coordination-v2"
@@ -227,7 +232,7 @@ export function CoordinationWorkbench({
         </button>
       </nav>
       <div className={styles.layout}>
-        <aside className={styles.queue} aria-label="聚合问题队列">
+        <aside id={columns.queue.controls} className={styles.queue} aria-label="聚合问题队列">
           <div className={styles.filters}>
             <IssueSourceStateFilter
               facts={categorized.map((r) => r.fact)}
@@ -309,6 +314,7 @@ export function CoordinationWorkbench({
             {!visible.length && <p>当前筛选没有可读取的问题。</p>}
           </div>
         </aside>
+        <ColumnSeparator {...columns.queue} />
         <div className={styles.detail}>
           {row && current ? (
             <>
@@ -361,7 +367,8 @@ export function CoordinationWorkbench({
                   }}
                 />
               </section>
-              <section className={styles.inspector} aria-label="本仓研判">
+              <ColumnSeparator {...columns.notes} />
+              <section id={columns.notes.controls} className={styles.inspector} aria-label="本仓研判">
                 {issueTools?.(row.source.profile, row.fact)}
                 {current.dirty && row.saved && row.saved.revision !== current.revision && (
                   <details className={styles.notice} open>

@@ -268,6 +268,25 @@ Browser acceptance extracts and serves the actual tgz in a temporary directory.
 The artifact test installs that tgz outside this monorepo and exercises persistence
 through public exports with no runtime dependency install. No production data is used.
 
+## Adjustable workspace columns
+
+The multi-source workspace has two draggable separators. Drag either separator
+to resize the queue or investigation pane while keeping the reading pane usable.
+Focus a separator and use Left/Right (20px, or Shift for 50px); Home/End select
+its limits. Double-click or press Enter to restore both default widths.
+Widths are remembered in this browser without expiry. Storage being unavailable
+does not prevent adjustment during the current session.
+
+Layout follows the workspace container, including when embedded in a narrower
+Host: above 1100px all three panes are visible; at 721–1100px the queue stays next
+to the selected reading/investigation view; at 720px or less the view buttons
+switch between panes. Resizing preserves unsaved inputs and independent scrolling.
+
+`src/layout/` owns this behavior in Plugins. `scripts/columns-adapter.mjs` adds the
+small render/CSS integration when reproducing the frozen Core slice. The source
+commit and input hashes remain unchanged; `sync-state.json` records the adapted
+output hashes. This does not change Core or claim the SDK/Host cutover is complete.
+
 ## Fixed optimization-sync workflow
 
 Until SDK cutover, the existing Core feature branch remains the source for mapped
