@@ -50,6 +50,9 @@ test('packed workbench: owner click, cat result, feedback, stale source and deni
   page.setDefaultTimeout(6000);
   const errors = []; page.on('pageerror', error => errors.push(error.message));
   await page.goto('http://127.0.0.1:' + server.address().port);
+  const modes = page.getByRole('group', { name: '研判方式', exact: true });
+  assert.equal(await modes.getByRole('button', { name: '人工研判', exact: true }).getAttribute('aria-pressed'), 'true');
+  assert.equal(await page.getByLabel('分析猫猫', { exact: true }).count(), 0, 'manual analysis does not require choosing a cat');
   await page.getByRole('region', { name: '团队研判' }).getByText('GitHub 组织：fixture-org · 2 位成员', { exact: true }).waitFor();
   const initialMember = page.getByLabel('指派给组员', { exact: true });
   await initialMember.waitFor();
@@ -67,7 +70,34 @@ test('packed workbench: owner click, cat result, feedback, stale source and deni
   await page.reload();
   await page.getByText('分配与公开记录已写入 GitHub', { exact: true }).waitFor();
   assert.deepEqual(s.writes, ['alice']);
+  await modes.getByRole('button', { name: '猫猫研判', exact: true }).click();
+  await page.getByLabel('本仓方案', { exact: true }).fill('人工保留的研判草稿');
   await page.getByLabel('分析猫猫', { exact: true }).selectOption('receiver');
+  await modes.getByRole('button', { name: '人工研判', exact: true }).click();
+  assert.equal(await page.getByLabel('本仓方案', { exact: true }).inputValue(), '人工保留的研判草稿');
+  assert.equal(s.sends.size, 0, 'changing mode never dispatches an analysis');
+  const manualSaved = page.waitForResponse(response => response.url().endsWith('/work'));
+  await page.getByRole('button', { name: '保存本仓记录', exact: true }).click();
+  assert.ok((await manualSaved).ok());
+  await modes.getByRole('button', { name: '猫猫研判', exact: true }).click();
+  const originalCats = s.context.threads.getCats;
+  s.context.threads.getCats = async () => ({ participants: [],
+    routableNow: [{ catId: 'analyst', displayName: 'analyst', aliases: [] }], routableNotJoined: [],
+    notRoutable: [{ catId: 'receiver', displayName: 'receiver', aliases: [] }] });
+  await page.getByRole('button', { name: '刷新团队结果', exact: true }).click();
+  await page.getByText('所选猫猫当前不可用，请等待恢复或由你重新选择。', { exact: true }).waitFor();
+  assert.equal(await page.getByLabel('分析猫猫', { exact: true }).inputValue(), 'receiver');
+  assert.ok(await page.getByRole('button', { name: '请猫分析', exact: true }).isDisabled());
+  assert.equal(s.sends.size, 0);
+  s.context.threads.getCats = async () => ({ participants: [],
+    routableNow: [{ catId: 'analyst', displayName: 'analyst', aliases: [] }], routableNotJoined: [], notRoutable: [] });
+  await page.getByRole('button', { name: '刷新团队结果', exact: true }).click();
+  await page.getByRole('option', { name: 'receiver · 已不在可用名单中', exact: true }).waitFor({ state: 'attached' });
+  assert.equal(await page.getByLabel('分析猫猫', { exact: true }).inputValue(), 'receiver');
+  s.context.threads.getCats = originalCats;
+  await page.getByRole('button', { name: '刷新团队结果', exact: true }).click();
+  await page.getByRole('button', { name: '请猫分析', exact: true }).waitFor();
+  await page.waitForFunction(() => ![...document.querySelectorAll('button')].find(b => b.textContent === '请猫分析')?.disabled);
   await page.getByRole('button', { name: '请猫分析', exact: true }).click();
   await page.getByText('已发送，等待研判', { exact: true }).waitFor();
   const job = Object.values(await s.context.storage.list()).map(entry => entry.value).find(row => row.kind === 'analysis');
@@ -114,6 +144,7 @@ test('packed workbench: owner click, cat result, feedback, stale source and deni
   assert.equal(s.dispatches[0].acceptanceSuggestedFor, 'alice');
   await page.reload();
   await page.getByText('分配与公开记录已写入 GitHub', { exact: true }).waitFor();
+  await modes.getByRole('button', { name: '猫猫研判', exact: true }).click();
   assert.deepEqual(s.writes, ['alice'], 'reloading the persisted result cannot assign twice');
   await page.getByRole('region', { name: '模型候选分类', exact: true }).waitFor();
   await page.getByLabel('反馈理由', { exact: true }).fill('已人工复现，启动受阻');
@@ -168,6 +199,16 @@ test('packed workbench: owner click, cat result, feedback, stale source and deni
   await page.getByRole('button', { name: '刷新团队结果', exact: true }).click();
   await page.getByText('团队操作未获授权，请在插件设置中检查授权', { exact: true }).waitFor();
   assert.equal(await page.getByText('9 / 10', { exact: true }).count(), 0);
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await modes.getByRole('button', { name: '人工研判', exact: true }).click();
+  await page.getByLabel('本仓方案', { exact: true }).fill('猫猫授权不可用时，人工研判仍可独立保存');
+  const offlineSaved = page.waitForResponse(response => response.url().endsWith('/work'));
+  await page.getByRole('button', { name: '保存本仓记录', exact: true }).click();
+  assert.ok((await offlineSaved).ok());
+  await page.reload();
+  await page.getByLabel('本仓方案', { exact: true }).waitFor();
+  assert.equal(await page.getByLabel('本仓方案', { exact: true }).inputValue(), '猫猫授权不可用时，人工研判仍可独立保存');
+  assert.equal(await modes.getByRole('button', { name: '人工研判', exact: true }).getAttribute('aria-pressed'), 'true');
   assert.deepEqual(errors, []);
   assert.deepEqual(s.writes, ['alice'], 'only the explicit confirmation assigns in the fixture; no real GitHub writes');
 });

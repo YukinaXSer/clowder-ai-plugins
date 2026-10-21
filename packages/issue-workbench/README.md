@@ -25,6 +25,28 @@ and recover uncertain publications through the Host's owner-operation route.
 The standalone READ preview shows an honest disconnected state until an embedding
 Host provides that authorized route; opening the preview does not install a module.
 
+Open an Issue and choose its **研判方式**:
+
+- **人工研判** (initial view): fill in local tags, solution and evidence below,
+  then click **保存本仓记录**. This works independently of cat/organization access.
+- **猫猫研判**: choose **分析猫猫** from this café's configured Host members,
+  then click **请猫分析**. The list includes members not yet in the configured
+  analysis thread; unavailable members remain visible but cannot receive a task.
+  Changing mode or selecting a name does not send anything or discard manual drafts.
+
+The cat roster comes from the Host; GitHub Organization members are a separate
+list for assigning people. Refresh never silently replaces a selected cat. The
+Host checks the destination again when sending. If that cat becomes unavailable,
+wait for recovery or explicitly choose another member. The standalone READ preview
+cannot enumerate or invoke real cats until its authorized Host route is connected.
+The view starts in manual mode after reload; saved local work remains available.
+
+For source configuration, open **管理来源与代码基线** in the header. Enable an
+already bound repository, set its display name and default branch, then save.
+The optional code baseline is used for local verification; it does not filter the
+repository's Issue list. Repository connections are supplied by the Host. This
+preview does not yet provide a form to add a repository or configure the team module.
+
 Set **teamOrganization** to a GitHub Organization name or profile URL, for example
 `meow-club` or `https://github.com/meow-club`. The plugin reads its current members
 through the local authenticated `gh` CLI, including all result pages. The signed-in

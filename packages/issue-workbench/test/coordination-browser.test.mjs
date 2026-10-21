@@ -43,6 +43,10 @@ test('packed multi-source journey: save, link, reload, independent verification,
   t.after(async () => { if (t.signal.aborted) return; await mkdir('artifacts', { recursive: true }); await page.screenshot({ path: 'artifacts/coordination-last.png', fullPage: true }).catch(() => {}); });
   const errors = []; page.on('pageerror', error => { errors.push(error.message); console.error('browser:', error.message); });
   await page.goto(url);
+  const modes = page.getByRole('group', { name: '研判方式', exact: true });
+  assert.equal(await modes.getByRole('button', { name: '人工研判', exact: true }).getAttribute('aria-pressed'), 'true');
+  await modes.getByRole('button', { name: '猫猫研判', exact: true }).click();
+  await modes.getByRole('button', { name: '人工研判', exact: true }).click();
   await page.getByText('管理来源与代码基线', { exact: true }).click();
   await page.getByLabel('默认分支', { exact: true }).first().fill('public-main');
   await page.getByRole('button', { name: '保存来源配置', exact: true }).first().click();

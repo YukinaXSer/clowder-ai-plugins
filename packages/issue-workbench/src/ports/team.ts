@@ -18,7 +18,7 @@ export interface TeamSummary {
   group?: { organization?: string; members: string[]; error?: string };
   configurationError?: string;
   issueContext?: TeamIssueContext;
-  analysisCats?: Array<{ catId: string; displayName: string }>;
+  analysisCats?: Array<{ catId: string; displayName: string; available?: boolean }>;
   analysisRouteError?: string;
   classifications?: TeamClassification[];
 }

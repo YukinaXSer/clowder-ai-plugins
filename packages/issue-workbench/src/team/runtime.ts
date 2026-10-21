@@ -79,10 +79,12 @@ export class IssueTeamRuntime {
     if (!await this.context.threads.get(threadId)) throw new Error('Configured thread is unavailable');
     const cats = await this.context.threads.getCats(threadId);
     this.current();
-    return [...new Map([...cats.routableNow, ...cats.routableNotJoined].map(cat => [cat.catId, cat])).values()];
+    const unavailable = new Set(cats.notRoutable.map(cat => cat.catId));
+    return [...new Map([...cats.routableNow, ...cats.routableNotJoined, ...cats.notRoutable]
+      .map(cat => [cat.catId, { catId: cat.catId, displayName: cat.displayName, available: !unavailable.has(cat.catId) }])).values()];
   }
   private async routable(threadId: string, catId: string) {
-    if (!(await this.analysisCats(threadId)).some(cat => cat.catId === catId)) throw new Error('Configured cat is not routable in this thread');
+    if (!(await this.analysisCats(threadId)).some(cat => cat.catId === catId && cat.available)) throw new Error('Configured cat is not routable in this thread');
     this.current();
   }
   private async deliver(row: Job | Inbox, revision: number) {
@@ -415,11 +417,10 @@ export class IssueTeamRuntime {
             try { group = await readGroup(this.context, this.provider, this.abort.signal); }
             catch (error) { group = { groupName: '', members: [], error: errorText(error) }; }
           }
-          let analysisCats: Array<{ catId: string; displayName: string }> = [], analysisRouteError;
+          let analysisCats: Array<{ catId: string; displayName: string; available: boolean }> = [], analysisRouteError;
           try {
             if (typeof settings.analysisThreadId !== 'string' || !settings.analysisThreadId) throw new Error('请在插件设置中选择可用的研判对话');
-            analysisCats = (await this.analysisCats(settings.analysisThreadId))
-              .map(({ catId, displayName }) => ({ catId, displayName }));
+            analysisCats = await this.analysisCats(settings.analysisThreadId);
           } catch (error) { analysisRouteError = errorText(error); }
           await this.authorized();
           const classifications = selected.flatMap(row => row.kind === 'analysis' && row.analysis && row.provenance

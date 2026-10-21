@@ -183,13 +183,16 @@ test('selected cat survives a failed send and default-cat change without grantin
   await s.active.stop();
 });
 
-test('Host routable cats that have not joined are selectable; unavailable cats stay excluded', async () => {
+test('configured cats include unavailable members for display but only currently routable cats can receive', async () => {
   const s = await fixture();
   s.context.threads.getCats = async () => ({ participants: [], routableNow: [],
     routableNotJoined: [{ catId: 'new-cat', displayName: 'New cat', aliases: [] }],
     notRoutable: [{ catId: 'offline', displayName: 'Offline', aliases: [] }] });
   const summary = (await s.call('summary')).data;
-  assert.deepEqual(summary.analysisCats.map((cat: any) => cat.catId), ['new-cat']);
+  assert.deepEqual(summary.analysisCats, [
+    { catId: 'new-cat', displayName: 'New cat', available: true },
+    { catId: 'offline', displayName: 'Offline', available: false },
+  ]);
   const request = { repo: 'fixture/repo', number: 1, requestId: 'new-cat', catId: 'new-cat' };
   await s.call('analyze', request);
   assert.equal([...s.sends.values()][0].draft.wake.catId, 'new-cat');

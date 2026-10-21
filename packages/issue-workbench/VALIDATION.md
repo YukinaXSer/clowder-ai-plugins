@@ -1,5 +1,23 @@
 # Validation record
 
+## Manual/cat choice increment — 2026-10-21
+
+The existing workbench now offers **人工研判 / 猫猫研判**. The initial manual view
+can save without a team connection; cat mode uses the configured Host member list,
+including visibly unavailable members. Refresh and send never substitute another
+cat. GitHub Organization assignees remain separate from analysis cats.
+
+Red→green checks cover the missing mode selector and incomplete configured roster.
+All 52 team checks and six packed browser/READ journeys passed, including mode
+switching without lost drafts or unintended sends, unavailable/removed/restored
+selected cats, and manual save/reload after Host authorization is denied. Final
+package validation and actual preview evidence accompany the PR. See
+[the evidence record](../../docs/evidence/issue-workbench-analysis-modes.md).
+
+This increment changes plugin-owned UI/runtime/tests only, plus documentation.
+No Core source cut, public SDK, dependency, saved-data schema or remote-write policy
+changed. Installed Host and real-cat/two-account acceptance are still pending.
+
 ## Immediate assignment and selected analysis cat — 2026-10-21
 
 Source: `thread_mucwsgsjtlbabfcq#0001792553407782-000031-4e6d17f0`.
