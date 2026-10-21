@@ -1,6 +1,7 @@
 import type { TeamClassification, TeamRecord, TeamRecordDetail, TeamStatistics } from '../team/records.js';
 import type { AssignmentOptions } from '../team/group.js';
 import type { TeamIssue, TeamAnalysis } from '../team/types.js';
+import type { ClassificationQueueView } from '../team/classification-queue.js';
 
 export interface TeamIssueContext {
   currentIssue: TeamIssue; sourceVersion: string; assignmentOptions: AssignmentOptions;
@@ -21,6 +22,7 @@ export interface TeamSummary {
   analysisCats?: Array<{ catId: string; displayName: string; available?: boolean }>;
   analysisRouteError?: string;
   classifications?: TeamClassification[];
+  classificationQueues?: ClassificationQueueView[];
 }
 export interface TeamHost {
   summary(input?: { repo?: string; number?: number; kind?: 'analysis' | 'assignment' | 'inbox'; offset?: number }): Promise<TeamSummary>;
@@ -31,6 +33,8 @@ export interface TeamHost {
   assignIssue(input: { repo: string; number: number; sourceVersion: string; requestId: string; login: string }): Promise<TeamRecord>;
   republish(id: string, expectedRevision: number): Promise<TeamRecord>;
   feedback(input: { id: string; expectedRevision: number; verdict: 'accepted' | 'corrected' | 'rejected'; reason: string }): Promise<TeamRecord>;
+  planClassification(input: { repo: string; catId: string; requestId: string }): Promise<ClassificationQueueView>;
+  controlClassification(input: { id: string; expectedRevision: number; status: 'running' | 'paused' | 'stopped' }): Promise<ClassificationQueueView>;
   settingsUrl?: string;
 }
 export class TeamAccessError extends Error { constructor(message: string, readonly status: number) { super(message); } }
@@ -62,6 +66,8 @@ export function createTeamClient(request: (path: string, options?: RequestInit) 
     assignIssue: input => call('assignIssue', input, true),
     republish: (id, expectedRevision) => call('republish', { id, expectedRevision }, true),
     feedback: input => call('feedback', input),
+    planClassification: input => call('planClassification', input),
+    controlClassification: input => call('controlClassification', input),
     settingsUrl,
   };
 }

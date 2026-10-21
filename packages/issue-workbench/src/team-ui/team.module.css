@@ -25,9 +25,9 @@
 .modes button { flex: 1; text-align: center; }
 .modes button[aria-pressed="true"] { background: var(--cafe-surface-sunken); border-color: var(--cafe-accent); }
 .panel p, .dialog p { margin: 8px 0; }
-.panel label { display: grid; gap: 6px; margin: 8px 0; }
+.panel label, .dialog label { display: grid; gap: 6px; margin: 8px 0; }
 .panel textarea { min-height: 64px; }
-.panel select {
+.panel select, .dialog select {
   width: 100%;
   min-width: 0;
   min-height: 36px;

@@ -49,12 +49,13 @@ export function setup() {
   };
   const members = ['alice', 'bob'];
   const provider: TeamProvider = {
+    openIssues: async repo => structuredClone(issues.filter(issue => issue.repo === repo && issue.state === 'open')),
     organizationMembers: async () => [...members],
     identity: async () => login,
     issue: async (_repo, number) => structuredClone(issues.find(issue => issue.number === number)!),
     canWrite: async () => login === 'maintainer',
     assignable: async (_repo, target) => target === 'alice',
-    addAssignee: async (_issue, target) => { writes.push(target); issues[0].assignees.push(target); },
+    addAssignee: async (issue, target) => { writes.push(target); issues.find(item => item.id === issue.id)!.assignees.push(target); },
     publishDispatch: async (_issue, dispatch) => { if (!dispatches.some(item => item.id === dispatch.id)) dispatches.push(dispatch); return 'comment-1'; },
     assigned: async (_repo, target) => issues.filter(issue => issue.state === 'open' && issue.assignees.includes(target))
       .map(issue => ({ issue: structuredClone(issue), assignmentId: epoch, dispatch: dispatches.at(-1) ?? null })),

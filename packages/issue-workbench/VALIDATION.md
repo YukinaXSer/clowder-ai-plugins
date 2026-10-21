@@ -1,5 +1,19 @@
 # Validation record
 
+## Explicit classification batches — 2026-10-21
+
+The team drawer now prepares a complete Open Issue batch and shows its size before
+an explicit start. Durable serial work retains the selected Host cat and thread;
+pause/stop fence future messages and automatic assignment, and restart reuses jobs.
+Existing organization, source, permission and assignee rules remain in force.
+This is a finite batch, not a continuous new-Issue watcher.
+
+Runtime RED→GREEN, the packed start/pause/reload/resume/stop journey, actual remote
+catalog reads and final validation outputs are described in
+[the queue evidence record](../../docs/evidence/issue-workbench-classification-queue.md).
+The live Host route, real cat execution and two-account assignment/intake remain
+unverified. This increment does not promote the candidate manifest to installable.
+
 ## Manual/cat choice increment — 2026-10-21
 
 The existing workbench now offers **人工研判 / 猫猫研判**. The initial manual view

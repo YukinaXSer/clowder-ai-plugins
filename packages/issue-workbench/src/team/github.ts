@@ -87,6 +87,11 @@ export class GhTeamProvider implements TeamProvider {
   async issue(repo: string, number: number, signal: AbortSignal) {
     return this.decode(repository.parse(repo), await this.api(this.path(repo, number), signal));
   }
+  async openIssues(repo: string, signal: AbortSignal) {
+    repo = repository.parse(repo);
+    const rows = z.array(issueSchema).parse(await this.api(`${this.path(repo)}/issues?state=open&per_page=100`, signal, undefined, true));
+    return rows.filter(row => row.pull_request === undefined && row.state === 'open').map(row => this.decode(repo, row));
+  }
   async assignable(repo: string, target: string, signal: AbortSignal) {
     try { await this.api(`${this.path(repo)}/assignees/${login.parse(target)}`, signal); return true; }
     catch (error) { if (String(error).includes('HTTP 404')) return false; throw error; }

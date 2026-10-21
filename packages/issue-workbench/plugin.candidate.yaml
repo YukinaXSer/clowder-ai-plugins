@@ -154,6 +154,14 @@ configuration:
         label: 保存人工反馈
         render: row
         action: { method: issue.workbench.feedback }
+      - id: planClassification
+        label: 准备 Open 问题研判队列
+        render: status
+        action: { method: issue.workbench.planClassification }
+      - id: controlClassification
+        label: 开始、暂停或停止研判队列
+        render: status
+        action: { method: issue.workbench.controlClassification }
 contributions:
   - type: tool
     id: team-inspect

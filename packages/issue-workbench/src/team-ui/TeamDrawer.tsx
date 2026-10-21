@@ -4,10 +4,11 @@ import type { TeamRecordDetail } from '../team/records.js';
 import { TeamRecordView } from './TeamRecordView';
 import { TeamRecovery } from './TeamRecovery';
 import { TeamOrganization } from './TeamOrganization';
+import { TeamClassification } from './TeamClassification';
 import styles from './team.module.css';
 
 function Contents({ host }: { host: TeamHost }) {
-  const [tab, setTab] = useState<'inbox' | 'analysis' | 'assignment' | 'statistics'>('inbox');
+  const [tab, setTab] = useState<'inbox' | 'analysis' | 'assignment' | 'statistics' | 'automatic'>('inbox');
   const [offset, setOffset] = useState(0), [summary, setSummary] = useState<TeamSummary>();
   const [detail, setDetail] = useState<TeamRecordDetail>(), [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -16,7 +17,7 @@ function Contents({ host }: { host: TeamHost }) {
   useEffect(() => {
     const current = ++version.current;
     setBusy(true); setError(''); setDetail(undefined); setSummary(undefined);
-    void host.summary({ ...(tab === 'statistics' ? {} : { kind: tab }), offset })
+    void host.summary({ ...(['statistics', 'automatic'].includes(tab) ? {} : { kind: tab as 'inbox' | 'analysis' | 'assignment' }), offset })
       .then(value => { if (version.current === current) setSummary(value); })
       .catch(error => { if (version.current === current) setError(error.message); })
       .finally(() => { if (version.current === current) setBusy(false); });
@@ -44,13 +45,14 @@ function Contents({ host }: { host: TeamHost }) {
     <TeamOrganization group={summary?.group} showMembers />
     <button type="button" disabled={busy} onClick={() => setRefresh(value => value + 1)}>刷新组织成员</button>
     <nav className={styles.actions} aria-label="团队记录视图">
-      {(['inbox', 'analysis', 'assignment', 'statistics'] as const).map(value => <button type="button" key={value}
+      {(['inbox', 'automatic', 'analysis', 'assignment', 'statistics'] as const).map(value => <button type="button" key={value}
         aria-pressed={tab === value} onClick={() => { setTab(value); setOffset(0); }}>
-        {({ inbox: '我的收件', analysis: '研判记录', assignment: '直接指派', statistics: '反馈统计' })[value]}</button>)}
+        {({ inbox: '我的收件', automatic: '自动研判', analysis: '研判记录', assignment: '直接指派', statistics: '反馈统计' })[value]}</button>)}
     </nav>
     {busy && <p role="status">正在读取…</p>}
     {error && <p role="alert">{error}</p>}
     {summary?.configurationError && <p>{summary.configurationError}</p>}
+    {tab === 'automatic' && <TeamClassification host={host} />}
     {tab === 'statistics' && stats && <div className={styles.result}>
       <p>已研判 {stats.analyzed} · 独立问题 {stats.uniqueIssues}</p><p>已反馈 {stats.feedback}</p>
       <p>采纳 {stats.accepted} · 修正 {stats.corrected} · 拒绝 {stats.rejected}</p>
@@ -67,7 +69,7 @@ function Contents({ host }: { host: TeamHost }) {
       <p className={styles.muted}>同一问题的多次研判分别计数；历史派工次数不代表当前待办量。</p>
       <p className={styles.muted}>统计来自保存的研判与明确的人工反馈，未进行模型训练。</p>
     </div>}
-    {tab !== 'statistics' && summary && <>
+    {tab !== 'statistics' && tab !== 'automatic' && summary && <>
       {!summary.rows.length && <p>{tab === 'inbox' ? '暂无收件记录' : tab === 'assignment' ? '暂无直接指派记录' : '暂无研判记录'}</p>}
       <div className={styles.records}>{summary.rows.map(row => <button type="button" key={row.id}
         aria-pressed={detail?.id === row.id} onClick={() => void read(row.id)}>

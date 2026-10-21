@@ -41,6 +41,8 @@ export interface SharedReceipt {
   evidenceUrls: string[];
 }
 export interface TeamProvider {
+  /** Complete paginated Open Issue catalog; partial reads must reject. */
+  openIssues(repo: string, signal: AbortSignal): Promise<TeamIssue[]>;
   identity(signal: AbortSignal): Promise<string>;
   /** Complete organization roster, including concealed members; throws if access is unverified. */
   organizationMembers(organization: string, signal: AbortSignal): Promise<string[]>;

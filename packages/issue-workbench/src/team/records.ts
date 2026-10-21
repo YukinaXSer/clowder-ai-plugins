@@ -13,6 +13,7 @@ export interface TeamFeedback {
 }
 export interface Job {
   kind: 'analysis';
+  classificationQueueId?: string;
   id: string;
   issue: TeamIssue;
   sourceVersion: string;

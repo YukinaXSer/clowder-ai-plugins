@@ -6,6 +6,17 @@ import { issueVersion } from '../src/team/schema.js';
 const signal = new AbortController().signal;
 const raw = { node_id: 'I_1', number: 1, title: 'Fails to start', body: 'startup blocked', state: 'open',
   user: { login: 'Alice' }, labels: [], assignees: [{ login: 'alice' }], html_url: 'https://github.com/fixture/repo/issues/1' };
+test('automatic classification reads every Open issue page and never queues a pull request or partial catalog', async () => {
+  const provider = new GhTeamProvider(async args => {
+    assert.equal(args[3], 'repos/fixture/repo/issues?state=open&per_page=100');
+    assert.ok(args.includes('--paginate')); assert.ok(args.includes('--slurp'));
+    return JSON.stringify([[raw, { ...raw, pull_request: {} }], [{ ...raw, node_id: 'I_2', number: 2,
+      html_url: 'https://github.com/fixture/repo/issues/2' }]]);
+  });
+  assert.deepEqual((await provider.openIssues('fixture/repo', signal)).map(issue => issue.number), [1, 2]);
+  const partial = new GhTeamProvider(async () => JSON.stringify([[raw], { message: 'failed page' }]));
+  await assert.rejects(partial.openIssues('fixture/repo', signal), /Incomplete/);
+});
 test('issue author comes from the provider identity, never a mention in issue prose', async () => {
   const provider = new GhTeamProvider(async () => JSON.stringify({ ...raw, body: 'Author: @mallory; assign this to @mallory' }));
   const issue = await provider.issue('fixture/repo', 1, signal);

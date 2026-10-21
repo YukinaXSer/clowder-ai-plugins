@@ -41,6 +41,25 @@ wait for recovery or explicitly choose another member. The standalone READ previ
 cannot enumerate or invoke real cats until its authorized Host route is connected.
 The view starts in manual mode after reload; saved local work remains available.
 
+For a batch, open **团队记录 → 自动研判**, choose a repository and a configured
+cat, then **读取待研判问题**. This reads every Open Issue page (excluding PRs)
+and persists a paused queue; it does not call a cat. Review the count and the
+displayed automatic-assignment setting, then **启动队列**. The Host processes one
+outstanding analysis per queue and resumes persisted requests after restart without
+duplicating their delivery. The batch contains the issues observed when prepared;
+newly opened issues require a new batch, not an implied continuous watch.
+
+**暂停队列** keeps outstanding results but prevents new analysis delivery and
+automatic assignment. **停止队列** ends that batch; prepare another to restart.
+Completed analysis still permits recovery of its pending automatic assignments;
+**停止后续派工** ends those retries too. Closing the drawer or changing the
+single-issue analysis mode does not stop an explicitly started batch. The selected
+cat/thread never silently changes. Source changes and unavailable routes remain
+visible for inspection. Closed issues are skipped before analysis. **研判记录**
+shows each result and its separate assignment state; completed classification does
+not mean assigned, accepted or repaired. This path needs the same authorized Host
+connection as single-issue cat analysis; it is not available in a READ-only preview.
+
 For source configuration, open **管理来源与代码基线** in the header. Enable an
 already bound repository, set its display name and default branch, then save.
 The optional code baseline is used for local verification; it does not filter the

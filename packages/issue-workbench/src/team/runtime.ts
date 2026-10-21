@@ -6,12 +6,13 @@ import { analysisSchema, features, hash, idInput, issueInput, issueVersion, logi
 import type { SharedReceipt, TeamCaller, TeamContext, TeamProvider } from './types.js';
 import { statistics, type Job, type Inbox, type DispatchRecord, type OwnerAssignment, type TeamRecord as RecordValue } from './records.js';
 import { assignmentPlan, readGroup, requireMember, type AssignmentOptions } from './group.js';
+import { ClassificationQueues, type ClassificationQueue } from './classification-queue.js';
 
 const prefix = 'issue-workbench.team.v1.';
 const errorText = (error: unknown) => error instanceof Error ? error.message.slice(0, 300) : 'Operation unavailable';
 const requestInput = issueInput.extend({ requestId: z.string().regex(/^[A-Za-z0-9_.:-]{1,128}$/) });
 const revisionInput = idInput.extend({ expectedRevision: z.number().int().positive() });
-export const WORKBENCH_METHODS = ['summary', 'get', 'analyze', 'assign', 'assignIssue', 'retry', 'republish', 'feedback'] as const;
+export const WORKBENCH_METHODS = ['summary', 'get', 'analyze', 'assign', 'assignIssue', 'retry', 'republish', 'feedback', 'planClassification', 'controlClassification'] as const;
 type RequestAuthority = { assertCurrent(): void | Promise<void>; signal?: AbortSignal };
 
 /** One Host instance owns the scheduler and storage. The queue serializes local
@@ -20,7 +21,15 @@ export class IssueTeamRuntime {
   private readonly abort = new AbortController();
   private tail: Promise<unknown> = Promise.resolve();
   private authority?: RequestAuthority;
-  constructor(private readonly context: TeamContext, private readonly provider: TeamProvider) {}
+  private readonly classificationQueues: ClassificationQueues;
+  constructor(private readonly context: TeamContext, private readonly provider: TeamProvider) {
+    this.classificationQueues = new ClassificationQueues(context, {
+      authorized: () => this.authorized(), allowed: repo => this.allowed(repo),
+      target: (threadId, catId) => this.routable(threadId, catId),
+      catalog: repo => provider.openIssues(repo, this.abort.signal),
+      job: (queue, item) => this.classificationJob(queue, item),
+    });
+  }
   private run<T>(action: () => Promise<T>, authority?: RequestAuthority): Promise<T> {
     const promise = this.tail.catch(() => {}).then(async () => {
       // Bind authority inside the queue: a later call must never replace the
@@ -87,10 +96,32 @@ export class IssueTeamRuntime {
     if (!(await this.analysisCats(threadId)).some(cat => cat.catId === catId && cat.available)) throw new Error('Configured cat is not routable in this thread');
     this.current();
   }
+  private async classificationJob(queue: ClassificationQueue, item: ClassificationQueue['items'][number]) {
+    const issue = await this.issue(queue.repo, item.number);
+    if (issue.id !== item.issueId) throw new Error('Issue identity changed; inspect the original queue');
+    if (issue.state !== 'open') return null;
+    const id = item.jobId!;
+    const existing = await this.context.storage.get(prefix + id);
+    if (existing) {
+      const job = (await this.row(id)).value;
+      if (job.kind !== 'analysis' || job.classificationQueueId !== queue.id) throw new Error('Queue job identity mismatch');
+      if (job.sourceVersion !== issueVersion(issue)) throw new Error('Source changed; stop this queue and prepare a fresh analysis');
+      await this.deliver(job, existing.revision);
+      return job;
+    }
+    const job: Job = { kind: 'analysis', id, classificationQueueId: queue.id, issue,
+      sourceVersion: issueVersion(issue), features: features(issue), threadId: queue.threadId,
+      catId: queue.catId, requester: queue.ownerUserId, requesterKind: 'owner', targetSelection: 'owner',
+      ownerUserId: queue.ownerUserId, ownerOperationId: queue.ownerOperationId,
+      status: 'pending', createdAt: Date.now() };
+    await this.deliver(job, await this.save(job, null));
+    return job;
+  }
   private async deliver(row: Job | Inbox, revision: number) {
     if (row.status !== 'pending') return row;
     try {
       if (row.kind === 'analysis') {
+        if (!await this.classificationQueues.permits(row)) throw new Error('Classification queue is paused or stopped');
         if (row.targetSelection !== 'owner' && await this.context.config.get('analysisCatId') !== row.catId) throw new Error('Analysis target changed; original request retained');
         if (row.requesterKind === 'owner' && await this.context.config.get('analysisThreadId') !== row.threadId) throw new Error('Analysis thread changed; original request retained');
         if (issueVersion(await this.issue(row.issue.repo, row.issue.number)) !== row.sourceVersion) throw new Error('Issue changed; request a fresh analysis');
@@ -116,6 +147,7 @@ export class IssueTeamRuntime {
         : `GitHub 分配待接手：${row.issue.repo}#${row.issue.number} ${row.issue.title.replaceAll('@', '＠')}\n优先级：${row.score ?? '待研判'}${row.score === null ? '' : '/10'}\n${row.reason.replaceAll('@', '＠')}\n${row.issue.url}\n收件记录 ${row.id}。已收取不等于已开工；请结合本团队授权决定接手与修复。可用 issue_team_report 回报接手、受阻和修复材料；此通知不是执行许可。${acceptance ? `\n建议合入前邀请提交者 ${acceptance} 参与验收；不表示已验收，也不替代独立审查。` : ''}`;
       if (row.kind === 'inbox') await requireMember(this.context, this.provider, this.abort.signal, row.login);
       await this.authorized();
+      if (row.kind === 'analysis' && !await this.classificationQueues.permits(row)) throw new Error('Classification queue is paused or stopped');
       const sent = await this.context.messaging.send(row.threadId, {
         idempotencyKey: key, identity: 'issue-workbench', wake: { catId: row.catId },
         payload: { provenance: { epistemicStatus: 'observation' }, elements: [{ elementId: key, kind: 'text', payload: { text } }] },
@@ -147,6 +179,7 @@ export class IssueTeamRuntime {
   }
   private async assign(job: DispatchRecord, revision: number, selectedLogin?: string) {
     if (job.kind === 'analysis' && !job.analysis) throw new Error('Analysis required before assignment');
+    if (!selectedLogin && job.kind === 'analysis' && !await this.classificationQueues.permits(job)) return job;
     if (job.assignment?.status === 'assigned') {
       if (selectedLogin && selectedLogin !== job.assignment.login) throw new Error('Issue already assigned; inspect GitHub before changing its owner');
       return job;
@@ -177,6 +210,7 @@ export class IssueTeamRuntime {
       revision = await this.save(job, revision);
       const currentPolicy = async () => {
         await this.allowed(current.repo);
+        if (!selectedLogin && job.kind === 'analysis' && !await this.classificationQueues.permits(job)) throw new Error('Classification queue is paused or stopped');
         // The hash includes the complete current roster and organization. One
         // fresh plan checks both membership and routing before each write.
         if ((!selectedLogin && await this.context.config.get('automaticAssignment') !== true) ||
@@ -376,6 +410,8 @@ export class IssueTeamRuntime {
       }
       await this.authorized();
       switch (method) {
+        case 'planClassification': return this.classificationQueues.plan(input, owner);
+        case 'controlClassification': return this.classificationQueues.control(input, owner);
         case 'summary': {
           const args = z.object({ repo: repository.optional(), number: z.number().int().positive().optional(), kind: z.enum(['analysis', 'assignment', 'inbox']).optional(),
             offset: z.number().int().min(0).default(0), limit: z.number().int().min(1).max(100).default(30) }).strict().parse(input);
@@ -431,7 +467,8 @@ export class IssueTeamRuntime {
           }] : []);
           return { rows: selected.slice(args.offset, args.offset + args.limit).map(row => ({ ...row, issue: { ...row.issue, body: '' } })),
             total: selected.length, nextOffset: args.offset + args.limit < selected.length ? args.offset + args.limit : null,
-            statistics: statistics(rows), settings, group, issueContext, analysisCats, analysisRouteError, classifications, configurationError };
+            statistics: statistics(rows), settings, group, issueContext, analysisCats, analysisRouteError, classifications, configurationError,
+            classificationQueues: await this.classificationQueues.list() };
         }
         case 'get': return await this.detail(idInput.parse(input).id);
         case 'analyze': {
@@ -553,6 +590,7 @@ export class IssueTeamRuntime {
       for (const row of await this.rows()) {
         if (row.kind !== 'analysis') continue;
         try {
+          if (!await this.classificationQueues.permits(row)) continue;
           const { revision } = await this.row(row.id);
           if (row.status === 'pending') await this.deliver(row, revision);
           else if (row.analysis && row.assignment?.status !== 'assigned') await this.assign(row, revision);
@@ -560,6 +598,7 @@ export class IssueTeamRuntime {
         } catch (error) { this.current(); results.push({ id: row.id, error: errorText(error) }); }
       }
       try { await this.inbox(); } catch (error) { this.current(); results.push({ id: 'inbox', error: errorText(error) }); }
+      await this.classificationQueues.recover();
       return results;
     }, authority);
   }
