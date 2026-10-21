@@ -21,6 +21,12 @@ from production authorization and real two-account acceptance.
 
 ### Team module candidate
 
+For hands-on workflow testing, use the [interactive isolated sandbox](SANDBOX.md)
+from this repository. It keeps the packed workbench running with two simulated
+accounts, durable plans and receipts, and explicit success/failure/waiting controls.
+Host grants, login, model outcomes and GitHub transport remain test substitutes;
+the running production Host is unchanged.
+
 `dist/team-plugin.js` uses the public SDK `0.2.0-beta.21` and installation-scoped
 Host storage, current invocation identity, thread visibility and message delivery.
 Its nine `issue_team_*` actions support reading an Issue, requesting analysis by an

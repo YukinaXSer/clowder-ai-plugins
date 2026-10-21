@@ -34,6 +34,7 @@
     "README.en.md",
     "VALIDATION.md",
     "HOST-TESTING.md",
+    "SANDBOX.md",
     "LICENSE",
     "THIRD_PARTY_NOTICES.md",
     "plugin.yaml"
@@ -56,7 +57,9 @@
     "preview": "node scripts/preview.mjs",
     "check:manifest": "node scripts/check-manifest.mjs",
     "test:team": "node --import tsx --test test/team*.test.ts",
-    "test:host": "node scripts/test-installed-host.mjs"
+    "test:host": "node scripts/test-installed-host.mjs",
+    "preview:sandbox": "node scripts/sandbox.mjs",
+    "test:sandbox": "node --test test/sandbox.test.mjs test/sandbox-browser.test.mjs"
   },
   "devDependencies": {
     "@clowder-ai/plugin-sdk": "workspace:0.2.0-beta.21",
