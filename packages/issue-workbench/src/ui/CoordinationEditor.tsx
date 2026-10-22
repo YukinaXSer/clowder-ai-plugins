@@ -1,13 +1,16 @@
 import { type IssueClassification, type IssueInvestigation } from '../model/issue-coordination.js';
 import styles from './coordination.module.css';
 import { IssueClassificationCandidate } from './IssueClassifications';
+import { IssueContextFacets } from './IssueContextFacets';
+import type { IssueContextClassification } from '../classification/issue-context';
 
 export function CoordinationEditor({
-  value, subject, classification, featureBindings, sourceUpdatedAt, change, save, busy, dirty, error,
+  value, subject, classification, context, featureBindings, sourceUpdatedAt, change, save, busy, dirty, error,
 }: {
   value: IssueInvestigation;
   subject: string;
   classification?: IssueClassification;
+  context?: IssueContextClassification;
   featureBindings?: string[];
   sourceUpdatedAt: string;
   change: (value: IssueInvestigation) => void;
@@ -31,6 +34,7 @@ export function CoordinationEditor({
         <p className={styles.muted}>先看自动结果，需要时调整分类或补充说明，再派工。</p>
       </div>
       <div className={styles.editorBody}>
+        {context && <IssueContextFacets context={context} />}
         <IssueClassificationCandidate result={classification} featureBindings={featureBindings} sourceUpdatedAt={sourceUpdatedAt} />
         <details className={styles.fieldGroup}>
           <summary>调整分类（可选）</summary>

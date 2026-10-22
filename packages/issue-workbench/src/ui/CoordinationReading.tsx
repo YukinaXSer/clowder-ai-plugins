@@ -1,10 +1,11 @@
-import type { CoordinationDetail, CoordinationHost, IssueRef } from '../model/issue-coordination.js';
+import type { CoordinationDetail, CoordinationHost, IssueRef, IssueSourceFact } from '../model/issue-coordination.js';
 import { useEffect, useRef, useState } from 'react';
 import styles from './coordination.module.css';
 import { IssueContent } from './IssueDiscussion';
 
 /** Parent keys this view by full issue identity. Late pages cannot enter another reading. */
-export function CoordinationReading({ host, issue }: { host: CoordinationHost; issue: IssueRef }) {
+export function CoordinationReading({ host, issue, onDetail }: { host: CoordinationHost; issue: IssueRef;
+  onDetail?: (ref: IssueRef, fact: IssueSourceFact | null) => void }) {
   const [detail, setDetail] = useState<CoordinationDetail | null>(null);
   const [busy, setBusy] = useState(false);
   const generation = useRef(0),
@@ -21,6 +22,7 @@ export function CoordinationReading({ host, issue }: { host: CoordinationHost; i
         more ? detail?.fact?.contentVersion : undefined,
       );
       if (generation.current !== id) return;
+      if (!more) onDetail?.(issue, next.fact);
       if (more && (!next.fact || next.fact.contentVersion !== detail?.fact?.contentVersion)) {
         setDetail((old) => (old ? { ...old, error: '讨论版本不一致，请重新读取正文。' } : old));
         return;
@@ -34,6 +36,7 @@ export function CoordinationReading({ host, issue }: { host: CoordinationHost; i
           : next,
       );
     } catch (error) {
+      if (generation.current === id && [401, 403].includes((error as { status?: number }).status ?? 0)) onDetail?.(issue, null);
       if (generation.current === id)
         setDetail((old) =>
           [401, 403].includes((error as { status?: number }).status ?? 0)

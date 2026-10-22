@@ -97,6 +97,180 @@
           "      </dialog>",
           "    </>"
         ]
+      },
+      {
+        "from": [
+          "import { useEffect, useId, useRef, useState } from 'react';",
+          "import styles from './classifications.module.css';",
+          "import { IssueSourceState, matchesSourceState } from './IssueSourceState';",
+          "",
+          "const facets = { area: '模块', kind: '类型', symptom: '表现', environment: '环境' } as const;",
+          "const facetKeys = Object.keys(facets) as (keyof typeof facets)[];"
+        ],
+        "to": [
+          "import { useEffect, useId, useRef, useState } from 'react';",
+          "import styles from './classifications.module.css';",
+          "import { IssueSourceState, matchesSourceState } from './IssueSourceState';",
+          "import { issueContextFor, originLabels, systemLabels } from '../classification/issue-context';",
+          "import { IssueContextFacets } from './IssueContextFacets';",
+          "",
+          "const facets = { area: '模块', kind: '类型', symptom: '表现', environment: '环境' } as const;",
+          "const facetKeys = Object.keys(facets) as (keyof typeof facets)[];"
+        ]
+      },
+      {
+        "from": [
+          "    [query, setQuery] = useState(''),",
+          "    [state, setState] = useState('all');",
+          "  const [limit, setLimit] = useState(40);",
+          "  const rows = sources.flatMap((source) =>",
+          "    source.issues",
+          "      .filter((fact) => !fact.unavailable)"
+        ],
+        "to": [
+          "    [query, setQuery] = useState(''),",
+          "    [state, setState] = useState('all');",
+          "  const [limit, setLimit] = useState(40);",
+          "  const [origin, setOrigin] = useState('all'), [system, setSystem] = useState('all');",
+          "  const rows = sources.flatMap((source) =>",
+          "    source.issues",
+          "      .filter((fact) => !fact.unavailable)"
+        ]
+      },
+      {
+        "from": [
+          "        source,",
+          "        fact,",
+          "        result: issueClassificationFor(source, fact),",
+          "        features: issueFeatureBindings(fact),",
+          "      })),",
+          "  );",
+          "  const hasClassifications = rows.some((row) => row.result || row.features.length);",
+          "  const scoped = rows.filter(",
+          "    ({ fact, source }) =>",
+          "      matchesSourceState(fact, state) &&",
+          "      `${fact.title} #${fact.number} ${source.preference.value.name}`",
+          "        .toLowerCase()",
+          "        .includes(query.toLowerCase().trim()),"
+        ],
+        "to": [
+          "        source,",
+          "        fact,",
+          "        result: issueClassificationFor(source, fact),",
+          "        context: issueContextFor(fact, issueClassificationFor(source, fact)),",
+          "        features: issueFeatureBindings(fact),",
+          "      })),",
+          "  );",
+          "  const hasClassifications = rows.some((row) => row.result || row.features.length);",
+          "  const scoped = rows.filter(",
+          "    ({ fact, source, context }) =>",
+          "      matchesSourceState(fact, state) &&",
+          "      (origin === 'all' || context.origin === origin) &&",
+          "      (system === 'all' || (system === 'unknown' ? !context.systems.length : context.systems.some(value => value === system))) &&",
+          "      `${fact.title} #${fact.number} ${source.preference.value.name}`",
+          "        .toLowerCase()",
+          "        .includes(query.toLowerCase().trim()),"
+        ]
+      },
+      {
+        "from": [
+          "        <header className={styles.heading}>",
+          "          <div>",
+          "            <h2 id={heading}>分类结果</h2>",
+          "            <p className={styles.meta}>按问题类别或已绑定的 Feature 查看。</p>",
+          "          </div>",
+          "          <button type=\"button\" onClick={() => dialog.current?.close()} aria-label=\"关闭分类结果\">",
+          "            关闭"
+        ],
+        "to": [
+          "        <header className={styles.heading}>",
+          "          <div>",
+          "            <h2 id={heading}>分类结果</h2>",
+          "            <p className={styles.meta}>按问题来源、操作系统、模块或已绑定的 Feature 查看。</p>",
+          "          </div>",
+          "          <button type=\"button\" onClick={() => dialog.current?.close()} aria-label=\"关闭分类结果\">",
+          "            关闭"
+        ]
+      },
+      {
+        "from": [
+          "        </header>",
+          "        <div className={styles.controls}>",
+          "          <p className={styles.meta}>",
+          "            按问题标题进行首次语义归类，疑难项参考正文；候选未经准确率验证，可在研判中修正。已有 Feature 绑定优先。",
+          "          </p>",
+          "          <div className={styles.search}>",
+          "            <input",
+          "              aria-label=\"搜索分类结果\"",
+          "              placeholder=\"搜索标题或编号\""
+        ],
+        "to": [
+          "        </header>",
+          "        <div className={styles.controls}>",
+          "          <p className={styles.meta}>",
+          "            来源和系统按已读标题、正文判断；未读取正文时先用标题，证据不足保留待判断。模块分类与 Feature 绑定保留。",
+          "          </p>",
+          "          <div className={styles.search}>",
+          "            <select aria-label=\"问题来源筛选\" value={origin} onChange={e => { setOrigin(e.target.value); setLimit(40); }}>",
+          "              <option value=\"all\">全部问题来源</option>",
+          "              {Object.entries(originLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}",
+          "            </select>",
+          "            <select aria-label=\"操作系统筛选\" value={system} onChange={e => { setSystem(e.target.value); setLimit(40); }}>",
+          "              <option value=\"all\">全部操作系统</option>",
+          "              {Object.entries(systemLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}",
+          "              <option value=\"unknown\">系统待判断</option>",
+          "            </select>",
+          "            <input",
+          "              aria-label=\"搜索分类结果\"",
+          "              placeholder=\"搜索标题或编号\""
+        ]
+      },
+      {
+        "from": [
+          "        <div className={styles.resultsBody}>",
+          "          {!hasClassifications && <p>当前可读取的来源还没有分类结果。</p>}",
+          "          <div className={styles.results}>",
+          "            {visible.slice(0, limit).map(({ source, fact, result, features }) => (",
+          "              <article key={issueRefKey(issueRef(source.profile.id, fact))} className={styles.result}>",
+          "                <p className={styles.meta}>",
+          "                  {source.preference.value.name}"
+        ],
+        "to": [
+          "        <div className={styles.resultsBody}>",
+          "          {!hasClassifications && <p>当前可读取的来源还没有分类结果。</p>}",
+          "          <div className={styles.results}>",
+          "            {visible.slice(0, limit).map(({ source, fact, result, features, context }) => (",
+          "              <article key={issueRefKey(issueRef(source.profile.id, fact))} className={styles.result}>",
+          "                <p className={styles.meta}>",
+          "                  {source.preference.value.name}"
+        ]
+      },
+      {
+        "from": [
+          "                    #{fact.number} · {fact.title}",
+          "                  </button>",
+          "                </h3>",
+          "                {features.length ? (",
+          "                  <p className={styles.featureBadge}>{features.join(' · ')} · 随 Feature 处理</p>",
+          "                ) : result ? ("
+        ],
+        "to": [
+          "                    #{fact.number} · {fact.title}",
+          "                  </button>",
+          "                </h3>",
+          "                <IssueContextFacets context={context} compact />",
+          "                {features.length ? (",
+          "                  <p className={styles.featureBadge}>{features.join(' · ')} · 随 Feature 处理</p>",
+          "                ) : result ? ("
+        ]
+      },
+      {
+        "from": [
+          "  if (!result) return <p className={styles.meta}>尚无自动分类。可请猫分析，也可直接补充判断后派工。</p>;"
+        ],
+        "to": [
+          "  if (!result) return <p className={styles.meta}>尚无模块分类。可请猫分析，也可直接补充判断后派工。</p>;"
+        ]
       }
     ]
   },
@@ -233,6 +407,173 @@
           "                {issueTools?.(row.source.profile, row.fact, issueCategory(row).label)}",
           "              </section>",
           "            </>"
+        ]
+      },
+      {
+        "from": [
+          "  safeIssueUrl,",
+          "  type Versioned,",
+          "} from '../model/issue-coordination.js';",
+          "import { type ReactNode, useEffect, useRef, useState } from 'react';",
+          "import { CoordinationEditor } from './CoordinationEditor';",
+          "import { CoordinationLinks, type RelationCandidate } from './CoordinationLinks';",
+          "import { CoordinationReading } from './CoordinationReading';"
+        ],
+        "to": [
+          "  safeIssueUrl,",
+          "  type Versioned,",
+          "} from '../model/issue-coordination.js';",
+          "import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react';",
+          "import { contextTags, issueContextFor } from '../classification/issue-context';",
+          "import type { IssueRef } from '../model/issue-coordination.js';",
+          "import { CoordinationEditor } from './CoordinationEditor';",
+          "import { CoordinationLinks, type RelationCandidate } from './CoordinationLinks';",
+          "import { CoordinationReading } from './CoordinationReading';"
+        ]
+      },
+      {
+        "from": [
+          "}) {",
+          "  const columns = useWorkbenchColumns();",
+          "  const [sourceSnapshot, setSnapshot] = useState<CoordinationSnapshot>({ sources: [], relations: [] });",
+          "  const snapshot = projectSnapshot ? projectSnapshot(sourceSnapshot) : sourceSnapshot;",
+          "  const [selected, setSelected] = useState(''),",
+          "    [filter, setFilter] = useState('all'),",
+          "    [query, setQuery] = useState('');"
+        ],
+        "to": [
+          "}) {",
+          "  const columns = useWorkbenchColumns();",
+          "  const [sourceSnapshot, setSnapshot] = useState<CoordinationSnapshot>({ sources: [], relations: [] });",
+          "  const [reading, setReading] = useState<{ host: CoordinationHost; key: string; fact: IssueSourceFact | null }>();",
+          "  const onDetail = useCallback((ref: IssueRef, fact: IssueSourceFact | null) => setReading({ host, key: issueRefKey(ref), fact }), [host]);",
+          "  // Reuse the already authorized detail read; never put prose into the list transport or saved work.",
+          "  const readableSnapshot = reading?.host === host && reading.fact ? { ...sourceSnapshot, sources: sourceSnapshot.sources.map(source => ({",
+          "    ...source, issues: source.issues.map(fact => !fact.unavailable && reading.key === issueRefKey(issueRef(source.profile.id, fact))",
+          "      && fact.updatedAt === reading.fact!.updatedAt && fact.title === reading.fact!.title",
+          "      ? { ...fact, body: reading.fact!.body } : fact),",
+          "  })) } : sourceSnapshot;",
+          "  const snapshot = projectSnapshot ? projectSnapshot(readableSnapshot) : readableSnapshot;",
+          "  const [selected, setSelected] = useState(''),",
+          "    [filter, setFilter] = useState('all'),",
+          "    [query, setQuery] = useState('');"
+        ]
+      },
+      {
+        "from": [
+          "  const groups = issueCategoryCounts(scoped);",
+          "  const row = rows.find((r) => r.key === selected);",
+          "  const classification = row && issueClassificationFor(row.source, row.fact);",
+          "  useEffect(() => {",
+          "    if (!selected && rows[0]) setSelected(rows[0].key);",
+          "  }, [selected, rows[0]?.key]);"
+        ],
+        "to": [
+          "  const groups = issueCategoryCounts(scoped);",
+          "  const row = rows.find((r) => r.key === selected);",
+          "  const classification = row && issueClassificationFor(row.source, row.fact);",
+          "  const context = row && issueContextFor(row.fact, classification);",
+          "  useEffect(() => {",
+          "    if (!selected && rows[0]) setSelected(rows[0].key);",
+          "  }, [selected, rows[0]?.key]);"
+        ]
+      },
+      {
+        "from": [
+          "          revision: 0,",
+          "          value: { ...newInvestigation(row.ref, row.fact.title, version(row.fact), row.source.preference.value),",
+          "            module: classification?.labels.area.join('、') ?? '',",
+          "            tags: classification ? classificationTags(classification).join('；') : '' },",
+          "        }),",
+          "        dirty: false,",
+          "      })"
+        ],
+        "to": [
+          "          revision: 0,",
+          "          value: { ...newInvestigation(row.ref, row.fact.title, version(row.fact), row.source.preference.value),",
+          "            module: classification?.labels.area.join('、') ?? '',",
+          "            tags: [...(classification ? classificationTags(classification) : []), ...(context ? contextTags(context) : [])].join('；') },",
+          "        }),",
+          "        dirty: false,",
+          "      })"
+        ]
+      },
+      {
+        "from": [
+          "                    </button>",
+          "                  </p>",
+          "                )}",
+          "                <CoordinationReading key={`reading:${row.key}`} host={host} issue={row.ref} />",
+          "                <CoordinationLinks",
+          "                  key={`relations:${row.key}`}",
+          "                  current={candidates.find((c) => issueRefKey(c.ref) === row.key)!}"
+        ],
+        "to": [
+          "                    </button>",
+          "                  </p>",
+          "                )}",
+          "                <CoordinationReading key={`reading:${row.key}`} host={host} issue={row.ref} onDetail={onDetail} />",
+          "                <CoordinationLinks",
+          "                  key={`relations:${row.key}`}",
+          "                  current={candidates.find((c) => issueRefKey(c.ref) === row.key)!}"
+        ]
+      },
+      {
+        "from": [
+          "                <CoordinationEditor",
+          "                  subject={`${row.source.preference.value.name} #${row.fact.number} · ${row.fact.title}`}",
+          "                  classification={classification}",
+          "                  featureBindings={issueFeatureBindings(row.fact)}",
+          "                  sourceUpdatedAt={row.fact.updatedAt}",
+          "                  value={current.value}"
+        ],
+        "to": [
+          "                <CoordinationEditor",
+          "                  subject={`${row.source.preference.value.name} #${row.fact.number} · ${row.fact.title}`}",
+          "                  classification={classification}",
+          "                  context={context}",
+          "                  featureBindings={issueFeatureBindings(row.fact)}",
+          "                  sourceUpdatedAt={row.fact.updatedAt}",
+          "                  value={current.value}"
+        ]
+      },
+      {
+        "from": [
+          "}) {",
+          "  const columns = useWorkbenchColumns();",
+          "  const [sourceSnapshot, setSnapshot] = useState<CoordinationSnapshot>({ sources: [], relations: [] });",
+          "  const [reading, setReading] = useState<{ host: CoordinationHost; key: string; fact: IssueSourceFact | null }>();",
+          "  const onDetail = useCallback((ref: IssueRef, fact: IssueSourceFact | null) => setReading({ host, key: issueRefKey(ref), fact }), [host]);",
+          "  // Reuse the already authorized detail read; never put prose into the list transport or saved work.",
+          "  const readableSnapshot = reading?.host === host && reading.fact ? { ...sourceSnapshot, sources: sourceSnapshot.sources.map(source => ({",
+          "    ...source, issues: source.issues.map(fact => !fact.unavailable && reading.key === issueRefKey(issueRef(source.profile.id, fact))",
+          "      && fact.updatedAt === reading.fact!.updatedAt && fact.title === reading.fact!.title",
+          "      ? { ...fact, body: reading.fact!.body } : fact),",
+          "  })) } : sourceSnapshot;",
+          "  const snapshot = projectSnapshot ? projectSnapshot(readableSnapshot) : readableSnapshot;",
+          "  const [selected, setSelected] = useState(''),"
+        ],
+        "to": [
+          "}) {",
+          "  const columns = useWorkbenchColumns();",
+          "  const [sourceSnapshot, setSnapshot] = useState<CoordinationSnapshot>({ sources: [], relations: [] });",
+          "  const [reading, setReading] = useState<{ host: CoordinationHost; facts: Record<string, IssueSourceFact> }>();",
+          "  const onDetail = useCallback((ref: IssueRef, fact: IssueSourceFact | null) => setReading(old => {",
+          "    const facts = { ...(old?.host === host ? old.facts : {}) };",
+          "    if (fact) facts[issueRefKey(ref)] = fact;",
+          "    else delete facts[issueRefKey(ref)];",
+          "    return { host, facts };",
+          "  }), [host]);",
+          "  // Reuse the already authorized detail read; never put prose into the list transport or saved work.",
+          "  const readableSnapshot = reading?.host === host ? { ...sourceSnapshot, sources: sourceSnapshot.sources.map(source => ({",
+          "    ...source, issues: source.issues.map(fact => {",
+          "      const detail = reading.facts[issueRefKey(issueRef(source.profile.id, fact))];",
+          "      return !fact.unavailable && detail && fact.updatedAt === detail.updatedAt && fact.title === detail.title",
+          "        ? { ...fact, body: detail.body } : fact;",
+          "    }),",
+          "  })) } : sourceSnapshot;",
+          "  const snapshot = projectSnapshot ? projectSnapshot(readableSnapshot) : readableSnapshot;",
+          "  const [selected, setSelected] = useState(''),"
         ]
       }
     ]
@@ -497,6 +838,60 @@
           "        {error && <p role=\"alert\">{error}</p>}",
           "      </div>"
         ]
+      },
+      {
+        "from": [
+          "import { type IssueClassification, type IssueInvestigation } from '../model/issue-coordination.js';",
+          "import styles from './coordination.module.css';",
+          "import { IssueClassificationCandidate } from './IssueClassifications';",
+          "",
+          "export function CoordinationEditor({",
+          "  value, subject, classification, featureBindings, sourceUpdatedAt, change, save, busy, dirty, error,",
+          "}: {",
+          "  value: IssueInvestigation;",
+          "  subject: string;",
+          "  classification?: IssueClassification;",
+          "  featureBindings?: string[];",
+          "  sourceUpdatedAt: string;",
+          "  change: (value: IssueInvestigation) => void;"
+        ],
+        "to": [
+          "import { type IssueClassification, type IssueInvestigation } from '../model/issue-coordination.js';",
+          "import styles from './coordination.module.css';",
+          "import { IssueClassificationCandidate } from './IssueClassifications';",
+          "import { IssueContextFacets } from './IssueContextFacets';",
+          "import type { IssueContextClassification } from '../classification/issue-context';",
+          "",
+          "export function CoordinationEditor({",
+          "  value, subject, classification, context, featureBindings, sourceUpdatedAt, change, save, busy, dirty, error,",
+          "}: {",
+          "  value: IssueInvestigation;",
+          "  subject: string;",
+          "  classification?: IssueClassification;",
+          "  context?: IssueContextClassification;",
+          "  featureBindings?: string[];",
+          "  sourceUpdatedAt: string;",
+          "  change: (value: IssueInvestigation) => void;"
+        ]
+      },
+      {
+        "from": [
+          "        <p className={styles.muted}>先看自动结果，需要时调整分类或补充说明，再派工。</p>",
+          "      </div>",
+          "      <div className={styles.editorBody}>",
+          "        <IssueClassificationCandidate result={classification} featureBindings={featureBindings} sourceUpdatedAt={sourceUpdatedAt} />",
+          "        <details className={styles.fieldGroup}>",
+          "          <summary>调整分类（可选）</summary>"
+        ],
+        "to": [
+          "        <p className={styles.muted}>先看自动结果，需要时调整分类或补充说明，再派工。</p>",
+          "      </div>",
+          "      <div className={styles.editorBody}>",
+          "        {context && <IssueContextFacets context={context} />}",
+          "        <IssueClassificationCandidate result={classification} featureBindings={featureBindings} sourceUpdatedAt={sourceUpdatedAt} />",
+          "        <details className={styles.fieldGroup}>",
+          "          <summary>调整分类（可选）</summary>"
+        ]
       }
     ]
   },
@@ -691,6 +1086,136 @@
           "  overflow: visible;",
           "  min-height: 0;",
           "}"
+        ]
+      },
+      {
+        "from": [
+          "  gap: 12px;",
+          "}",
+          ".saveBar {",
+          "  display: grid;",
+          "  gap: 8px;",
+          "  padding: 12px 16px;"
+        ],
+        "to": [
+          "  gap: 12px;",
+          "}",
+          ".saveBar {",
+          "  position: sticky;",
+          "  bottom: 0;",
+          "  z-index: 1;",
+          "  display: grid;",
+          "  gap: 8px;",
+          "  padding: 12px 16px;"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "issue-coordination.ts",
+    "replacements": [
+      {
+        "from": [
+          "import type { IssueSourceFact } from './issue-source.js';",
+          "",
+          "export type { IssueSourceFact } from './issue-source.js';",
+          ""
+        ],
+        "to": [
+          "import type { IssueSourceFact } from './issue-source.js';",
+          "import type { IssueContextClassification } from '../classification/issue-context.js';",
+          "",
+          "export type { IssueSourceFact } from './issue-source.js';",
+          ""
+        ]
+      },
+      {
+        "from": [
+          "    bodySha256: string;",
+          "  };",
+          "  labels: Record<'area' | 'kind' | 'symptom' | 'environment', string[]>;",
+          "  evidence: string;",
+          "}",
+          "/** Only an explicit source label binds a Feature; titles and generic `feature` do not. */"
+        ],
+        "to": [
+          "    bodySha256: string;",
+          "  };",
+          "  labels: Record<'area' | 'kind' | 'symptom' | 'environment', string[]>;",
+          "  context?: IssueContextClassification;",
+          "  evidence: string;",
+          "}",
+          "/** Only an explicit source label binds a Feature; titles and generic `feature` do not. */"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "CoordinationReading.tsx",
+    "replacements": [
+      {
+        "from": [
+          "import type { CoordinationDetail, CoordinationHost, IssueRef } from '../model/issue-coordination.js';",
+          "import { useEffect, useRef, useState } from 'react';",
+          "import styles from './coordination.module.css';",
+          "import { IssueContent } from './IssueDiscussion';",
+          "",
+          "/** Parent keys this view by full issue identity. Late pages cannot enter another reading. */",
+          "export function CoordinationReading({ host, issue }: { host: CoordinationHost; issue: IssueRef }) {",
+          "  const [detail, setDetail] = useState<CoordinationDetail | null>(null);",
+          "  const [busy, setBusy] = useState(false);",
+          "  const generation = useRef(0),"
+        ],
+        "to": [
+          "import type { CoordinationDetail, CoordinationHost, IssueRef, IssueSourceFact } from '../model/issue-coordination.js';",
+          "import { useEffect, useRef, useState } from 'react';",
+          "import styles from './coordination.module.css';",
+          "import { IssueContent } from './IssueDiscussion';",
+          "",
+          "/** Parent keys this view by full issue identity. Late pages cannot enter another reading. */",
+          "export function CoordinationReading({ host, issue, onDetail }: { host: CoordinationHost; issue: IssueRef;",
+          "  onDetail?: (ref: IssueRef, fact: IssueSourceFact | null) => void }) {",
+          "  const [detail, setDetail] = useState<CoordinationDetail | null>(null);",
+          "  const [busy, setBusy] = useState(false);",
+          "  const generation = useRef(0),"
+        ]
+      },
+      {
+        "from": [
+          "        more ? detail?.fact?.contentVersion : undefined,",
+          "      );",
+          "      if (generation.current !== id) return;",
+          "      if (more && (!next.fact || next.fact.contentVersion !== detail?.fact?.contentVersion)) {",
+          "        setDetail((old) => (old ? { ...old, error: '讨论版本不一致，请重新读取正文。' } : old));",
+          "        return;"
+        ],
+        "to": [
+          "        more ? detail?.fact?.contentVersion : undefined,",
+          "      );",
+          "      if (generation.current !== id) return;",
+          "      if (!more) onDetail?.(issue, next.fact);",
+          "      if (more && (!next.fact || next.fact.contentVersion !== detail?.fact?.contentVersion)) {",
+          "        setDetail((old) => (old ? { ...old, error: '讨论版本不一致，请重新读取正文。' } : old));",
+          "        return;"
+        ]
+      },
+      {
+        "from": [
+          "          : next,",
+          "      );",
+          "    } catch (error) {",
+          "      if (generation.current === id)",
+          "        setDetail((old) =>",
+          "          [401, 403].includes((error as { status?: number }).status ?? 0)"
+        ],
+        "to": [
+          "          : next,",
+          "      );",
+          "    } catch (error) {",
+          "      if (generation.current === id && [401, 403].includes((error as { status?: number }).status ?? 0)) onDetail?.(issue, null);",
+          "      if (generation.current === id)",
+          "        setDetail((old) =>",
+          "          [401, 403].includes((error as { status?: number }).status ?? 0)"
         ]
       }
     ]

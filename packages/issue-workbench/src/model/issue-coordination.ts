@@ -1,4 +1,5 @@
 import type { IssueSourceFact } from './issue-source.js';
+import type { IssueContextClassification } from '../classification/issue-context.js';
 
 export type { IssueSourceFact } from './issue-source.js';
 
@@ -83,6 +84,7 @@ export interface IssueClassification {
     bodySha256: string;
   };
   labels: Record<'area' | 'kind' | 'symptom' | 'environment', string[]>;
+  context?: IssueContextClassification;
   evidence: string;
 }
 /** Only an explicit source label binds a Feature; titles and generic `feature` do not. */

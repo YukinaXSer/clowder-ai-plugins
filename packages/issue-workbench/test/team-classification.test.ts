@@ -41,3 +41,34 @@ test('classification projection cannot cross provider, instance, repository, sou
     assert.equal(withTeamClassifications(snapshot, [result]).sources[0].classifications, undefined);
   }
 });
+
+test('persisted analyses classify origin and affected systems from the issue description, including legacy results', () => {
+  for (const [body, origin, systems] of [
+    ['CodeAgent 在 Windows 11 启动报错，macOS 正常。', 'internal', ['windows']],
+    ['CodeHub clone fails on Ubuntu Linux.', 'internal', ['other']],
+    ['开源版在 macOS Sonoma 安装失败。', 'external', ['macos']],
+    ['内部版和开源版都能复现：Windows 和 Mac 均崩溃。', 'common', ['windows', 'macos']],
+    ['窗口无法关闭，console.log 报错。', 'unknown', []],
+    ['不涉及 codeagent，社区版在 Windows 报错。', 'external', ['windows']],
+    ['MAC address lookup failed; window.close() is undefined.', 'unknown', []],
+  ] as const) {
+    const { snapshot, result } = fixture();
+    result.issue.body = body;
+    const before = structuredClone(result);
+    const proposal = withTeamClassifications(snapshot, [result]).sources[0].classifications![0];
+    assert.equal(proposal.context?.origin, origin, body);
+    assert.deepEqual(proposal.context?.systems, systems, body);
+    assert.equal(proposal.context?.basis, 'description');
+    assert.deepEqual(result, before, 'projection must not rewrite the persisted analysis');
+  }
+});
+
+test('new analysis instructions ask for content-based origin and system evidence without granting new actions', async () => {
+  const s = setup();
+  await s.runtime().invoke('analyze', { repo: 'fixture/repo', number: 1, requestId: 'context-test' }, s.caller('requester'));
+  const text = [...s.sends.values()][0].draft.payload.elements[0].payload.text;
+  assert.match(text, /codeagent.*codehub/i);
+  assert.match(text, /Windows.*macOS.*其他系统/);
+  assert.match(text, /证据不足.*待判断/);
+  assert.match(text, /此任务不授权修代码/);
+});

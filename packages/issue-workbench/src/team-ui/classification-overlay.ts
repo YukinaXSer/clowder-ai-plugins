@@ -1,5 +1,6 @@
 import type { CoordinationSnapshot, IssueClassification } from '../model/issue-coordination.js';
 import type { TeamClassification } from '../team/records.js';
+import { classifyIssueContext } from '../classification/issue-context.js';
 
 /** A read projection of persisted cat results. Never edits source labels or local work. */
 export function withTeamClassifications(snapshot: CoordinationSnapshot, results: TeamClassification[] = []): CoordinationSnapshot {
@@ -22,7 +23,8 @@ export function withTeamClassifications(snapshot: CoordinationSnapshot, results:
       proposals.push({ id: 'team:' + match.id, model: '研判猫 ' + match.catId, generatedAt: new Date(match.recordedAt).toISOString(),
         source: { provider: profile.provider, instance: profile.instance, repositoryId: profile.repositoryId,
           issueId: match.issue.id, number: fact.number, updatedAt: fact.updatedAt, bodySha256: match.bodySha256 },
-        labels: { area: [match.analysis.category], kind: [], symptom: [], environment: [] }, evidence: match.analysis.evidence });
+        labels: { area: [match.analysis.category], kind: [], symptom: [], environment: [] }, evidence: match.analysis.evidence,
+        context: classifyIssueContext(match.issue) });
     }
     if (!proposals.length) return source;
     return { ...source, classifications: [...proposals,

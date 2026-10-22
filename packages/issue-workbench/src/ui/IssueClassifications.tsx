@@ -11,6 +11,8 @@ import {
 import { useEffect, useId, useRef, useState } from 'react';
 import styles from './classifications.module.css';
 import { IssueSourceState, matchesSourceState } from './IssueSourceState';
+import { issueContextFor, originLabels, systemLabels } from '../classification/issue-context';
+import { IssueContextFacets } from './IssueContextFacets';
 
 const facets = { area: '模块', kind: '类型', symptom: '表现', environment: '环境' } as const;
 const facetKeys = Object.keys(facets) as (keyof typeof facets)[];
@@ -41,7 +43,7 @@ export function IssueClassificationCandidate({
 }) {
   if (featureBindings.length)
     return <p className={styles.explanation}>已按 {featureBindings.join('、')} 归类，随 Feature 处理。</p>;
-  if (!result) return <p className={styles.meta}>尚无自动分类。可请猫分析，也可直接补充判断后派工。</p>;
+  if (!result) return <p className={styles.meta}>尚无模块分类。可请猫分析，也可直接补充判断后派工。</p>;
   return (
     <section className={styles.candidate} aria-label="自动分类结果">
       <h4>自动分类结果</h4>
@@ -70,6 +72,7 @@ export function IssueClassificationResults({
     [query, setQuery] = useState(''),
     [state, setState] = useState('all');
   const [limit, setLimit] = useState(40);
+  const [origin, setOrigin] = useState('all'), [system, setSystem] = useState('all');
   const rows = sources.flatMap((source) =>
     source.issues
       .filter((fact) => !fact.unavailable)
@@ -77,13 +80,16 @@ export function IssueClassificationResults({
         source,
         fact,
         result: issueClassificationFor(source, fact),
+        context: issueContextFor(fact, issueClassificationFor(source, fact)),
         features: issueFeatureBindings(fact),
       })),
   );
   const hasClassifications = rows.some((row) => row.result || row.features.length);
   const scoped = rows.filter(
-    ({ fact, source }) =>
+    ({ fact, source, context }) =>
       matchesSourceState(fact, state) &&
+      (origin === 'all' || context.origin === origin) &&
+      (system === 'all' || (system === 'unknown' ? !context.systems.length : context.systems.some(value => value === system))) &&
       `${fact.title} #${fact.number} ${source.preference.value.name}`
         .toLowerCase()
         .includes(query.toLowerCase().trim()),
@@ -110,7 +116,7 @@ export function IssueClassificationResults({
         <header className={styles.heading}>
           <div>
             <h2 id={heading}>分类结果</h2>
-            <p className={styles.meta}>按问题类别或已绑定的 Feature 查看。</p>
+            <p className={styles.meta}>按问题来源、操作系统、模块或已绑定的 Feature 查看。</p>
           </div>
           <button type="button" onClick={() => dialog.current?.close()} aria-label="关闭分类结果">
             关闭
@@ -118,9 +124,18 @@ export function IssueClassificationResults({
         </header>
         <div className={styles.controls}>
           <p className={styles.meta}>
-            按问题标题进行首次语义归类，疑难项参考正文；候选未经准确率验证，可在研判中修正。已有 Feature 绑定优先。
+            来源和系统按已读标题、正文判断；未读取正文时先用标题，证据不足保留待判断。模块分类与 Feature 绑定保留。
           </p>
           <div className={styles.search}>
+            <select aria-label="问题来源筛选" value={origin} onChange={e => { setOrigin(e.target.value); setLimit(40); }}>
+              <option value="all">全部问题来源</option>
+              {Object.entries(originLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+            </select>
+            <select aria-label="操作系统筛选" value={system} onChange={e => { setSystem(e.target.value); setLimit(40); }}>
+              <option value="all">全部操作系统</option>
+              {Object.entries(systemLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+              <option value="unknown">系统待判断</option>
+            </select>
             <input
               aria-label="搜索分类结果"
               placeholder="搜索标题或编号"
@@ -176,7 +191,7 @@ export function IssueClassificationResults({
         <div className={styles.resultsBody}>
           {!hasClassifications && <p>当前可读取的来源还没有分类结果。</p>}
           <div className={styles.results}>
-            {visible.slice(0, limit).map(({ source, fact, result, features }) => (
+            {visible.slice(0, limit).map(({ source, fact, result, features, context }) => (
               <article key={issueRefKey(issueRef(source.profile.id, fact))} className={styles.result}>
                 <p className={styles.meta}>
                   {source.preference.value.name}
@@ -194,6 +209,7 @@ export function IssueClassificationResults({
                     #{fact.number} · {fact.title}
                   </button>
                 </h3>
+                <IssueContextFacets context={context} compact />
                 {features.length ? (
                   <p className={styles.featureBadge}>{features.join(' · ')} · 随 Feature 处理</p>
                 ) : result ? (

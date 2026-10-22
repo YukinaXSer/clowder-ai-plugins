@@ -18,7 +18,9 @@ import {
   safeIssueUrl,
   type Versioned,
 } from '../model/issue-coordination.js';
-import { type ReactNode, useEffect, useRef, useState } from 'react';
+import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
+import { contextTags, issueContextFor } from '../classification/issue-context';
+import type { IssueRef } from '../model/issue-coordination.js';
 import { CoordinationEditor } from './CoordinationEditor';
 import { CoordinationLinks, type RelationCandidate } from './CoordinationLinks';
 import { CoordinationReading } from './CoordinationReading';
@@ -43,7 +45,22 @@ export function CoordinationWorkbench({
 }) {
   const columns = useWorkbenchColumns();
   const [sourceSnapshot, setSnapshot] = useState<CoordinationSnapshot>({ sources: [], relations: [] });
-  const snapshot = projectSnapshot ? projectSnapshot(sourceSnapshot) : sourceSnapshot;
+  const [reading, setReading] = useState<{ host: CoordinationHost; facts: Record<string, IssueSourceFact> }>();
+  const onDetail = useCallback((ref: IssueRef, fact: IssueSourceFact | null) => setReading(old => {
+    const facts = { ...(old?.host === host ? old.facts : {}) };
+    if (fact) facts[issueRefKey(ref)] = fact;
+    else delete facts[issueRefKey(ref)];
+    return { host, facts };
+  }), [host]);
+  // Reuse the already authorized detail read; never put prose into the list transport or saved work.
+  const readableSnapshot = reading?.host === host ? { ...sourceSnapshot, sources: sourceSnapshot.sources.map(source => ({
+    ...source, issues: source.issues.map(fact => {
+      const detail = reading.facts[issueRefKey(issueRef(source.profile.id, fact))];
+      return !fact.unavailable && detail && fact.updatedAt === detail.updatedAt && fact.title === detail.title
+        ? { ...fact, body: detail.body } : fact;
+    }),
+  })) } : sourceSnapshot;
+  const snapshot = projectSnapshot ? projectSnapshot(readableSnapshot) : readableSnapshot;
   const [selected, setSelected] = useState(''),
     [filter, setFilter] = useState('all'),
     [query, setQuery] = useState('');
@@ -129,6 +146,7 @@ export function CoordinationWorkbench({
   const groups = issueCategoryCounts(scoped);
   const row = rows.find((r) => r.key === selected);
   const classification = row && issueClassificationFor(row.source, row.fact);
+  const context = row && issueContextFor(row.fact, classification);
   useEffect(() => {
     if (!selected && rows[0]) setSelected(rows[0].key);
   }, [selected, rows[0]?.key]);
@@ -138,7 +156,7 @@ export function CoordinationWorkbench({
           revision: 0,
           value: { ...newInvestigation(row.ref, row.fact.title, version(row.fact), row.source.preference.value),
             module: classification?.labels.area.join('、') ?? '',
-            tags: classification ? classificationTags(classification).join('；') : '' },
+            tags: [...(classification ? classificationTags(classification) : []), ...(context ? contextTags(context) : [])].join('；') },
         }),
         dirty: false,
       })
@@ -358,7 +376,7 @@ export function CoordinationWorkbench({
                     </button>
                   </p>
                 )}
-                <CoordinationReading key={`reading:${row.key}`} host={host} issue={row.ref} />
+                <CoordinationReading key={`reading:${row.key}`} host={host} issue={row.ref} onDetail={onDetail} />
                 <CoordinationLinks
                   key={`relations:${row.key}`}
                   current={candidates.find((c) => issueRefKey(c.ref) === row.key)!}
@@ -390,6 +408,7 @@ export function CoordinationWorkbench({
                 <CoordinationEditor
                   subject={`${row.source.preference.value.name} #${row.fact.number} · ${row.fact.title}`}
                   classification={classification}
+                  context={context}
                   featureBindings={issueFeatureBindings(row.fact)}
                   sourceUpdatedAt={row.fact.updatedAt}
                   value={current.value}

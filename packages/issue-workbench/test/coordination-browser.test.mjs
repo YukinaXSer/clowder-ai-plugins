@@ -211,6 +211,11 @@ test('packed classification results: overview, evidence, explicit local save and
   execFileSync('tar', ['-xzf', join(directory, pack.filename), '-C', directory]);
   const { coordinationPreview, fixtureBindings } = await import(pathToFileURL(join(directory, 'package/dist/coordination-host.mjs')).href);
   const bindings = fixtureBindings(); let grant = true;
+  const readDescription = bindings[0].detail;
+  bindings[0].detail = async (...args) => {
+    const result = await readDescription(...args);
+    return result.fact ? { ...result, fact: { ...result.fact, body: 'CodeHub 在 Windows 11 无法正常启动，macOS 正常。' } } : result;
+  };
   bindings[0].authorize = async () => grant;
   bindings[0].classifications = [{ id: 'synthetic-classification', model: 'test-model', generatedAt: '2026-10-14T00:00:00Z',
     source: { ...bindings[0].profile, issueId: 'public-88', number: 88, updatedAt: '2026-10-13T00:00:00Z', bodySha256: 'synthetic-hash' },
@@ -265,6 +270,20 @@ test('packed classification results: overview, evidence, explicit local save and
   await overview.getByRole('button', { name: /#88.*上游修复/ }).click();
   const candidate = page.getByRole('region', { name: '自动分类结果', exact: true });
   await candidate.getByText('来源已更新，候选需要重新核对。', { exact: true }).waitFor();
+  const context = page.locator('form').getByRole('region', { name: '问题来源与操作系统', exact: true });
+  await context.getByText('内源问题', { exact: true }).waitFor();
+  await context.getByText('Windows', { exact: true }).waitFor();
+  assert.equal(await context.getByText('macOS', { exact: true }).count(), 0);
+  await page.getByRole('button', { name: '分类结果', exact: true }).click();
+  await overview.getByRole('button', { name: /^全部 · / }).click();
+  await overview.getByLabel('问题来源筛选', { exact: true }).selectOption('internal');
+  await overview.getByLabel('操作系统筛选', { exact: true }).selectOption('windows');
+  assert.equal(await overview.locator('article').count(), 1);
+  await overview.getByLabel('操作系统筛选', { exact: true }).selectOption('macos');
+  assert.equal(await overview.locator('article').count(), 0, 'normal comparison system is not an affected system');
+  await overview.getByLabel('问题来源筛选', { exact: true }).selectOption('all');
+  await overview.getByLabel('操作系统筛选', { exact: true }).selectOption('all');
+  await overview.getByRole('button', { name: /#88.*上游修复/ }).click();
   const automaticTags = await page.getByLabel('本地标记', { exact: true }).inputValue();
   assert.ok(automaticTags.includes('模块：界面交互'), 'automatic results prefill optional corrections');
   assert.equal(await candidate.getByRole('button').count(), 0, 'reading a result requires no copy-to-draft step');

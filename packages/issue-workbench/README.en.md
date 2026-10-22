@@ -477,3 +477,18 @@ This candidate still needs the previously identified generic Host integration an
 real installation acceptance. The packed two-installation journey uses isolated
 fixtures; it does not prove real members were notified. See
 [invitation evidence](../../docs/evidence/issue-workbench-github-invitations.md).
+
+## Content-based origin and operating system
+
+The classification overview filters by origin (internal, external, shared, unknown)
+and affected OS (Windows, macOS, other; multiple selections in a result). CodeAgent
+and CodeHub are internal clues; explicit public/community editions indicate external
+scope. Shared scope needs explicit shared reproduction or a common-problem statement.
+Conflicting or missing clues remain unknown; GitHub hosting alone proves no origin.
+Normal comparison environments and unchecked template choices are excluded.
+
+Rules use titles and matching saved analysis bodies, then refine from the authorized
+body read when an issue opens. Each result exposes its evidence and whether the body
+was read. Rules are conservative candidates, not a complete natural-language classifier.
+Cat analysis instructions ask for the same dimensions in the reasoning. Manual labels,
+Feature bindings and historical records are preserved; this writes no provider labels.

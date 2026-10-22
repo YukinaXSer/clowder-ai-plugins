@@ -41,7 +41,7 @@ function ui(name, text) {
   return text;
 }
 export const mappings = [
-  { source: 'packages/shared/src/issue-coordination.ts', target: 'src/model/issue-coordination.ts', transform: x => x },
+  { source: 'packages/shared/src/issue-coordination.ts', target: 'src/model/issue-coordination.ts', transform: text => triageAdapter('issue-coordination.ts', text) },
   ...['IssueCoordinationStore.ts','IssueCoordinationService.ts'].map(name => ({ source: api + name, target: 'src/source/' + name,
     transform: text => text.replaceAll("'../../../../shared/src/issue-coordination.js'", "'../model/issue-coordination.js'").replaceAll("'@cat-cafe/shared'", "'../model/index.js'") })),
   ...['IssueSourceState.tsx','issue-source-state.module.css','IssueClassifications.tsx','classifications.module.css','CoordinationWorkbench.tsx','CoordinationSources.tsx','CoordinationEditor.tsx','CoordinationLinks.tsx','IssueRelationPicker.tsx','CoordinationReading.tsx','coordination.module.css'].map(name => ({ source: web + name, target: 'src/ui/' + name,
