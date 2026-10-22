@@ -492,3 +492,14 @@ body read when an issue opens. Each result exposes its evidence and whether the 
 was read. Rules are conservative candidates, not a complete natural-language classifier.
 Cat analysis instructions ask for the same dimensions in the reasoning. Manual labels,
 Feature bindings and historical records are preserved; this writes no provider labels.
+
+## Explicit issue categories
+
+The workbench offers one fixed primary category selector instead of overlapping
+module and local-tag text fields. Each option shows inclusion, exclusion and an
+example. Saved choices drive local queue/overview/detail grouping after reload;
+Feature bindings take precedence. Multiple candidate subjects and unsupported
+legacy names remain undecided. Historical custom tags are retained read-only.
+New cat tasks use the same category boundary table. Origin, operating system and
+request kind are separate dimensions. Local edits do not change remote labels or
+the authority of existing team analyses and assignment rules.

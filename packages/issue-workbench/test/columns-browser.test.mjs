@@ -52,8 +52,8 @@ test('packed columns: drag, keyboard, persistence, container resize and retained
   await page.reload(); await reading.waitFor();
   assert.ok(Math.abs(await width(queue) - changed.queue) < 2);
   assert.ok(Math.abs(await width(notes) - changed.notes) < 2);
-  await expandSection(page, '调整分类（可选）');
-  await page.getByLabel('本地标记', { exact: true }).fill('调整布局保留的草稿');
+  await expandSection(page, '补充分析（可选）');
+  await page.getByLabel('分析备注', { exact: true }).fill('调整布局保留的草稿');
   // A narrow embedded panel must adapt even when the outer browser stays wide.
   const container = async value => {
     await page.locator('#app').evaluate((el, size) => { el.style.width = size; }, value);
@@ -69,13 +69,13 @@ test('packed columns: drag, keyboard, persistence, container resize and retained
   await left.focus(); await page.keyboard.press('End');
   assert.ok(await width(reading) >= 359, 'drag/keyboard cannot crush the reading pane');
   await page.getByRole('button', { name: '研判', exact: true }).click();
-  assert.equal(await page.getByLabel('本地标记', { exact: true }).inputValue(), '调整布局保留的草稿');
+  assert.equal(await page.getByLabel('分析备注', { exact: true }).inputValue(), '调整布局保留的草稿');
   await container('600px');
   assert.equal(await left.isVisible(), false);
   await page.getByRole('button', { name: '队列', exact: true }).click();
   assert.equal(await queue.isVisible(), true);
   await page.getByRole('button', { name: '研判', exact: true }).click();
-  assert.equal(await page.getByLabel('本地标记', { exact: true }).inputValue(), '调整布局保留的草稿');
+  assert.equal(await page.getByLabel('分析备注', { exact: true }).inputValue(), '调整布局保留的草稿');
   assert.ok(await page.locator('#app').evaluate(el => el.scrollWidth <= el.clientWidth));
   await container('100%');
   await right.focus(); await page.keyboard.press('End');
@@ -94,7 +94,7 @@ test('packed columns: drag, keyboard, persistence, container resize and retained
   await page.screenshot({ path: 'artifacts/columns-2026-10-21/dark.png' });
   await page.setViewportSize({ width: 390, height: 844 });
   await page.getByRole('button', { name: '研判', exact: true }).click();
-  assert.equal(await page.getByLabel('本地标记', { exact: true }).inputValue(), '调整布局保留的草稿');
+  assert.equal(await page.getByLabel('分析备注', { exact: true }).inputValue(), '调整布局保留的草稿');
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
   const save = await page.getByRole('button', { name: '保存分析', exact: true }).boundingBox();
   assert.ok(save && save.y >= 0 && save.y + save.height <= 844);

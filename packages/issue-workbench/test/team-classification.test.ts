@@ -6,7 +6,7 @@ import type { TeamClassification } from '../src/team/records.js';
 import { setup } from './helpers/team-fixture.js';
 
 function fixture() {
-  const s = setup(), issue = s.issues[0];
+  const s = setup(), issue = s.issues[0]; s.analysis.category = 'Agent 运行';
   const result: TeamClassification = { id: 'result', issue, analysis: s.analysis, catId: 'selected-cat', recordedAt: Date.now(), bodySha256: 'body-digest' };
   const snapshot: CoordinationSnapshot = { relations: [], sources: [{
     profile: { id: 'github', provider: 'github', instance: 'https://github.com', repositoryId: 'repo-id', repository: issue.repo, name: 'Repo', visibility: 'public' },
@@ -18,7 +18,7 @@ function fixture() {
 test('one persisted cat result projects into queue categories and detail without altering source or local records', () => {
   const { snapshot, result } = fixture(), before = structuredClone(snapshot);
   const source = withTeamClassifications(snapshot, [result]).sources[0];
-  assert.equal(issueCategory({ source, fact: source.issues[0] }).label, 'runtime');
+  assert.equal(issueCategory({ source, fact: source.issues[0] }).label, 'Agent 运行');
   assert.equal(source.classifications![0].evidence, result.analysis.evidence);
   assert.equal(source.classifications![0].source.bodySha256, result.bodySha256);
   assert.match(source.classifications![0].model, /selected-cat/);
@@ -71,4 +71,8 @@ test('new analysis instructions ask for content-based origin and system evidence
   assert.match(text, /Windows.*macOS.*其他系统/);
   assert.match(text, /证据不足.*待判断/);
   assert.match(text, /此任务不授权修代码/);
+  assert.match(text, /category 仅从以下名称中选一个/);
+  assert.match(text, /多个同等独立问题/);
+  assert.match(text, /界面交互.*不含/);
+  assert.match(text, /测试入口在 PowerShell/);
 });

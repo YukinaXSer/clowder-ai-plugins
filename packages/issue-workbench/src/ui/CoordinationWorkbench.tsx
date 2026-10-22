@@ -19,14 +19,14 @@ import {
   type Versioned,
 } from '../model/issue-coordination.js';
 import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
-import { contextTags, issueContextFor } from '../classification/issue-context';
+import { issueContextFor } from '../classification/issue-context';
 import type { IssueRef } from '../model/issue-coordination.js';
 import { CoordinationEditor } from './CoordinationEditor';
 import { CoordinationLinks, type RelationCandidate } from './CoordinationLinks';
 import { CoordinationReading } from './CoordinationReading';
 import { CoordinationSourceStatus, CoordinationSources } from './CoordinationSources';
 import styles from './coordination.module.css';
-import { classificationTags, IssueClassificationResults } from './IssueClassifications';
+import { IssueClassificationResults } from './IssueClassifications';
 import { IssueSourceState, IssueSourceStateFilter, matchesSourceState } from './IssueSourceState';
 
 const version = (f: IssueSourceFact) => f.reviewVersion ?? f.contentVersion ?? f.updatedAt;
@@ -137,7 +137,7 @@ export function CoordinationWorkbench({
     (r) =>
       (filter === 'all' || r.source.profile.id === filter) &&
       (!localOnly || r.saved || drafts[r.key]?.dirty) &&
-      `${r.fact.title} #${r.fact.number} ${r.source.profile.name} ${r.saved?.value.module ?? ''} ${r.saved?.value.tags ?? ''}`
+      `${r.fact.title} #${r.fact.number} ${r.source.profile.name} ${issueCategory(r).label} ${r.saved?.value.module ?? ''} ${r.saved?.value.tags ?? ''}`
         .toLowerCase()
         .includes(query.toLowerCase()),
   );
@@ -154,9 +154,7 @@ export function CoordinationWorkbench({
     ? (drafts[row.key] ?? {
         ...(row.saved ?? {
           revision: 0,
-          value: { ...newInvestigation(row.ref, row.fact.title, version(row.fact), row.source.preference.value),
-            module: classification?.labels.area.join('、') ?? '',
-            tags: [...(classification ? classificationTags(classification) : []), ...(context ? contextTags(context) : [])].join('；') },
+          value: newInvestigation(row.ref, row.fact.title, version(row.fact), row.source.preference.value),
         }),
         dirty: false,
       })
@@ -300,7 +298,7 @@ export function CoordinationWorkbench({
             </label>
             <label>
               搜索
-              <input placeholder="标题、编号、模块或标记" value={query} onChange={(e) => setQuery(e.target.value)} />
+              <input placeholder="标题、编号、类别或历史标记" value={query} onChange={(e) => setQuery(e.target.value)} />
             </label>
             <label className={styles.check}>
               <input type="checkbox" checked={localOnly} onChange={(e) => setLocalOnly(e.target.checked)} />{' '}

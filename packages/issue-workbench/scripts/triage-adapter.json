@@ -4,22 +4,72 @@
     "replacements": [
       {
         "from": [
-          "const facets = { area: '模块', kind: '类型', symptom: '表现', environment: '环境' } as const;",
-          "const facetKeys = Object.keys(facets) as (keyof typeof facets)[];",
-          "const tagsFor = (result: IssueClassification) =>",
-          "  facetKeys.flatMap((facet) => result.labels[facet].map((label) => `${facets[facet]}：${label}`));",
-          ""
+          "  type CoordinationSource,",
+          "  type IssueClassification,",
+          "  issueCategoryCounts,",
+          "  issueClassificationFor,",
+          "  issueFeatureBindings,",
+          "  issueRef,"
         ],
         "to": [
-          "const facets = { area: '模块', kind: '类型', symptom: '表现', environment: '环境' } as const;",
-          "const facetKeys = Object.keys(facets) as (keyof typeof facets)[];",
-          "export const classificationTags = (result: IssueClassification) =>",
-          "  facetKeys.flatMap((facet) => result.labels[facet].map((label) => `${facets[facet]}：${label}`));",
-          ""
+          "  type CoordinationSource,",
+          "  type IssueClassification,",
+          "  issueCategoryCounts,",
+          "  issueCategory,",
+          "  issueClassificationFor,",
+          "  issueFeatureBindings,",
+          "  issueRef,"
         ]
       },
       {
         "from": [
+          "import { useEffect, useId, useRef, useState } from 'react';",
+          "import styles from './classifications.module.css';",
+          "import { IssueSourceState, matchesSourceState } from './IssueSourceState';",
+          "",
+          "const facets = { area: '模块', kind: '类型', symptom: '表现', environment: '环境' } as const;",
+          "const facetKeys = Object.keys(facets) as (keyof typeof facets)[];",
+          "const tagsFor = (result: IssueClassification) =>",
+          "  facetKeys.flatMap((facet) => result.labels[facet].map((label) => `${facets[facet]}：${label}`));",
+          "",
+          "function ClassificationFacets({ result }: { result: IssueClassification }) {",
+          "  return (",
+          "    <dl className={styles.facets}>",
+          "      {facetKeys.map((facet) => (",
+          "        <div key={facet}>",
+          "          <dt>{facets[facet]}</dt>",
+          "          <dd>{result.labels[facet].join('、') || '未提取'}</dd>",
+          "        </div>",
+          "      ))}",
+          "    </dl>"
+        ],
+        "to": [
+          "import { useEffect, useId, useRef, useState } from 'react';",
+          "import styles from './classifications.module.css';",
+          "import { IssueSourceState, matchesSourceState } from './IssueSourceState';",
+          "import { issueContextFor, originLabels, systemLabels } from '../classification/issue-context';",
+          "import { IssueContextFacets } from './IssueContextFacets';",
+          "",
+          "const facets = { area: '问题类别', kind: '类型', symptom: '表现', environment: '运行环境补充' } as const;",
+          "const facetKeys = Object.keys(facets) as (keyof typeof facets)[];",
+          "export const classificationTags = (result: IssueClassification) =>",
+          "  facetKeys.flatMap((facet) => result.labels[facet].map((label) => `${facets[facet]}：${label}`));",
+          "",
+          "function ClassificationFacets({ result, primary }: { result: IssueClassification; primary?: string }) {",
+          "  return (",
+          "    <dl className={styles.facets}>",
+          "      {facetKeys.map((facet) => (",
+          "        <div key={facet}>",
+          "          <dt>{facets[facet]}</dt>",
+          "          <dd>{facet === 'area' ? primary ?? (result.labels.area.join('、') || '待判断') : result.labels[facet].join('、') || '未提取'}</dd>",
+          "        </div>",
+          "      ))}",
+          "    </dl>"
+        ]
+      },
+      {
+        "from": [
+          "export function IssueClassificationCandidate({",
           "  result,",
           "  sourceUpdatedAt,",
           "  tags,",
@@ -55,9 +105,12 @@
           "      </button>",
           "      <p className={styles.meta}>可修改后保存本仓记录；来源标签保持独立。</p>",
           "    </section>",
-          "  );"
+          "  );",
+          "}",
+          ""
         ],
         "to": [
+          "export function IssueClassificationCandidate({",
           "  result,",
           "  sourceUpdatedAt,",
           "  featureBindings = [],",
@@ -68,54 +121,20 @@
           "}) {",
           "  if (featureBindings.length)",
           "    return <p className={styles.explanation}>已按 {featureBindings.join('、')} 归类，随 Feature 处理。</p>;",
-          "  if (!result) return <p className={styles.meta}>尚无自动分类。可请猫分析，也可直接补充判断后派工。</p>;",
+          "  if (!result) return <p className={styles.meta}>暂无自动分类建议。可按上方边界选类，或请猫分析。</p>;",
           "  return (",
-          "    <section className={styles.candidate} aria-label=\"自动分类结果\">",
-          "      <h4>自动分类结果</h4>",
+          "    <details className={styles.candidate} aria-label=\"自动分类结果\" role=\"region\">",
+          "      <summary>查看自动建议与依据</summary>",
           "      <p className={styles.meta}>",
           "        {result.model} · {result.generatedAt.slice(0, 10)}",
           "      </p>",
           "      {sourceUpdatedAt !== result.source.updatedAt && <p className={styles.stale}>来源已更新，候选需要重新核对。</p>}",
           "      <ClassificationFacets result={result} />",
           "      <p className={styles.evidence}>依据：{result.evidence}</p>",
-          "    </section>",
-          "  );"
-        ]
-      },
-      {
-        "from": [
-          "          )}",
-          "        </div>",
-          "        <footer className={styles.footer}>点击问题标题进入研判，可将候选加入本地草稿，再由你保存。</footer>",
-          "      </dialog>",
-          "    </>"
-        ],
-        "to": [
-          "          )}",
-          "        </div>",
-          "        <footer className={styles.footer}>点击问题查看分类分析与派工；自动结果已展示，只有调整时才需要保存。</footer>",
-          "      </dialog>",
-          "    </>"
-        ]
-      },
-      {
-        "from": [
-          "import { useEffect, useId, useRef, useState } from 'react';",
-          "import styles from './classifications.module.css';",
-          "import { IssueSourceState, matchesSourceState } from './IssueSourceState';",
-          "",
-          "const facets = { area: '模块', kind: '类型', symptom: '表现', environment: '环境' } as const;",
-          "const facetKeys = Object.keys(facets) as (keyof typeof facets)[];"
-        ],
-        "to": [
-          "import { useEffect, useId, useRef, useState } from 'react';",
-          "import styles from './classifications.module.css';",
-          "import { IssueSourceState, matchesSourceState } from './IssueSourceState';",
-          "import { issueContextFor, originLabels, systemLabels } from '../classification/issue-context';",
-          "import { IssueContextFacets } from './IssueContextFacets';",
-          "",
-          "const facets = { area: '模块', kind: '类型', symptom: '表现', environment: '环境' } as const;",
-          "const facetKeys = Object.keys(facets) as (keyof typeof facets)[];"
+          "    </details>",
+          "  );",
+          "}",
+          ""
         ]
       },
       {
@@ -161,7 +180,7 @@
           "        features: issueFeatureBindings(fact),",
           "      })),",
           "  );",
-          "  const hasClassifications = rows.some((row) => row.result || row.features.length);",
+          "  const hasClassifications = rows.some((row) => row.result || row.features.length || row.source.work.length);",
           "  const scoped = rows.filter(",
           "    ({ fact, source, context }) =>",
           "      matchesSourceState(fact, state) &&",
@@ -186,7 +205,7 @@
           "        <header className={styles.heading}>",
           "          <div>",
           "            <h2 id={heading}>分类结果</h2>",
-          "            <p className={styles.meta}>按问题来源、操作系统、模块或已绑定的 Feature 查看。</p>",
+          "            <p className={styles.meta}>按问题类别归组；来源和操作系统可独立筛选。</p>",
           "          </div>",
           "          <button type=\"button\" onClick={() => dialog.current?.close()} aria-label=\"关闭分类结果\">",
           "            关闭"
@@ -208,7 +227,7 @@
           "        </header>",
           "        <div className={styles.controls}>",
           "          <p className={styles.meta}>",
-          "            来源和系统按已读标题、正文判断；未读取正文时先用标题，证据不足保留待判断。模块分类与 Feature 绑定保留。",
+          "            已绑定 Feature 的问题随 Feature 处理；其余优先使用已保存分类，没有保存时采用唯一自动建议。多类或证据不足保留待判断。",
           "          </p>",
           "          <div className={styles.search}>",
           "            <select aria-label=\"问题来源筛选\" value={origin} onChange={e => { setOrigin(e.target.value); setLimit(40); }}>",
@@ -252,7 +271,18 @@
           "                </h3>",
           "                {features.length ? (",
           "                  <p className={styles.featureBadge}>{features.join(' · ')} · 随 Feature 处理</p>",
-          "                ) : result ? ("
+          "                ) : result ? (",
+          "                  <ClassificationFacets result={result} />",
+          "                ) : (",
+          "                  <p className={styles.meta}>尚未分类</p>",
+          "                )}",
+          "                {result && (",
+          "                  <>",
+          "                    <p className={styles.evidence}>",
+          "                      依据：<span>{result.evidence}</span>",
+          "                    </p>",
+          "                    <p className={styles.meta}>",
+          "                      {result.model} · {result.generatedAt.slice(0, 10)}"
         ],
         "to": [
           "                    #{fact.number} · {fact.title}",
@@ -261,15 +291,38 @@
           "                <IssueContextFacets context={context} compact />",
           "                {features.length ? (",
           "                  <p className={styles.featureBadge}>{features.join(' · ')} · 随 Feature 处理</p>",
-          "                ) : result ? ("
+          "                ) : result ? (",
+          "                  <ClassificationFacets result={result} primary={issueCategory({ source, fact }).label} />",
+          "                ) : (",
+          "                  <p className={styles.meta}>{issueCategory({ source, fact }).label}</p>",
+          "                )}",
+          "                {result && (",
+          "                  <>",
+          "                    <p className={styles.evidence}>",
+          "                      自动建议依据：<span>{result.evidence}</span>",
+          "                    </p>",
+          "                    <p className={styles.meta}>",
+          "                      {result.model} · {result.generatedAt.slice(0, 10)}"
         ]
       },
       {
         "from": [
-          "  if (!result) return <p className={styles.meta}>尚无自动分类。可请猫分析，也可直接补充判断后派工。</p>;"
+          "            </button>",
+          "          )}",
+          "        </div>",
+          "        <footer className={styles.footer}>点击问题标题进入研判，可将候选加入本地草稿，再由你保存。</footer>",
+          "      </dialog>",
+          "    </>",
+          "  );"
         ],
         "to": [
-          "  if (!result) return <p className={styles.meta}>尚无模块分类。可请猫分析，也可直接补充判断后派工。</p>;"
+          "            </button>",
+          "          )}",
+          "        </div>",
+          "        <footer className={styles.footer}>点击问题查看分类分析与派工；自动结果已展示，只有调整时才需要保存。</footer>",
+          "      </dialog>",
+          "    </>",
+          "  );"
         ]
       }
     ]
@@ -277,138 +330,6 @@
   {
     "name": "CoordinationWorkbench.tsx",
     "replacements": [
-      {
-        "from": [
-          "import { CoordinationSourceStatus, CoordinationSources } from './CoordinationSources';",
-          "import styles from './coordination.module.css';",
-          "import { IssueClassificationResults } from './IssueClassifications';",
-          "import { IssueSourceState, IssueSourceStateFilter, matchesSourceState } from './IssueSourceState';",
-          "",
-          "const verified = { pending: '待验证', failed: '仍可复现', passed: '已记录验证通过' };",
-          "const version = (f: IssueSourceFact) => f.reviewVersion ?? f.contentVersion ?? f.updatedAt;",
-          "export function CoordinationWorkbench({"
-        ],
-        "to": [
-          "import { CoordinationSourceStatus, CoordinationSources } from './CoordinationSources';",
-          "import styles from './coordination.module.css';",
-          "import { classificationTags, IssueClassificationResults } from './IssueClassifications';",
-          "import { IssueSourceState, IssueSourceStateFilter, matchesSourceState } from './IssueSourceState';",
-          "",
-          "const version = (f: IssueSourceFact) => f.reviewVersion ?? f.contentVersion ?? f.updatedAt;",
-          "export function CoordinationWorkbench({"
-        ]
-      },
-      {
-        "from": [
-          "  const groups = issueCategoryCounts(scoped);",
-          "  const row = rows.find((r) => r.key === selected);",
-          "  useEffect(() => {",
-          "    if (!selected && rows[0]) setSelected(rows[0].key);"
-        ],
-        "to": [
-          "  const groups = issueCategoryCounts(scoped);",
-          "  const row = rows.find((r) => r.key === selected);",
-          "  const classification = row && issueClassificationFor(row.source, row.fact);",
-          "  useEffect(() => {",
-          "    if (!selected && rows[0]) setSelected(rows[0].key);"
-        ]
-      },
-      {
-        "from": [
-          "        ...(row.saved ?? {",
-          "          revision: 0,",
-          "          value: newInvestigation(row.ref, row.fact.title, version(row.fact), row.source.preference.value),",
-          "        }),",
-          "        dirty: false,"
-        ],
-        "to": [
-          "        ...(row.saved ?? {",
-          "          revision: 0,",
-          "          value: { ...newInvestigation(row.ref, row.fact.title, version(row.fact), row.source.preference.value),",
-          "            module: classification?.labels.area.join('、') ?? '',",
-          "            tags: classification ? classificationTags(classification).join('；') : '' },",
-          "        }),",
-          "        dirty: false,"
-        ]
-      },
-      {
-        "from": [
-          "    source: r.source.preference.value.name,",
-          "    version: version(r.fact),",
-          "    verification: verified[r.saved?.value.verification ?? 'pending'],",
-          "    state: r.fact.state === 'CLOSED' ? '来源已关闭' : r.fact.state === 'OPEN' ? '来源开放' : '来源暂不可用',",
-          "  }));"
-        ],
-        "to": [
-          "    source: r.source.preference.value.name,",
-          "    version: version(r.fact),",
-          "    verification: issueCategory(r).label,",
-          "    state: r.fact.state === 'CLOSED' ? '来源已关闭' : r.fact.state === 'OPEN' ? '来源开放' : '来源暂不可用',",
-          "  }));"
-        ]
-      },
-      {
-        "from": [
-          "                </span>",
-          "                <span className={styles.muted}>",
-          "                  本仓 · {verified[r.saved?.value.verification ?? 'pending']}",
-          "                  {drafts[r.key]?.dirty ? ' · 未保存' : ''}",
-          "                </span>"
-        ],
-        "to": [
-          "                </span>",
-          "                <span className={styles.muted}>",
-          "                  {r.saved ? '有本地分析记录' : '分类分析与派工'}",
-          "                  {drafts[r.key]?.dirty ? ' · 未保存' : ''}",
-          "                </span>"
-        ]
-      },
-      {
-        "from": [
-          "              <ColumnSeparator {...columns.notes} />",
-          "              <section id={columns.notes.controls} className={styles.inspector} aria-label=\"本仓研判\">",
-          "                {issueTools?.(row.source.profile, row.fact, issueCategory(row).label)}",
-          "                {current.dirty && row.saved && row.saved.revision !== current.revision && (",
-          "                  <details className={styles.notice} open>"
-        ],
-        "to": [
-          "              <ColumnSeparator {...columns.notes} />",
-          "              <section id={columns.notes.controls} className={styles.inspector} aria-label=\"本仓研判\">",
-          "                {current.dirty && row.saved && row.saved.revision !== current.revision && (",
-          "                  <details className={styles.notice} open>"
-        ]
-      },
-      {
-        "from": [
-          "                <CoordinationEditor",
-          "                  subject={`${row.source.preference.value.name} #${row.fact.number} · ${row.fact.title}`}",
-          "                  classification={issueClassificationFor(row.source, row.fact)}",
-          "                  featureBindings={issueFeatureBindings(row.fact)}",
-          "                  sourceUpdatedAt={row.fact.updatedAt}"
-        ],
-        "to": [
-          "                <CoordinationEditor",
-          "                  subject={`${row.source.preference.value.name} #${row.fact.number} · ${row.fact.title}`}",
-          "                  classification={classification}",
-          "                  featureBindings={issueFeatureBindings(row.fact)}",
-          "                  sourceUpdatedAt={row.fact.updatedAt}"
-        ]
-      },
-      {
-        "from": [
-          "                  error={saveError}",
-          "                />",
-          "              </section>",
-          "            </>"
-        ],
-        "to": [
-          "                  error={saveError}",
-          "                />",
-          "                {issueTools?.(row.source.profile, row.fact, issueCategory(row).label)}",
-          "              </section>",
-          "            </>"
-        ]
-      },
       {
         "from": [
           "  safeIssueUrl,",
@@ -424,11 +345,30 @@
           "  type Versioned,",
           "} from '../model/issue-coordination.js';",
           "import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react';",
-          "import { contextTags, issueContextFor } from '../classification/issue-context';",
+          "import { issueContextFor } from '../classification/issue-context';",
           "import type { IssueRef } from '../model/issue-coordination.js';",
           "import { CoordinationEditor } from './CoordinationEditor';",
           "import { CoordinationLinks, type RelationCandidate } from './CoordinationLinks';",
           "import { CoordinationReading } from './CoordinationReading';"
+        ]
+      },
+      {
+        "from": [
+          "import { IssueClassificationResults } from './IssueClassifications';",
+          "import { IssueSourceState, IssueSourceStateFilter, matchesSourceState } from './IssueSourceState';",
+          "",
+          "const verified = { pending: '待验证', failed: '仍可复现', passed: '已记录验证通过' };",
+          "const version = (f: IssueSourceFact) => f.reviewVersion ?? f.contentVersion ?? f.updatedAt;",
+          "export function CoordinationWorkbench({",
+          "  host,"
+        ],
+        "to": [
+          "import { IssueClassificationResults } from './IssueClassifications';",
+          "import { IssueSourceState, IssueSourceStateFilter, matchesSourceState } from './IssueSourceState';",
+          "",
+          "const version = (f: IssueSourceFact) => f.reviewVersion ?? f.contentVersion ?? f.updatedAt;",
+          "export function CoordinationWorkbench({",
+          "  host,"
         ]
       },
       {
@@ -445,13 +385,20 @@
           "}) {",
           "  const columns = useWorkbenchColumns();",
           "  const [sourceSnapshot, setSnapshot] = useState<CoordinationSnapshot>({ sources: [], relations: [] });",
-          "  const [reading, setReading] = useState<{ host: CoordinationHost; key: string; fact: IssueSourceFact | null }>();",
-          "  const onDetail = useCallback((ref: IssueRef, fact: IssueSourceFact | null) => setReading({ host, key: issueRefKey(ref), fact }), [host]);",
+          "  const [reading, setReading] = useState<{ host: CoordinationHost; facts: Record<string, IssueSourceFact> }>();",
+          "  const onDetail = useCallback((ref: IssueRef, fact: IssueSourceFact | null) => setReading(old => {",
+          "    const facts = { ...(old?.host === host ? old.facts : {}) };",
+          "    if (fact) facts[issueRefKey(ref)] = fact;",
+          "    else delete facts[issueRefKey(ref)];",
+          "    return { host, facts };",
+          "  }), [host]);",
           "  // Reuse the already authorized detail read; never put prose into the list transport or saved work.",
-          "  const readableSnapshot = reading?.host === host && reading.fact ? { ...sourceSnapshot, sources: sourceSnapshot.sources.map(source => ({",
-          "    ...source, issues: source.issues.map(fact => !fact.unavailable && reading.key === issueRefKey(issueRef(source.profile.id, fact))",
-          "      && fact.updatedAt === reading.fact!.updatedAt && fact.title === reading.fact!.title",
-          "      ? { ...fact, body: reading.fact!.body } : fact),",
+          "  const readableSnapshot = reading?.host === host ? { ...sourceSnapshot, sources: sourceSnapshot.sources.map(source => ({",
+          "    ...source, issues: source.issues.map(fact => {",
+          "      const detail = reading.facts[issueRefKey(issueRef(source.profile.id, fact))];",
+          "      return !fact.unavailable && detail && fact.updatedAt === detail.updatedAt && fact.title === detail.title",
+          "        ? { ...fact, body: detail.body } : fact;",
+          "    }),",
           "  })) } : sourceSnapshot;",
           "  const snapshot = projectSnapshot ? projectSnapshot(readableSnapshot) : readableSnapshot;",
           "  const [selected, setSelected] = useState(''),",
@@ -461,14 +408,35 @@
       },
       {
         "from": [
+          "    (r) =>",
+          "      (filter === 'all' || r.source.profile.id === filter) &&",
+          "      (!localOnly || r.saved || drafts[r.key]?.dirty) &&",
+          "      `${r.fact.title} #${r.fact.number} ${r.source.profile.name} ${r.saved?.value.module ?? ''} ${r.saved?.value.tags ?? ''}`",
+          "        .toLowerCase()",
+          "        .includes(query.toLowerCase()),",
+          "  );"
+        ],
+        "to": [
+          "    (r) =>",
+          "      (filter === 'all' || r.source.profile.id === filter) &&",
+          "      (!localOnly || r.saved || drafts[r.key]?.dirty) &&",
+          "      `${r.fact.title} #${r.fact.number} ${r.source.profile.name} ${issueCategory(r).label} ${r.saved?.value.module ?? ''} ${r.saved?.value.tags ?? ''}`",
+          "        .toLowerCase()",
+          "        .includes(query.toLowerCase()),",
+          "  );"
+        ]
+      },
+      {
+        "from": [
+          "  const visible = categorized.filter((r) => matchesSourceState(r.fact, sourceState));",
           "  const groups = issueCategoryCounts(scoped);",
           "  const row = rows.find((r) => r.key === selected);",
-          "  const classification = row && issueClassificationFor(row.source, row.fact);",
           "  useEffect(() => {",
           "    if (!selected && rows[0]) setSelected(rows[0].key);",
           "  }, [selected, rows[0]?.key]);"
         ],
         "to": [
+          "  const visible = categorized.filter((r) => matchesSourceState(r.fact, sourceState));",
           "  const groups = issueCategoryCounts(scoped);",
           "  const row = rows.find((r) => r.key === selected);",
           "  const classification = row && issueClassificationFor(row.source, row.fact);",
@@ -480,22 +448,62 @@
       },
       {
         "from": [
-          "          revision: 0,",
-          "          value: { ...newInvestigation(row.ref, row.fact.title, version(row.fact), row.source.preference.value),",
-          "            module: classification?.labels.area.join('、') ?? '',",
-          "            tags: classification ? classificationTags(classification).join('；') : '' },",
-          "        }),",
-          "        dirty: false,",
-          "      })"
+          "    title: r.fact.title,",
+          "    source: r.source.preference.value.name,",
+          "    version: version(r.fact),",
+          "    verification: verified[r.saved?.value.verification ?? 'pending'],",
+          "    state: r.fact.state === 'CLOSED' ? '来源已关闭' : r.fact.state === 'OPEN' ? '来源开放' : '来源暂不可用',",
+          "  }));",
+          "  async function save() {"
         ],
         "to": [
-          "          revision: 0,",
-          "          value: { ...newInvestigation(row.ref, row.fact.title, version(row.fact), row.source.preference.value),",
-          "            module: classification?.labels.area.join('、') ?? '',",
-          "            tags: [...(classification ? classificationTags(classification) : []), ...(context ? contextTags(context) : [])].join('；') },",
-          "        }),",
-          "        dirty: false,",
-          "      })"
+          "    title: r.fact.title,",
+          "    source: r.source.preference.value.name,",
+          "    version: version(r.fact),",
+          "    verification: issueCategory(r).label,",
+          "    state: r.fact.state === 'CLOSED' ? '来源已关闭' : r.fact.state === 'OPEN' ? '来源开放' : '来源暂不可用',",
+          "  }));",
+          "  async function save() {"
+        ]
+      },
+      {
+        "from": [
+          "            </label>",
+          "            <label>",
+          "              搜索",
+          "              <input placeholder=\"标题、编号、模块或标记\" value={query} onChange={(e) => setQuery(e.target.value)} />",
+          "            </label>",
+          "            <label className={styles.check}>",
+          "              <input type=\"checkbox\" checked={localOnly} onChange={(e) => setLocalOnly(e.target.checked)} />{' '}"
+        ],
+        "to": [
+          "            </label>",
+          "            <label>",
+          "              搜索",
+          "              <input placeholder=\"标题、编号、类别或历史标记\" value={query} onChange={(e) => setQuery(e.target.value)} />",
+          "            </label>",
+          "            <label className={styles.check}>",
+          "              <input type=\"checkbox\" checked={localOnly} onChange={(e) => setLocalOnly(e.target.checked)} />{' '}"
+        ]
+      },
+      {
+        "from": [
+          "                  {issueCategory(r).key === 'feature' ? ` · ${issueFeatureBindings(r.fact).join('、')}` : ''}",
+          "                </span>",
+          "                <span className={styles.muted}>",
+          "                  本仓 · {verified[r.saved?.value.verification ?? 'pending']}",
+          "                  {drafts[r.key]?.dirty ? ' · 未保存' : ''}",
+          "                </span>",
+          "              </button>"
+        ],
+        "to": [
+          "                  {issueCategory(r).key === 'feature' ? ` · ${issueFeatureBindings(r.fact).join('、')}` : ''}",
+          "                </span>",
+          "                <span className={styles.muted}>",
+          "                  {r.saved ? '有本地分析记录' : '分类分析与派工'}",
+          "                  {drafts[r.key]?.dirty ? ' · 未保存' : ''}",
+          "                </span>",
+          "              </button>"
         ]
       },
       {
@@ -520,14 +528,35 @@
       },
       {
         "from": [
+          "              </section>",
+          "              <ColumnSeparator {...columns.notes} />",
+          "              <section id={columns.notes.controls} className={styles.inspector} aria-label=\"本仓研判\">",
+          "                {issueTools?.(row.source.profile, row.fact, issueCategory(row).label)}",
+          "                {current.dirty && row.saved && row.saved.revision !== current.revision && (",
+          "                  <details className={styles.notice} open>",
+          "                    <summary>其他页面已保存新版本，请核对差异</summary>"
+        ],
+        "to": [
+          "              </section>",
+          "              <ColumnSeparator {...columns.notes} />",
+          "              <section id={columns.notes.controls} className={styles.inspector} aria-label=\"本仓研判\">",
+          "                {current.dirty && row.saved && row.saved.revision !== current.revision && (",
+          "                  <details className={styles.notice} open>",
+          "                    <summary>其他页面已保存新版本，请核对差异</summary>"
+        ]
+      },
+      {
+        "from": [
+          "                )}",
           "                <CoordinationEditor",
           "                  subject={`${row.source.preference.value.name} #${row.fact.number} · ${row.fact.title}`}",
-          "                  classification={classification}",
+          "                  classification={issueClassificationFor(row.source, row.fact)}",
           "                  featureBindings={issueFeatureBindings(row.fact)}",
           "                  sourceUpdatedAt={row.fact.updatedAt}",
           "                  value={current.value}"
         ],
         "to": [
+          "                )}",
           "                <CoordinationEditor",
           "                  subject={`${row.source.preference.value.name} #${row.fact.number} · ${row.fact.title}`}",
           "                  classification={classification}",
@@ -539,41 +568,21 @@
       },
       {
         "from": [
-          "}) {",
-          "  const columns = useWorkbenchColumns();",
-          "  const [sourceSnapshot, setSnapshot] = useState<CoordinationSnapshot>({ sources: [], relations: [] });",
-          "  const [reading, setReading] = useState<{ host: CoordinationHost; key: string; fact: IssueSourceFact | null }>();",
-          "  const onDetail = useCallback((ref: IssueRef, fact: IssueSourceFact | null) => setReading({ host, key: issueRefKey(ref), fact }), [host]);",
-          "  // Reuse the already authorized detail read; never put prose into the list transport or saved work.",
-          "  const readableSnapshot = reading?.host === host && reading.fact ? { ...sourceSnapshot, sources: sourceSnapshot.sources.map(source => ({",
-          "    ...source, issues: source.issues.map(fact => !fact.unavailable && reading.key === issueRefKey(issueRef(source.profile.id, fact))",
-          "      && fact.updatedAt === reading.fact!.updatedAt && fact.title === reading.fact!.title",
-          "      ? { ...fact, body: reading.fact!.body } : fact),",
-          "  })) } : sourceSnapshot;",
-          "  const snapshot = projectSnapshot ? projectSnapshot(readableSnapshot) : readableSnapshot;",
-          "  const [selected, setSelected] = useState(''),"
+          "                  dirty={current.dirty}",
+          "                  error={saveError}",
+          "                />",
+          "              </section>",
+          "            </>",
+          "          ) : ("
         ],
         "to": [
-          "}) {",
-          "  const columns = useWorkbenchColumns();",
-          "  const [sourceSnapshot, setSnapshot] = useState<CoordinationSnapshot>({ sources: [], relations: [] });",
-          "  const [reading, setReading] = useState<{ host: CoordinationHost; facts: Record<string, IssueSourceFact> }>();",
-          "  const onDetail = useCallback((ref: IssueRef, fact: IssueSourceFact | null) => setReading(old => {",
-          "    const facts = { ...(old?.host === host ? old.facts : {}) };",
-          "    if (fact) facts[issueRefKey(ref)] = fact;",
-          "    else delete facts[issueRefKey(ref)];",
-          "    return { host, facts };",
-          "  }), [host]);",
-          "  // Reuse the already authorized detail read; never put prose into the list transport or saved work.",
-          "  const readableSnapshot = reading?.host === host ? { ...sourceSnapshot, sources: sourceSnapshot.sources.map(source => ({",
-          "    ...source, issues: source.issues.map(fact => {",
-          "      const detail = reading.facts[issueRefKey(issueRef(source.profile.id, fact))];",
-          "      return !fact.unavailable && detail && fact.updatedAt === detail.updatedAt && fact.title === detail.title",
-          "        ? { ...fact, body: detail.body } : fact;",
-          "    }),",
-          "  })) } : sourceSnapshot;",
-          "  const snapshot = projectSnapshot ? projectSnapshot(readableSnapshot) : readableSnapshot;",
-          "  const [selected, setSelected] = useState(''),"
+          "                  dirty={current.dirty}",
+          "                  error={saveError}",
+          "                />",
+          "                {issueTools?.(row.source.profile, row.fact, issueCategory(row).label)}",
+          "              </section>",
+          "            </>",
+          "          ) : ("
         ]
       }
     ]
@@ -644,21 +653,37 @@
           "  dirty,",
           "  error,",
           "}: {",
-          "  value: IssueInvestigation;"
+          "  value: IssueInvestigation;",
+          "  subject: string;",
+          "  classification?: IssueClassification;",
+          "  featureBindings?: string[];",
+          "  sourceUpdatedAt: string;",
+          "  change: (value: IssueInvestigation) => void;"
         ],
         "to": [
           "import { type IssueClassification, type IssueInvestigation } from '../model/issue-coordination.js';",
           "import styles from './coordination.module.css';",
           "import { IssueClassificationCandidate } from './IssueClassifications';",
+          "import { IssueContextFacets } from './IssueContextFacets';",
+          "import type { IssueContextClassification } from '../classification/issue-context';",
+          "import { IssueCategoryPicker } from './IssueCategoryPicker';",
+          "import { categoryDefinition } from '../classification/taxonomy';",
           "",
           "export function CoordinationEditor({",
-          "  value, subject, classification, featureBindings, sourceUpdatedAt, change, save, busy, dirty, error,",
+          "  value, subject, classification, context, featureBindings, sourceUpdatedAt, change, save, busy, dirty, error,",
           "}: {",
-          "  value: IssueInvestigation;"
+          "  value: IssueInvestigation;",
+          "  subject: string;",
+          "  classification?: IssueClassification;",
+          "  context?: IssueContextClassification;",
+          "  featureBindings?: string[];",
+          "  sourceUpdatedAt: string;",
+          "  change: (value: IssueInvestigation) => void;"
         ]
       },
       {
         "from": [
+          "  dirty: boolean;",
           "  error: string;",
           "}) {",
           "  const field = (key: keyof IssueInvestigation, label: string, multiline = false) => (",
@@ -790,15 +815,18 @@
           "        </button>",
           "        <span role=\"status\">{dirty ? '未保存 · 切换视图保留输入' : '已保存 / 尚无修改'}</span>",
           "        {error && <p role=\"alert\">{error}</p>}",
-          "      </div>"
+          "      </div>",
+          "    </form>"
         ],
         "to": [
+          "  dirty: boolean;",
           "  error: string;",
           "}) {",
           "  const historical = [",
           "    ['分析证据', value.evidence], ['目标分支', value.branch], ['代码基线', value.base],",
           "    ['修复引用', value.patch], ['任务链接', value.taskUrl], ['验证证据', value.verificationEvidence],",
-          "    ['标签建议', value.labelDraft],",
+          "    ['标签建议', value.labelDraft], ['原自定义标记', value.tags],",
+          "    ['原问题类别', featureBindings?.length ? value.module : ''],",
           "    ['原补丁记录', value.adoption === 'pending' ? '' : value.adoption === 'applied' ? '已纳入' : '无需改动'],",
           "    ['原验证记录', value.verification === 'pending' ? '' : value.verification === 'passed' ? '已记录通过' : '仍可复现'],",
           "  ].filter(([, text]) => text);",
@@ -810,15 +838,11 @@
           "        <p className={styles.muted}>先看自动结果，需要时调整分类或补充说明，再派工。</p>",
           "      </div>",
           "      <div className={styles.editorBody}>",
+          "        {context && <IssueContextFacets context={context} />}",
+          "        {!featureBindings?.length && <IssueCategoryPicker value={value.module} areas={classification?.labels.area}",
+          "          change={module => change({ ...value, module })} />}",
           "        <IssueClassificationCandidate result={classification} featureBindings={featureBindings} sourceUpdatedAt={sourceUpdatedAt} />",
-          "        <details className={styles.fieldGroup}>",
-          "          <summary>调整分类（可选）</summary>",
-          "          <div className={styles.fields}>",
-          "            <label>模块<input aria-label=\"模块\" value={value.module} onChange={(e) => change({ ...value, module: e.target.value })} /></label>",
-          "            <label>本地标记<input aria-label=\"本地标记\" value={value.tags} onChange={(e) => change({ ...value, tags: e.target.value })} /></label>",
-          "          </div>",
-          "          <p className={styles.muted}>已有人工记录保留；调整只保存本地，不改来源标签。</p>",
-          "        </details>",
+          "        <p className={styles.muted}>选类只保存本地，不改来源标签；已有自定义标记保留在历史记录中。</p>",
           "        {value.notes && <p className={styles.prose}>分析备注：{value.notes}</p>}",
           "        <details className={styles.fieldGroup}>",
           "          <summary>补充分析（可选）</summary>",
@@ -834,63 +858,11 @@
           "      </div>",
           "      <div className={styles.saveBar}>",
           "        <button type=\"submit\" disabled={busy || !dirty}>{busy ? '保存中…' : '保存分析'}</button>",
-          "        <span role=\"status\">{dirty ? '未保存 · 切换视图保留输入' : '自动结果直接展示，无需重复填写'}</span>",
+          "        <span role=\"status\">{dirty ? '未保存 · 切换视图保留输入' : featureBindings?.length ? '随 Feature 处理 · 原记录保留'",
+          "          : value.module ? `已保存分类 · ${categoryDefinition(value.module)?.label ?? '待判断（原名称保留）'}` : '自动建议直接展示，无需重复填写'}</span>",
           "        {error && <p role=\"alert\">{error}</p>}",
-          "      </div>"
-        ]
-      },
-      {
-        "from": [
-          "import { type IssueClassification, type IssueInvestigation } from '../model/issue-coordination.js';",
-          "import styles from './coordination.module.css';",
-          "import { IssueClassificationCandidate } from './IssueClassifications';",
-          "",
-          "export function CoordinationEditor({",
-          "  value, subject, classification, featureBindings, sourceUpdatedAt, change, save, busy, dirty, error,",
-          "}: {",
-          "  value: IssueInvestigation;",
-          "  subject: string;",
-          "  classification?: IssueClassification;",
-          "  featureBindings?: string[];",
-          "  sourceUpdatedAt: string;",
-          "  change: (value: IssueInvestigation) => void;"
-        ],
-        "to": [
-          "import { type IssueClassification, type IssueInvestigation } from '../model/issue-coordination.js';",
-          "import styles from './coordination.module.css';",
-          "import { IssueClassificationCandidate } from './IssueClassifications';",
-          "import { IssueContextFacets } from './IssueContextFacets';",
-          "import type { IssueContextClassification } from '../classification/issue-context';",
-          "",
-          "export function CoordinationEditor({",
-          "  value, subject, classification, context, featureBindings, sourceUpdatedAt, change, save, busy, dirty, error,",
-          "}: {",
-          "  value: IssueInvestigation;",
-          "  subject: string;",
-          "  classification?: IssueClassification;",
-          "  context?: IssueContextClassification;",
-          "  featureBindings?: string[];",
-          "  sourceUpdatedAt: string;",
-          "  change: (value: IssueInvestigation) => void;"
-        ]
-      },
-      {
-        "from": [
-          "        <p className={styles.muted}>先看自动结果，需要时调整分类或补充说明，再派工。</p>",
           "      </div>",
-          "      <div className={styles.editorBody}>",
-          "        <IssueClassificationCandidate result={classification} featureBindings={featureBindings} sourceUpdatedAt={sourceUpdatedAt} />",
-          "        <details className={styles.fieldGroup}>",
-          "          <summary>调整分类（可选）</summary>"
-        ],
-        "to": [
-          "        <p className={styles.muted}>先看自动结果，需要时调整分类或补充说明，再派工。</p>",
-          "      </div>",
-          "      <div className={styles.editorBody}>",
-          "        {context && <IssueContextFacets context={context} />}",
-          "        <IssueClassificationCandidate result={classification} featureBindings={featureBindings} sourceUpdatedAt={sourceUpdatedAt} />",
-          "        <details className={styles.fieldGroup}>",
-          "          <summary>调整分类（可选）</summary>"
+          "    </form>"
         ]
       }
     ]
@@ -1124,6 +1096,7 @@
         "to": [
           "import type { IssueSourceFact } from './issue-source.js';",
           "import type { IssueContextClassification } from '../classification/issue-context.js';",
+          "import { categoryDefinition, primaryCategory } from '../classification/taxonomy.js';",
           "",
           "export type { IssueSourceFact } from './issue-source.js';",
           ""
@@ -1146,6 +1119,29 @@
           "  evidence: string;",
           "}",
           "/** Only an explicit source label binds a Feature; titles and generic `feature` do not. */"
+        ]
+      },
+      {
+        "from": [
+          "export function issueCategory({ source, fact }: ClassifiedIssue): { key: string; label: string } {",
+          "  if (fact.unavailable) return { key: 'unavailable', label: '来源暂不可用' };",
+          "  if (issueFeatureBindings(fact).length) return { key: 'feature', label: '随 Feature 处理' };",
+          "  const area = issueClassificationFor(source, fact)?.labels.area[0];",
+          "  return area ? { key: `area:${area}`, label: area } : { key: 'unclassified', label: '尚未分类' };",
+          "}",
+          "export function matchesIssueCategory(row: ClassifiedIssue, category: string): boolean {",
+          "  if (category === 'all') return true;"
+        ],
+        "to": [
+          "export function issueCategory({ source, fact }: ClassifiedIssue): { key: string; label: string } {",
+          "  if (fact.unavailable) return { key: 'unavailable', label: '来源暂不可用' };",
+          "  if (issueFeatureBindings(fact).length) return { key: 'feature', label: '随 Feature 处理' };",
+          "  const saved = source.work.find(work => work.value.ref.sourceId === source.profile.id && work.value.ref.issueId === fact.id)?.value.module.trim();",
+          "  const area = saved ? categoryDefinition(saved)?.label ?? '待判断' : primaryCategory(issueClassificationFor(source, fact)?.labels.area);",
+          "  return area !== '待判断' ? { key: `area:${area}`, label: area } : { key: 'unclassified', label: '待判断' };",
+          "}",
+          "export function matchesIssueCategory(row: ClassifiedIssue, category: string): boolean {",
+          "  if (category === 'all') return true;"
         ]
       }
     ]

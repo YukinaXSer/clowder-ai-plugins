@@ -100,7 +100,9 @@ export function TeamIssuePanel({ host, profile, fact, category, onRead }: {
     </>}
     <p aria-live="polite">当前分类：{summary?.issueContext?.features.length
         ? `随 Feature 处理 · ${summary.issueContext.features.join('、')}`
-        : summary?.issueContext?.analysis?.category ?? category}</p>
+        : category}</p>
+    {summary?.issueContext?.analysis && summary.issueContext.analysis.category !== category && !summary.issueContext.features.length &&
+      <p className={styles.muted}>已存猫研判类别：{summary.issueContext.analysis.category}。自动派工建议按该研判及已保存规则生成；本地选类不会自动修改负责人。</p>}
     {supported && <>
       {summary?.issueContext && <TeamAssignment
         key={`assign:${summary.issueContext.sourceVersion}:${row?.id ?? ''}:${row?.revision ?? 0}:${JSON.stringify(summary.issueContext.assignmentOptions)}`}

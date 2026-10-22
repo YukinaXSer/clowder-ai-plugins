@@ -28,18 +28,19 @@ async function setup(legacy = false, description?: string) {
   const node = document.createElement('div'); document.body.append(node);
   const root = createRoot(node);
   await act(async () => root.render(<CoordinationWorkbench host={host} />));
-  return { node, value, saveWork, close: () => { act(() => root.unmount()); node.remove(); } };
+  return { node, value, saveWork, snapshot, close: () => { act(() => root.unmount()); node.remove(); } };
 }
 it('shows automatic classification first, prefills optional corrections and never demands repair fields or autosaves', async () => {
   const s = await setup();
   try {
-    const editor = s.node.querySelector('[aria-label="本地标记"]')!.closest('form')!;
+    const editor = s.node.querySelector('[aria-label="问题类别选择"]')!.closest('form')!;
     expect(editor.textContent).toContain('分类分析');
     expect(editor.querySelector('[aria-label="自动分类结果"]')?.textContent).toContain('重复加载的证据');
     expect(editor.querySelectorAll('input:not(details input), textarea:not(details textarea)').length).toBe(0);
-    expect((editor.querySelector('[aria-label="模块"]') as HTMLInputElement).value).toBe('界面交互');
-    expect((editor.querySelector('[aria-label="本地标记"]') as HTMLInputElement).value).toContain('模块：界面交互');
-    expect(editor.querySelector('[aria-label="本地标记"]')?.closest('details')?.open).toBe(false);
+    expect(editor.querySelector('[aria-label="模块"]')).toBeNull();
+    expect(editor.querySelector('[aria-label="本地标记"]')).toBeNull();
+    expect((editor.querySelector('[aria-label="问题类别选择"]') as HTMLSelectElement).selectedOptions[0].textContent).toContain('界面交互');
+    expect(editor.querySelector('[aria-label="当前类别边界"]')?.textContent).toContain('猫猫协作');
     expect(s.node.querySelector('[role="combobox"]')?.closest('details')?.open).toBe(false);
     for (const label of ['目标分支', '验证代码基线', '修复 PR / 提交', '本仓验证', '补丁纳入', '验证证据 / 测试结果'])
       expect(editor.querySelector(`[aria-label="${label}"]`)).toBeNull();
@@ -55,7 +56,7 @@ it('fills origin and system from the loaded body without requiring another analy
     expect(context?.textContent).toContain('内源问题');
     expect(context?.textContent).toContain('Windows');
     expect(context?.textContent).not.toContain('macOS');
-    expect((s.node.querySelector('[aria-label="本地标记"]') as HTMLInputElement).value).toBe('人工分类');
+    expect(s.node.querySelector('[aria-label="问题类别选择"]')!.closest('form')?.textContent).toContain('人工分类');
     expect(s.saveWork).not.toHaveBeenCalled();
   } finally { s.close(); }
 });
@@ -64,12 +65,26 @@ it('saving a concise analysis preserves prior manual classification and hidden h
   try {
     const note = s.node.querySelector<HTMLTextAreaElement>('[aria-label="分析备注"]');
     expect(note).not.toBeNull();
-    expect((s.node.querySelector('[aria-label="本地标记"]') as HTMLInputElement).value).toBe('人工分类');
+    expect(s.node.querySelector('[aria-label="问题类别选择"]')!.closest('form')?.textContent).toContain('人工分类');
     await act(async () => {
       Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!.call(note, '仅补充派工依据');
       note!.dispatchEvent(new Event('input', { bubbles: true }));
     });
     await act(async () => note!.closest('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })));
     expect(s.saveWork).toHaveBeenCalledWith({ ...s.value, notes: '仅补充派工依据' }, 3);
+  } finally { s.close(); }
+});
+
+it('one explicit class selection changes grouping after save without generating duplicate tags', async () => {
+  const s = await setup();
+  try {
+    const select = s.node.querySelector<HTMLSelectElement>('[aria-label="问题类别选择"]')!;
+    await act(async () => { select.value = '猫猫协作'; select.dispatchEvent(new Event('change', { bubbles: true })); });
+    expect(s.saveWork).not.toHaveBeenCalled();
+    await act(async () => select.closest('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })));
+    expect(s.snapshot.sources[0].work[0].value.module).toBe('猫猫协作');
+    expect(s.snapshot.sources[0].work[0].value.tags).toBe('');
+    expect(s.node.querySelector('[aria-label="问题类别"]')?.textContent).toContain('猫猫协作 · 1');
+    expect(s.node.querySelector('[aria-label="问题类别"]')?.textContent).not.toContain('界面交互 · 1');
   } finally { s.close(); }
 });

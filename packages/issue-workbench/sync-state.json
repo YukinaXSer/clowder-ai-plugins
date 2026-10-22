@@ -7,7 +7,7 @@
       "source": "packages/shared/src/issue-coordination.ts",
       "target": "src/model/issue-coordination.ts",
       "sourceHash": "fc52e6d793f40ab5d2c5a5a37f595e756cbd2c40f08721fe6a4948137fcb30ce",
-      "targetHash": "35a41751b3653fcb34fe1f201930755be5c53733ac30df93f8b59732cf178e6c"
+      "targetHash": "42e8d8fbe3fad531292c6f95dc9a3013b10646f9106b630a71da3bff76a78736"
     },
     {
       "source": "packages/api/src/domains/community/IssueCoordinationStore.ts",
@@ -37,7 +37,7 @@
       "source": "packages/web/src/components/settings/issue-workbench/IssueClassifications.tsx",
       "target": "src/ui/IssueClassifications.tsx",
       "sourceHash": "6885d3b30a47a4eae4909e95251ff4c658a452596a749c42d0a1874e6712df42",
-      "targetHash": "e183a5e3ebadf28d068cd770fa9e89f368472163ea6b095189a7a7878228f4f0"
+      "targetHash": "90b4fc468d679b7bd98a0d4e3e265ab9bae5b77c0752199c18d71300dffa430c"
     },
     {
       "source": "packages/web/src/components/settings/issue-workbench/classifications.module.css",
@@ -49,7 +49,7 @@
       "source": "packages/web/src/components/settings/issue-workbench/CoordinationWorkbench.tsx",
       "target": "src/ui/CoordinationWorkbench.tsx",
       "sourceHash": "0c636f7e0290cac61105d66e4a228843f28ffea4903b37ca2700940dc7a3cc89",
-      "targetHash": "57ed9be722c3f17c257b2161b8c0cd75c09c3eb37f1fcec54c1d123f7f3abc5e"
+      "targetHash": "92ad29f9b22f29058c1f54a62d77c458b16e53ed3c20818911d94db34ac56bb2"
     },
     {
       "source": "packages/web/src/components/settings/issue-workbench/CoordinationSources.tsx",
@@ -61,7 +61,7 @@
       "source": "packages/web/src/components/settings/issue-workbench/CoordinationEditor.tsx",
       "target": "src/ui/CoordinationEditor.tsx",
       "sourceHash": "dceb7d324a9a6f2ef393ccddfe4162006e5bfb727242be3b09ea1ba437b9ab25",
-      "targetHash": "11e1277dace169b61a7ad91b944f47aeac5b2bff4e1ffc5ff934a0ed5e5da997"
+      "targetHash": "049fcc546c829b5ff51ecb4e6a0dfe54c299f69b120808c7ed8f408147f9d759"
     },
     {
       "source": "packages/web/src/components/settings/issue-workbench/CoordinationLinks.tsx",

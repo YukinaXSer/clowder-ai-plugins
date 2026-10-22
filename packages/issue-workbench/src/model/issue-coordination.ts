@@ -1,5 +1,6 @@
 import type { IssueSourceFact } from './issue-source.js';
 import type { IssueContextClassification } from '../classification/issue-context.js';
+import { categoryDefinition, primaryCategory } from '../classification/taxonomy.js';
 
 export type { IssueSourceFact } from './issue-source.js';
 
@@ -116,8 +117,9 @@ export type ClassifiedIssue = { source: CoordinationSource; fact: IssueSourceFac
 export function issueCategory({ source, fact }: ClassifiedIssue): { key: string; label: string } {
   if (fact.unavailable) return { key: 'unavailable', label: '来源暂不可用' };
   if (issueFeatureBindings(fact).length) return { key: 'feature', label: '随 Feature 处理' };
-  const area = issueClassificationFor(source, fact)?.labels.area[0];
-  return area ? { key: `area:${area}`, label: area } : { key: 'unclassified', label: '尚未分类' };
+  const saved = source.work.find(work => work.value.ref.sourceId === source.profile.id && work.value.ref.issueId === fact.id)?.value.module.trim();
+  const area = saved ? categoryDefinition(saved)?.label ?? '待判断' : primaryCategory(issueClassificationFor(source, fact)?.labels.area);
+  return area !== '待判断' ? { key: `area:${area}`, label: area } : { key: 'unclassified', label: '待判断' };
 }
 export function matchesIssueCategory(row: ClassifiedIssue, category: string): boolean {
   if (category === 'all') return true;

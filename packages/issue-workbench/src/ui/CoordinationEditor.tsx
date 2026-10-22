@@ -3,6 +3,8 @@ import styles from './coordination.module.css';
 import { IssueClassificationCandidate } from './IssueClassifications';
 import { IssueContextFacets } from './IssueContextFacets';
 import type { IssueContextClassification } from '../classification/issue-context';
+import { IssueCategoryPicker } from './IssueCategoryPicker';
+import { categoryDefinition } from '../classification/taxonomy';
 
 export function CoordinationEditor({
   value, subject, classification, context, featureBindings, sourceUpdatedAt, change, save, busy, dirty, error,
@@ -22,7 +24,8 @@ export function CoordinationEditor({
   const historical = [
     ['分析证据', value.evidence], ['目标分支', value.branch], ['代码基线', value.base],
     ['修复引用', value.patch], ['任务链接', value.taskUrl], ['验证证据', value.verificationEvidence],
-    ['标签建议', value.labelDraft],
+    ['标签建议', value.labelDraft], ['原自定义标记', value.tags],
+    ['原问题类别', featureBindings?.length ? value.module : ''],
     ['原补丁记录', value.adoption === 'pending' ? '' : value.adoption === 'applied' ? '已纳入' : '无需改动'],
     ['原验证记录', value.verification === 'pending' ? '' : value.verification === 'passed' ? '已记录通过' : '仍可复现'],
   ].filter(([, text]) => text);
@@ -35,15 +38,10 @@ export function CoordinationEditor({
       </div>
       <div className={styles.editorBody}>
         {context && <IssueContextFacets context={context} />}
+        {!featureBindings?.length && <IssueCategoryPicker value={value.module} areas={classification?.labels.area}
+          change={module => change({ ...value, module })} />}
         <IssueClassificationCandidate result={classification} featureBindings={featureBindings} sourceUpdatedAt={sourceUpdatedAt} />
-        <details className={styles.fieldGroup}>
-          <summary>调整分类（可选）</summary>
-          <div className={styles.fields}>
-            <label>模块<input aria-label="模块" value={value.module} onChange={(e) => change({ ...value, module: e.target.value })} /></label>
-            <label>本地标记<input aria-label="本地标记" value={value.tags} onChange={(e) => change({ ...value, tags: e.target.value })} /></label>
-          </div>
-          <p className={styles.muted}>已有人工记录保留；调整只保存本地，不改来源标签。</p>
-        </details>
+        <p className={styles.muted}>选类只保存本地，不改来源标签；已有自定义标记保留在历史记录中。</p>
         {value.notes && <p className={styles.prose}>分析备注：{value.notes}</p>}
         <details className={styles.fieldGroup}>
           <summary>补充分析（可选）</summary>
@@ -59,7 +57,8 @@ export function CoordinationEditor({
       </div>
       <div className={styles.saveBar}>
         <button type="submit" disabled={busy || !dirty}>{busy ? '保存中…' : '保存分析'}</button>
-        <span role="status">{dirty ? '未保存 · 切换视图保留输入' : '自动结果直接展示，无需重复填写'}</span>
+        <span role="status">{dirty ? '未保存 · 切换视图保留输入' : featureBindings?.length ? '随 Feature 处理 · 原记录保留'
+          : value.module ? `已保存分类 · ${categoryDefinition(value.module)?.label ?? '待判断（原名称保留）'}` : '自动建议直接展示，无需重复填写'}</span>
         {error && <p role="alert">{error}</p>}
       </div>
     </form>

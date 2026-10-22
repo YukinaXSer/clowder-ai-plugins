@@ -2,6 +2,7 @@ import {
   type CoordinationSource,
   type IssueClassification,
   issueCategoryCounts,
+  issueCategory,
   issueClassificationFor,
   issueFeatureBindings,
   issueRef,
@@ -14,18 +15,18 @@ import { IssueSourceState, matchesSourceState } from './IssueSourceState';
 import { issueContextFor, originLabels, systemLabels } from '../classification/issue-context';
 import { IssueContextFacets } from './IssueContextFacets';
 
-const facets = { area: '模块', kind: '类型', symptom: '表现', environment: '环境' } as const;
+const facets = { area: '问题类别', kind: '类型', symptom: '表现', environment: '运行环境补充' } as const;
 const facetKeys = Object.keys(facets) as (keyof typeof facets)[];
 export const classificationTags = (result: IssueClassification) =>
   facetKeys.flatMap((facet) => result.labels[facet].map((label) => `${facets[facet]}：${label}`));
 
-function ClassificationFacets({ result }: { result: IssueClassification }) {
+function ClassificationFacets({ result, primary }: { result: IssueClassification; primary?: string }) {
   return (
     <dl className={styles.facets}>
       {facetKeys.map((facet) => (
         <div key={facet}>
           <dt>{facets[facet]}</dt>
-          <dd>{result.labels[facet].join('、') || '未提取'}</dd>
+          <dd>{facet === 'area' ? primary ?? (result.labels.area.join('、') || '待判断') : result.labels[facet].join('、') || '未提取'}</dd>
         </div>
       ))}
     </dl>
@@ -43,17 +44,17 @@ export function IssueClassificationCandidate({
 }) {
   if (featureBindings.length)
     return <p className={styles.explanation}>已按 {featureBindings.join('、')} 归类，随 Feature 处理。</p>;
-  if (!result) return <p className={styles.meta}>尚无模块分类。可请猫分析，也可直接补充判断后派工。</p>;
+  if (!result) return <p className={styles.meta}>暂无自动分类建议。可按上方边界选类，或请猫分析。</p>;
   return (
-    <section className={styles.candidate} aria-label="自动分类结果">
-      <h4>自动分类结果</h4>
+    <details className={styles.candidate} aria-label="自动分类结果" role="region">
+      <summary>查看自动建议与依据</summary>
       <p className={styles.meta}>
         {result.model} · {result.generatedAt.slice(0, 10)}
       </p>
       {sourceUpdatedAt !== result.source.updatedAt && <p className={styles.stale}>来源已更新，候选需要重新核对。</p>}
       <ClassificationFacets result={result} />
       <p className={styles.evidence}>依据：{result.evidence}</p>
-    </section>
+    </details>
   );
 }
 
@@ -84,7 +85,7 @@ export function IssueClassificationResults({
         features: issueFeatureBindings(fact),
       })),
   );
-  const hasClassifications = rows.some((row) => row.result || row.features.length);
+  const hasClassifications = rows.some((row) => row.result || row.features.length || row.source.work.length);
   const scoped = rows.filter(
     ({ fact, source, context }) =>
       matchesSourceState(fact, state) &&
@@ -116,7 +117,7 @@ export function IssueClassificationResults({
         <header className={styles.heading}>
           <div>
             <h2 id={heading}>分类结果</h2>
-            <p className={styles.meta}>按问题来源、操作系统、模块或已绑定的 Feature 查看。</p>
+            <p className={styles.meta}>按问题类别归组；来源和操作系统可独立筛选。</p>
           </div>
           <button type="button" onClick={() => dialog.current?.close()} aria-label="关闭分类结果">
             关闭
@@ -124,7 +125,7 @@ export function IssueClassificationResults({
         </header>
         <div className={styles.controls}>
           <p className={styles.meta}>
-            来源和系统按已读标题、正文判断；未读取正文时先用标题，证据不足保留待判断。模块分类与 Feature 绑定保留。
+            已绑定 Feature 的问题随 Feature 处理；其余优先使用已保存分类，没有保存时采用唯一自动建议。多类或证据不足保留待判断。
           </p>
           <div className={styles.search}>
             <select aria-label="问题来源筛选" value={origin} onChange={e => { setOrigin(e.target.value); setLimit(40); }}>
@@ -213,14 +214,14 @@ export function IssueClassificationResults({
                 {features.length ? (
                   <p className={styles.featureBadge}>{features.join(' · ')} · 随 Feature 处理</p>
                 ) : result ? (
-                  <ClassificationFacets result={result} />
+                  <ClassificationFacets result={result} primary={issueCategory({ source, fact }).label} />
                 ) : (
-                  <p className={styles.meta}>尚未分类</p>
+                  <p className={styles.meta}>{issueCategory({ source, fact }).label}</p>
                 )}
                 {result && (
                   <>
                     <p className={styles.evidence}>
-                      依据：<span>{result.evidence}</span>
+                      自动建议依据：<span>{result.evidence}</span>
                     </p>
                     <p className={styles.meta}>
                       {result.model} · {result.generatedAt.slice(0, 10)}

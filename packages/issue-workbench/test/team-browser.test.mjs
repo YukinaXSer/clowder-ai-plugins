@@ -17,7 +17,7 @@ test('packed workbench: owner click, cat result, feedback, stale source and deni
   execFileSync('tar', ['-xzf', join(directory, pack.filename), '-C', directory]);
   const { createIssueTeamModule } = await import(pathToFileURL(join(directory, 'package/dist/team-plugin.js')).href);
   const { coordinationPreview, fixtureBindings } = await import(pathToFileURL(join(directory, 'package/dist/coordination-host.mjs')).href);
-  const s = setup();
+  const s = setup(); s.analysis.category = 'Agent 运行';
   s.config.analysisThreadId = 'analysis'; s.config.automaticAssignment = false;
   s.issues[0].author = 'alice';
   const active = await createIssueTeamModule(s.provider).create({ pluginId: 'dev.clowder.issue-workbench', runtime: { entrypoint: 'dist/team-plugin.js' } }).start({
@@ -112,10 +112,10 @@ test('packed workbench: owner click, cat result, feedback, stale source and deni
   s.issues[0].updatedAt = '2026-10-15T10:00:00Z';
   // Results arrive automatically; no refresh button is required to classify.
   await page.getByText('9 / 10', { exact: true }).waitFor();
-  await page.getByText('当前分类：runtime', { exact: true }).waitFor();
+  await page.getByText('当前分类：Agent 运行', { exact: true }).waitFor();
   await page.getByRole('region', { name: '自动分类结果', exact: true }).waitFor();
-  await page.getByLabel('问题类别', { exact: true }).selectOption('area:runtime');
-  assert.equal(await page.locator('aside').getByText('runtime', { exact: true }).count(), 1);
+  await page.getByLabel('问题类别', { exact: true }).selectOption('area:Agent 运行');
+  assert.equal(await page.locator('aside').getByText('Agent 运行', { exact: true }).count(), 1);
   const member = page.getByLabel('指派给组员', { exact: true });
   assert.equal(await member.inputValue(), 'alice', 'member reporter is the first choice');
   assert.deepEqual(await member.locator('option').evaluateAll(options => options.map(option => option.value).filter(Boolean)), ['alice', 'bob']);
