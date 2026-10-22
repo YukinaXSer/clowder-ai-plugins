@@ -1,18 +1,9 @@
-import { type IssueClassification, type IssueInvestigation, safeIssueUrl } from '../model/issue-coordination.js';
+import { type IssueClassification, type IssueInvestigation } from '../model/issue-coordination.js';
 import styles from './coordination.module.css';
 import { IssueClassificationCandidate } from './IssueClassifications';
 
 export function CoordinationEditor({
-  value,
-  subject,
-  classification,
-  featureBindings,
-  sourceUpdatedAt,
-  change,
-  save,
-  busy,
-  dirty,
-  error,
+  value, subject, classification, featureBindings, sourceUpdatedAt, change, save, busy, dirty, error,
 }: {
   value: IssueInvestigation;
   subject: string;
@@ -25,134 +16,46 @@ export function CoordinationEditor({
   dirty: boolean;
   error: string;
 }) {
-  const field = (key: keyof IssueInvestigation, label: string, multiline = false) => (
-    <label>
-      {label}
-      {multiline ? (
-        <textarea
-          aria-label={label}
-          rows={4}
-          value={String(value[key])}
-          onChange={(e) => change({ ...value, [key]: e.target.value })}
-        />
-      ) : (
-        <input
-          aria-label={label}
-          value={String(value[key])}
-          onChange={(e) => change({ ...value, [key]: e.target.value })}
-        />
-      )}
-    </label>
-  );
+  const historical = [
+    ['分析证据', value.evidence], ['目标分支', value.branch], ['代码基线', value.base],
+    ['修复引用', value.patch], ['任务链接', value.taskUrl], ['验证证据', value.verificationEvidence],
+    ['标签建议', value.labelDraft],
+    ['原补丁记录', value.adoption === 'pending' ? '' : value.adoption === 'applied' ? '已纳入' : '无需改动'],
+    ['原验证记录', value.verification === 'pending' ? '' : value.verification === 'passed' ? '已记录通过' : '仍可复现'],
+  ].filter(([, text]) => text);
   return (
-    <form
-      onSubmit={(e) => {
-        e.preventDefault();
-        void save();
-      }}
-      className={styles.editor}
-    >
+    <form onSubmit={(e) => { e.preventDefault(); void save(); }} className={styles.editor}>
       <div className={styles.editorIntro}>
-        <h3>本仓研判与修复记录</h3>
-        <p className={styles.editorSubject} title={subject}>
-          {subject}
-        </p>
-        <p className={styles.muted}>本地记录 · 来源状态独立，修复进展由你确认。</p>
+        <h3>分类分析</h3>
+        <p className={styles.editorSubject} title={subject}>{subject}</p>
+        <p className={styles.muted}>先看自动结果，需要时调整分类或补充说明，再派工。</p>
       </div>
       <div className={styles.editorBody}>
-        <IssueClassificationCandidate
-          result={classification}
-          featureBindings={featureBindings}
-          sourceUpdatedAt={sourceUpdatedAt}
-          tags={value.tags}
-          changeTags={(tags) => change({ ...value, tags })}
-        />
-        <h4>分类与标记</h4>
-        <div className={styles.fields}>
-          <label>
-            适用范围
-            <select
-              aria-label="适用范围"
-              value={value.scope}
-              onChange={(e) => change({ ...value, scope: e.target.value as IssueInvestigation['scope'] })}
-            >
-              <option value="unknown">尚待判断</option>
-              <option value="common">通用问题</option>
-              <option value="internal">内部特有</option>
-            </select>
-          </label>
-          {field('module', '模块')}
-          {field('tags', '本地标记')}
-        </div>
-        <h4>方案与证据</h4>
-        {field('notes', '本仓方案', true)}
+        <IssueClassificationCandidate result={classification} featureBindings={featureBindings} sourceUpdatedAt={sourceUpdatedAt} />
         <details className={styles.fieldGroup}>
-          <summary>复现与分析证据</summary>
-          {field('evidence', '本仓复现与分析证据', true)}
-        </details>
-        <details className={styles.fieldGroup}>
-          <summary>修复与验证</summary>
-          <div className={styles.fieldGroupBody}>
-            <div className={styles.fields}>
-              {field('branch', '目标分支')}
-              {field('base', '验证代码基线')}
-              {field('patch', '修复 PR / 提交')}
-            </div>
-            {field('taskUrl', '真实任务链接（可选，手动关联）')}
-            <div className={styles.actions}>
-              {safeIssueUrl(value.patch) && (
-                <a href={safeIssueUrl(value.patch)} target="_blank" rel="noreferrer">
-                  查看修复 PR / 提交 ↗
-                </a>
-              )}
-              {safeIssueUrl(value.taskUrl) && (
-                <a href={safeIssueUrl(value.taskUrl)} target="_blank" rel="noreferrer">
-                  查看关联任务 ↗
-                </a>
-              )}
-            </div>
-            <div className={styles.fields}>
-              <label>
-                补丁纳入
-                <select
-                  aria-label="补丁纳入"
-                  value={value.adoption}
-                  onChange={(e) => change({ ...value, adoption: e.target.value as IssueInvestigation['adoption'] })}
-                >
-                  <option value="pending">待处理 / 待移植</option>
-                  <option value="applied">已纳入（手动记录）</option>
-                  <option value="not-needed">本仓无需改动</option>
-                </select>
-              </label>
-              <label>
-                本仓验证
-                <select
-                  aria-label="本仓验证"
-                  value={value.verification}
-                  onChange={(e) =>
-                    change({ ...value, verification: e.target.value as IssueInvestigation['verification'] })
-                  }
-                >
-                  <option value="pending">待验证</option>
-                  <option value="failed">仍可复现</option>
-                  <option value="passed">验证通过（手动记录）</option>
-                </select>
-              </label>
-            </div>
-            {field('verificationEvidence', '验证证据 / 测试结果', true)}
+          <summary>调整分类（可选）</summary>
+          <div className={styles.fields}>
+            <label>模块<input aria-label="模块" value={value.module} onChange={(e) => change({ ...value, module: e.target.value })} /></label>
+            <label>本地标记<input aria-label="本地标记" value={value.tags} onChange={(e) => change({ ...value, tags: e.target.value })} /></label>
           </div>
+          <p className={styles.muted}>已有人工记录保留；调整只保存本地，不改来源标签。</p>
         </details>
+        {value.notes && <p className={styles.prose}>分析备注：{value.notes}</p>}
         <details className={styles.fieldGroup}>
-          <summary>标签建议 · 本地草稿，未提交</summary>
-          {field('labelDraft', '标签变更建议', true)}
-          <p className={styles.muted}>请在原平台核对后提交。保存不会修改来源标签。</p>
+          <summary>补充分析（可选）</summary>
+          <label>分析备注<textarea aria-label="分析备注" rows={3} value={value.notes}
+            placeholder="补充自动结果未覆盖的背景或派工依据"
+            onChange={(e) => change({ ...value, notes: e.target.value })} /></label>
         </details>
+        {!!historical.length && <details className={styles.fieldGroup}>
+          <summary>已有历史记录（只读）</summary>
+          <p className={styles.muted}>旧记录继续保留，当前工作台负责分类分析和派工。</p>
+          <dl>{historical.map(([label, text]) => <div key={label}><dt>{label}</dt><dd className={styles.prose}>{text}</dd></div>)}</dl>
+        </details>}
       </div>
       <div className={styles.saveBar}>
-        <button type="submit" disabled={busy || !dirty}>
-          {busy ? '保存中…' : '保存本仓记录'}
-        </button>
-        <span role="status">{dirty ? '未保存 · 切换视图保留输入' : '已保存 / 尚无修改'}</span>
+        <button type="submit" disabled={busy || !dirty}>{busy ? '保存中…' : '保存分析'}</button>
+        <span role="status">{dirty ? '未保存 · 切换视图保留输入' : '自动结果直接展示，无需重复填写'}</span>
         {error && <p role="alert">{error}</p>}
       </div>
     </form>

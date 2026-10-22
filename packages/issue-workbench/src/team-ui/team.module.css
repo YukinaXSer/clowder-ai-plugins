@@ -6,9 +6,7 @@
   overflow-wrap: anywhere;
 }
 .panel {
-  flex: 0 1 auto;
-  max-height: 47%;
-  overflow-y: auto;
+  flex: 0 0 auto;
   padding: 16px;
   border-bottom: 1px solid var(--cafe-border);
   min-height: 100px;
@@ -82,6 +80,6 @@
 .records span { color: var(--cafe-text-muted); font-size: 12px; }
 .members { display: flex; flex-wrap: wrap; gap: 8px 16px; list-style: none; padding: 0; max-height: 160px; overflow-y: auto; }
 @media (max-width: 700px) {
-  .panel { max-height: 48%; padding: 12px; }
+  .panel { padding: 12px; }
   .dialog { padding: 14px; }
 }

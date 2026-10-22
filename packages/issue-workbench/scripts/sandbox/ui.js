@@ -41,7 +41,7 @@ function selectActor(next) {
   for (const a of ['sender', 'receiver']) { el(a + '-tab').setAttribute('aria-pressed', String(a === actor)); el(a + '-frame').hidden = a !== actor; }
   el('receiver-tools').hidden = actor !== 'receiver';
   el('journey').textContent = actor === 'sender'
-    ? '先选一条问题，保存方案或选择「猫猫研判」；再用「通知成员接手」邀请 alice。'
+    ? '先选一条问题，查看自动分类，或选择「猫猫研判」补充分析；再用「通知成员接手」邀请 alice。'
     : '接收端会自动补收邀请。填写下方说明并发送回执，随后切回发送端查看；通知不会自动替你接手。';
   if (latest) render(latest);
 }

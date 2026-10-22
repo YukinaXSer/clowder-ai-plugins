@@ -64,13 +64,13 @@ export function TeamIssuePanel({ host, profile, fact, category, onRead }: {
   const available = !!selectedCat && selectedCat.available !== false;
   const configured = !!summary?.settings.analysisThreadId && available && !summary?.configurationError;
   return <section className={styles.panel} aria-label="团队研判">
-    <header><h3>研判方式</h3><button type="button" disabled={busy || !supported} onClick={() => void act(() => load(row?.id))}>刷新团队结果</button></header>
+    <header><h3>分析与派工</h3><button type="button" disabled={busy || !supported} onClick={() => void act(() => load(row?.id))}>刷新团队结果</button></header>
     <div className={styles.modes} role="group" aria-label="研判方式">
       <button type="button" aria-pressed={mode === 'manual'} onClick={() => setMode('manual')}>人工研判</button>
       <button type="button" aria-pressed={mode === 'cat'} onClick={() => setMode('cat')}>猫猫研判</button>
     </div>
     {error && <p role="alert">{mode === 'manual' ? '团队联动暂不可用，人工研判仍可保存。' : ''}{error}</p>}
-    {mode === 'manual' ? <p className={styles.muted}>在下方填写分类标记、方案和分析证据，再保存本仓记录。人工研判无需选择猫猫。</p> : <>
+    {mode === 'manual' ? <p className={styles.muted}>已有分类可直接用于派工；需要时在上方调整或补充分析。无需逐项填表。</p> : <>
       {!supported ? <p>此来源暂不支持猫猫研判，可切回人工研判。</p> : <>
         <p className={styles.muted}>从本猫咖已配置的成员中选择分析猫猫，确认后发送研判任务。</p>
         {summary?.configurationError && <p>{summary.configurationError}</p>}
@@ -112,7 +112,7 @@ export function TeamIssuePanel({ host, profile, fact, category, onRead }: {
         <TeamRecordView row={row} />
         <TeamRecovery key={`${row.id}:${row.revision}`} host={host} row={row} busy={busy}
           act={work => act(async () => { await work(); await load(row.id); })} />
-        {row.kind === 'analysis' && row.analysis && <details open>
+        {row.kind === 'analysis' && row.analysis && <details>
           <summary>人工反馈</summary>
           {row.feedback && <p>{({ accepted: '已采纳', corrected: '已修正', rejected: '已拒绝' })[row.feedback.verdict]} · {row.feedback.reason}</p>}
           <label>反馈理由<textarea aria-label="反馈理由" maxLength={1000} value={reason} onChange={event => setReason(event.target.value)} /></label>

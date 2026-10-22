@@ -24,10 +24,9 @@ import { CoordinationLinks, type RelationCandidate } from './CoordinationLinks';
 import { CoordinationReading } from './CoordinationReading';
 import { CoordinationSourceStatus, CoordinationSources } from './CoordinationSources';
 import styles from './coordination.module.css';
-import { IssueClassificationResults } from './IssueClassifications';
+import { classificationTags, IssueClassificationResults } from './IssueClassifications';
 import { IssueSourceState, IssueSourceStateFilter, matchesSourceState } from './IssueSourceState';
 
-const verified = { pending: '待验证', failed: '仍可复现', passed: '已记录验证通过' };
 const version = (f: IssueSourceFact) => f.reviewVersion ?? f.contentVersion ?? f.updatedAt;
 export function CoordinationWorkbench({
   host,
@@ -129,6 +128,7 @@ export function CoordinationWorkbench({
   const visible = categorized.filter((r) => matchesSourceState(r.fact, sourceState));
   const groups = issueCategoryCounts(scoped);
   const row = rows.find((r) => r.key === selected);
+  const classification = row && issueClassificationFor(row.source, row.fact);
   useEffect(() => {
     if (!selected && rows[0]) setSelected(rows[0].key);
   }, [selected, rows[0]?.key]);
@@ -136,7 +136,9 @@ export function CoordinationWorkbench({
     ? (drafts[row.key] ?? {
         ...(row.saved ?? {
           revision: 0,
-          value: newInvestigation(row.ref, row.fact.title, version(row.fact), row.source.preference.value),
+          value: { ...newInvestigation(row.ref, row.fact.title, version(row.fact), row.source.preference.value),
+            module: classification?.labels.area.join('、') ?? '',
+            tags: classification ? classificationTags(classification).join('；') : '' },
         }),
         dirty: false,
       })
@@ -146,7 +148,7 @@ export function CoordinationWorkbench({
     title: r.fact.title,
     source: r.source.preference.value.name,
     version: version(r.fact),
-    verification: verified[r.saved?.value.verification ?? 'pending'],
+    verification: issueCategory(r).label,
     state: r.fact.state === 'CLOSED' ? '来源已关闭' : r.fact.state === 'OPEN' ? '来源开放' : '来源暂不可用',
   }));
   async function save() {
@@ -309,7 +311,7 @@ export function CoordinationWorkbench({
                   {issueCategory(r).key === 'feature' ? ` · ${issueFeatureBindings(r.fact).join('、')}` : ''}
                 </span>
                 <span className={styles.muted}>
-                  本仓 · {verified[r.saved?.value.verification ?? 'pending']}
+                  {r.saved ? '有本地分析记录' : '分类分析与派工'}
                   {drafts[r.key]?.dirty ? ' · 未保存' : ''}
                 </span>
               </button>
@@ -372,7 +374,6 @@ export function CoordinationWorkbench({
               </section>
               <ColumnSeparator {...columns.notes} />
               <section id={columns.notes.controls} className={styles.inspector} aria-label="本仓研判">
-                {issueTools?.(row.source.profile, row.fact, issueCategory(row).label)}
                 {current.dirty && row.saved && row.saved.revision !== current.revision && (
                   <details className={styles.notice} open>
                     <summary>其他页面已保存新版本，请核对差异</summary>
@@ -388,7 +389,7 @@ export function CoordinationWorkbench({
                 )}
                 <CoordinationEditor
                   subject={`${row.source.preference.value.name} #${row.fact.number} · ${row.fact.title}`}
-                  classification={issueClassificationFor(row.source, row.fact)}
+                  classification={classification}
                   featureBindings={issueFeatureBindings(row.fact)}
                   sourceUpdatedAt={row.fact.updatedAt}
                   value={current.value}
@@ -398,6 +399,7 @@ export function CoordinationWorkbench({
                   dirty={current.dirty}
                   error={saveError}
                 />
+                {issueTools?.(row.source.profile, row.fact, issueCategory(row).label)}
               </section>
             </>
           ) : (

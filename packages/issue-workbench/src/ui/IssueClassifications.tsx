@@ -14,7 +14,7 @@ import { IssueSourceState, matchesSourceState } from './IssueSourceState';
 
 const facets = { area: '模块', kind: '类型', symptom: '表现', environment: '环境' } as const;
 const facetKeys = Object.keys(facets) as (keyof typeof facets)[];
-const tagsFor = (result: IssueClassification) =>
+export const classificationTags = (result: IssueClassification) =>
   facetKeys.flatMap((facet) => result.labels[facet].map((label) => `${facets[facet]}：${label}`));
 
 function ClassificationFacets({ result }: { result: IssueClassification }) {
@@ -33,38 +33,24 @@ function ClassificationFacets({ result }: { result: IssueClassification }) {
 export function IssueClassificationCandidate({
   result,
   sourceUpdatedAt,
-  tags,
-  changeTags,
   featureBindings = [],
 }: {
   result?: IssueClassification;
   sourceUpdatedAt: string;
-  tags: string;
-  changeTags: (value: string) => void;
   featureBindings?: string[];
 }) {
   if (featureBindings.length)
     return <p className={styles.explanation}>已按 {featureBindings.join('、')} 归类，随 Feature 处理。</p>;
-  if (!result) return <p className={styles.meta}>这条问题尚无本批分类结果。</p>;
-  const existing = new Set(tags.split(/[,，;；\n]/).map((tag) => tag.trim()));
-  const missing = tagsFor(result).filter((tag) => !existing.has(tag));
+  if (!result) return <p className={styles.meta}>尚无自动分类。可请猫分析，也可直接补充判断后派工。</p>;
   return (
-    <section className={styles.candidate} aria-label="模型候选分类">
-      <h4>模型候选分类</h4>
+    <section className={styles.candidate} aria-label="自动分类结果">
+      <h4>自动分类结果</h4>
       <p className={styles.meta}>
-        初始候选 · {result.model} · {result.generatedAt.slice(0, 10)}
+        {result.model} · {result.generatedAt.slice(0, 10)}
       </p>
       {sourceUpdatedAt !== result.source.updatedAt && <p className={styles.stale}>来源已更新，候选需要重新核对。</p>}
       <ClassificationFacets result={result} />
       <p className={styles.evidence}>依据：{result.evidence}</p>
-      <button
-        type="button"
-        disabled={!missing.length}
-        onClick={() => changeTags([tags.trim(), ...missing].filter(Boolean).join('；'))}
-      >
-        {missing.length ? '加入本地标记草稿' : '已在本地标记中'}
-      </button>
-      <p className={styles.meta}>可修改后保存本仓记录；来源标签保持独立。</p>
     </section>
   );
 }
@@ -236,7 +222,7 @@ export function IssueClassificationResults({
             </button>
           )}
         </div>
-        <footer className={styles.footer}>点击问题标题进入研判，可将候选加入本地草稿，再由你保存。</footer>
+        <footer className={styles.footer}>点击问题查看分类分析与派工；自动结果已展示，只有调整时才需要保存。</footer>
       </dialog>
     </>
   );

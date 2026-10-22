@@ -13,9 +13,10 @@ export const grants = ['messaging.send', 'plugin.config.read', 'plugin.state.get
 const owner = 'issue-sandbox-owner';
 
 /** Isolated composition only. No live Host auth, ports, config, or data are used. */
-export async function sandboxRuntime({ root, hostRoot, archive, settings }) {
+export async function sandboxRuntime({ root, hostRoot, archive, settings, allowArchiveUpgrade = false }) {
   assert.ok(hostRoot && archive, 'Set compiled Host root and exact plugin archive');
   hostRoot = resolve(hostRoot); archive = resolve(archive);
+  const archiveIntegrity = 'sha512-' + createHash('sha512').update(await readFile(archive)).digest('base64');
   const originalCwd = process.cwd();
   const sourceStatus = () => execFileSync('git', ['status', '--porcelain'], { cwd: hostRoot, encoding: 'utf8' });
   const before = sourceStatus();
@@ -120,14 +121,21 @@ export async function sandboxRuntime({ root, hostRoot, archive, settings }) {
     const host = { runtime, manager, app, messages, threads, thread, wakes, schedules, detail, configure, enable, request, action, native,
       close: async () => { await app.close(); await runtime.shutdown('sandbox_shutdown'); hosts.delete(host); } };
     hosts.add(host);
-    if (!(await runtime.inventoryStore.snapshot()).instances.some(i => i.pluginId === pluginId)) {
+    const installed = (await runtime.inventoryStore.snapshot()).instances.find(i => i.pluginId === pluginId);
+    if (!installed) {
       await manager.install({ source: { kind: 'local-archive', path: archive } });
       await configure({ repositories: 'fixture/repo', teamOrganization: 'fixture-org', analysisCatId: catId,
         analysisThreadId: thread.id, automaticAssignment: false, dispatchMode: 'invitation',
         inboxCatId: catId, inboxThreadId: thread.id, receiveAssignments: name === 'receiver', shareProgress: true });
       await enable(true);
     } else {
-      await runtime.recoverAfterRestart(); await runtime.lifecycle.drainRestartRecovery();
+      if (installed.packageDigest !== archiveIntegrity) {
+        assert.ok(allowArchiveUpgrade, 'Installed sandbox archive differs from its pin; explicit upgrade is required');
+        // Host replacement preserves instance identity, configuration and private state.
+        await manager.install({ source: { kind: 'local-archive', path: archive } });
+      } else {
+        await runtime.recoverAfterRestart(); await runtime.lifecycle.drainRestartRecovery();
+      }
     }
     return host;
   }

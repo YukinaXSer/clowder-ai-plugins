@@ -1,3 +1,4 @@
+import { expandSection } from './helpers/expand-section.mjs';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { mkdir, mkdtemp, rm } from 'node:fs/promises';
@@ -51,6 +52,7 @@ test('packed columns: drag, keyboard, persistence, container resize and retained
   await page.reload(); await reading.waitFor();
   assert.ok(Math.abs(await width(queue) - changed.queue) < 2);
   assert.ok(Math.abs(await width(notes) - changed.notes) < 2);
+  await expandSection(page, '调整分类（可选）');
   await page.getByLabel('本地标记', { exact: true }).fill('调整布局保留的草稿');
   // A narrow embedded panel must adapt even when the outer browser stays wide.
   const container = async value => {
@@ -94,10 +96,10 @@ test('packed columns: drag, keyboard, persistence, container resize and retained
   await page.getByRole('button', { name: '研判', exact: true }).click();
   assert.equal(await page.getByLabel('本地标记', { exact: true }).inputValue(), '调整布局保留的草稿');
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
-  const save = await page.getByRole('button', { name: '保存本仓记录', exact: true }).boundingBox();
+  const save = await page.getByRole('button', { name: '保存分析', exact: true }).boundingBox();
   assert.ok(save && save.y >= 0 && save.y + save.height <= 844);
   await page.screenshot({ path: 'artifacts/columns-2026-10-21/mobile.png' });
-  await page.getByRole('button', { name: '保存本仓记录', exact: true }).click();
+  await page.getByRole('button', { name: '保存分析', exact: true }).click();
   await page.waitForFunction(() => document.querySelector('button[type="submit"]')?.disabled);
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.evaluate(() => localStorage.setItem('issue-workbench:columns:v1', '{broken'));

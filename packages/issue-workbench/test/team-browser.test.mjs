@@ -1,3 +1,4 @@
+import { expandSection } from './helpers/expand-section.mjs';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { mkdtemp, mkdir, rm } from 'node:fs/promises';
@@ -72,13 +73,14 @@ test('packed workbench: owner click, cat result, feedback, stale source and deni
   await page.getByText('分配与公开记录已写入 GitHub', { exact: true }).waitFor();
   assert.deepEqual(s.writes, ['alice']);
   await modes.getByRole('button', { name: '猫猫研判', exact: true }).click();
-  await page.getByLabel('本仓方案', { exact: true }).fill('人工保留的研判草稿');
+  await expandSection(page, '补充分析（可选）');
+  await page.getByLabel('分析备注', { exact: true }).fill('人工保留的研判草稿');
   await page.getByLabel('分析猫猫', { exact: true }).selectOption('receiver');
   await modes.getByRole('button', { name: '人工研判', exact: true }).click();
-  assert.equal(await page.getByLabel('本仓方案', { exact: true }).inputValue(), '人工保留的研判草稿');
+  assert.equal(await page.getByLabel('分析备注', { exact: true }).inputValue(), '人工保留的研判草稿');
   assert.equal(s.sends.size, 0, 'changing mode never dispatches an analysis');
   const manualSaved = page.waitForResponse(response => response.url().endsWith('/work'));
-  await page.getByRole('button', { name: '保存本仓记录', exact: true }).click();
+  await page.getByRole('button', { name: '保存分析', exact: true }).click();
   assert.ok((await manualSaved).ok());
   await modes.getByRole('button', { name: '猫猫研判', exact: true }).click();
   const originalCats = s.context.threads.getCats;
@@ -111,7 +113,7 @@ test('packed workbench: owner click, cat result, feedback, stale source and deni
   // Results arrive automatically; no refresh button is required to classify.
   await page.getByText('9 / 10', { exact: true }).waitFor();
   await page.getByText('当前分类：runtime', { exact: true }).waitFor();
-  await page.getByRole('region', { name: '模型候选分类', exact: true }).waitFor();
+  await page.getByRole('region', { name: '自动分类结果', exact: true }).waitFor();
   await page.getByLabel('问题类别', { exact: true }).selectOption('area:runtime');
   assert.equal(await page.locator('aside').getByText('runtime', { exact: true }).count(), 1);
   const member = page.getByLabel('指派给组员', { exact: true });
@@ -148,7 +150,8 @@ test('packed workbench: owner click, cat result, feedback, stale source and deni
   await page.getByText('分配与公开记录已写入 GitHub', { exact: true }).waitFor();
   await modes.getByRole('button', { name: '猫猫研判', exact: true }).click();
   assert.deepEqual(s.writes, ['alice'], 'reloading the persisted result cannot assign twice');
-  await page.getByRole('region', { name: '模型候选分类', exact: true }).waitFor();
+  await page.getByRole('region', { name: '自动分类结果', exact: true }).waitFor();
+  await expandSection(page, '人工反馈');
   await page.getByLabel('反馈理由', { exact: true }).fill('已人工复现，启动受阻');
   await page.getByRole('button', { name: '采纳研判', exact: true }).click();
   await page.getByText('反馈已保存', { exact: true }).waitFor();
@@ -223,7 +226,7 @@ test('packed workbench: owner click, cat result, feedback, stale source and deni
   s.issues[0].body += ' New information.';
   await page.getByRole('button', { name: '刷新团队结果', exact: true }).click();
   await page.getByText('原文已更新，请重新研判', { exact: true }).waitFor();
-  assert.equal(await page.getByRole('region', { name: '模型候选分类', exact: true }).count(), 0, 'stale classification leaves the shared view');
+  assert.equal(await page.getByRole('region', { name: '自动分类结果', exact: true }).count(), 0, 'stale classification leaves the shared view');
   await mkdir('artifacts/assignment-flow-2026-10-21', { recursive: true });
   await page.screenshot({ path: 'artifacts/assignment-flow-2026-10-21/desktop.png', fullPage: true });
   await page.setViewportSize({ width: 390, height: 844 });
@@ -238,13 +241,14 @@ test('packed workbench: owner click, cat result, feedback, stale source and deni
   assert.equal(await page.getByText('9 / 10', { exact: true }).count(), 0);
   await page.setViewportSize({ width: 1440, height: 1000 });
   await modes.getByRole('button', { name: '人工研判', exact: true }).click();
-  await page.getByLabel('本仓方案', { exact: true }).fill('猫猫授权不可用时，人工研判仍可独立保存');
+  await expandSection(page, '补充分析（可选）');
+  await page.getByLabel('分析备注', { exact: true }).fill('猫猫授权不可用时，人工研判仍可独立保存');
   const offlineSaved = page.waitForResponse(response => response.url().endsWith('/work'));
-  await page.getByRole('button', { name: '保存本仓记录', exact: true }).click();
+  await page.getByRole('button', { name: '保存分析', exact: true }).click();
   assert.ok((await offlineSaved).ok());
   await page.reload();
-  await page.getByLabel('本仓方案', { exact: true }).waitFor();
-  assert.equal(await page.getByLabel('本仓方案', { exact: true }).inputValue(), '猫猫授权不可用时，人工研判仍可独立保存');
+  await page.getByLabel('分析备注', { exact: true }).waitFor({ state: 'attached' });
+  assert.equal(await page.getByLabel('分析备注', { exact: true }).inputValue(), '猫猫授权不可用时，人工研判仍可独立保存');
   assert.equal(await modes.getByRole('button', { name: '人工研判', exact: true }).getAttribute('aria-pressed'), 'true');
   assert.deepEqual(errors, []);
   assert.deepEqual(s.writes, ['alice'], 'only the explicit confirmation assigns in the fixture; no real GitHub writes');

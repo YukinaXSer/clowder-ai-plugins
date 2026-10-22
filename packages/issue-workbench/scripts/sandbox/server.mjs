@@ -24,7 +24,7 @@ export async function prepareSandboxRoot(root, hostRoot) {
   }
 }
 
-export async function startSandbox({ root, hostRoot, archive, port = 0, automatic = true }) {
+export async function startSandbox({ root, hostRoot, archive, port = 0, automatic = true, allowArchiveUpgrade = false }) {
   assert.ok(root && hostRoot && archive, 'Explicit isolated data root, compiled Host and archive are required');
   root = resolve(root); hostRoot = resolve(hostRoot); archive = resolve(archive);
   await prepareSandboxRoot(root, hostRoot);
@@ -58,8 +58,8 @@ export async function startSandbox({ root, hostRoot, archive, port = 0, automati
   try {
     const digest = createHash('sha256').update(await readFile(archive)).digest('hex');
     const marker = await jsonRead(join(root, 'sandbox.json'));
-    assert.ok(!marker.archiveDigest || marker.archiveDigest === digest, 'Retained data belongs to a different archive; reuse its pinned package or choose a new empty sandbox directory');
-    await atomicJson(join(root, 'sandbox.json'), { ...marker, archiveDigest: digest, archive });
+    assert.ok(!marker.archiveDigest || marker.archiveDigest === digest || allowArchiveUpgrade,
+      'Retained data belongs to a different archive; reuse its pinned package or explicitly upgrade this isolated sandbox');
     await persist();
     if (!await exists(githubFile)) await atomicJson(githubFile, { login: 'bob', calls: [], comments: [], timeline: [], issues: [
       { node_id: 'I_sandbox_1', number: 1, title: '启动后工作台一直加载', body: '打开工作台后一直显示加载中，无法继续处理问题。刷新也没有恢复。', author: 'alice' },
@@ -70,8 +70,10 @@ export async function startSandbox({ root, hostRoot, archive, port = 0, automati
     const bin = join(root, 'bin'); await mkdir(bin, { recursive: true });
     await writeFile(join(bin, 'gh'), '#!' + process.execPath + '\n' + await readFile(new URL('../../test/helpers/host-github-fixture.mjs', import.meta.url), 'utf8'));
     await chmod(join(bin, 'gh'), 0o700); process.env.PATH = bin + ':' + process.env.PATH; process.env.ISSUE_HOST_TEST_GITHUB = githubFile;
-    runtime = await sandboxRuntime({ root, hostRoot, archive, settings });
+    runtime = await sandboxRuntime({ root, hostRoot, archive, settings, allowArchiveUpgrade });
     for (const actor of Object.keys(actors)) hosts[actor] = await asActor(actor, () => runtime.createHost(actor));
+    // Advance the pin only after both real Host instances admit the replacement.
+    await atomicJson(join(root, 'sandbox.json'), { ...marker, archiveDigest: digest, archive });
     // Admission validates the original archive before its UI assets are extracted.
     const unpacked = join(root, 'archives', digest); await mkdir(unpacked, { recursive: true });
     if (!await exists(join(unpacked, 'package/package.json'))) execFileSync('tar', ['-xzf', archive, '-C', unpacked]);

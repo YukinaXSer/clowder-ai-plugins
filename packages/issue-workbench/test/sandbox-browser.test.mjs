@@ -1,3 +1,4 @@
+import { expandSection } from './helpers/expand-section.mjs';
 import assert from 'node:assert/strict';
 import { mkdir, mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -20,16 +21,17 @@ test('manual sandbox: persistent authored plan, simulated analysis and explicit 
   await page.getByText('隔离模拟试用', { exact: true }).waitFor();
   const sender = page.frameLocator('#sender-frame');
   const plan = '用户亲手写入的方案 sentinel-83c9：先复现再讨论。';
-  await sender.getByLabel('本仓方案', { exact: true }).fill(plan);
+  await expandSection(sender, '补充分析（可选）');
+  await sender.getByLabel('分析备注', { exact: true }).fill(plan);
   try {
-    const [saved] = await Promise.all([page.waitForResponse(r => r.url().endsWith('/work')), sender.getByRole('button', { name: '保存本仓记录', exact: true }).click()]);
+    const [saved] = await Promise.all([page.waitForResponse(r => r.url().endsWith('/work')), sender.getByRole('button', { name: '保存分析', exact: true }).click()]);
     assert.ok(saved.ok());
   } catch (e) {
     await page.screenshot({ path: join(output, 'save-failure.png'), fullPage: true });
     t.diagnostic(await sender.locator('body').innerText()); throw e;
   }
   await page.reload();
-  assert.equal(await sender.getByLabel('本仓方案', { exact: true }).inputValue(), plan);
+  assert.equal(await sender.getByLabel('分析备注', { exact: true }).inputValue(), plan);
   await sender.getByRole('button', { name: '猫猫研判', exact: true }).click();
   await sender.getByRole('button', { name: '请猫分析', exact: true }).click();
   await sender.getByText('已发送，等待研判', { exact: true }).waitFor();

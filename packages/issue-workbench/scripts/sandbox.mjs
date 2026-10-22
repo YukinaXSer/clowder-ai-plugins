@@ -21,6 +21,6 @@ if (!archive) {
   writeFileSync(join(output, 'pack.json'), JSON.stringify(pack, null, 2)); archive = join(output, pack.filename);
 }
 const app = await startSandbox({ root, hostRoot: process.env.ISSUE_WORKBENCH_HOST_ROOT, archive,
-  port: Number(process.env.PORT ?? 5200) });
+  port: Number(process.env.PORT ?? 5200), allowArchiveUpgrade: process.env.ISSUE_WORKBENCH_SANDBOX_UPGRADE === '1' });
 console.log('Interactive Issue sandbox: ' + app.url + '; persistent data: ' + root);
 for (const signal of ['SIGTERM', 'SIGINT']) process.once(signal, async () => { await app.close(); process.exit(0); });

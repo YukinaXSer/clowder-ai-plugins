@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
-import { mkdtemp } from 'node:fs/promises';
+import { spawn, execFileSync } from 'node:child_process';
+import { mkdtemp, appendFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -80,6 +80,19 @@ test('interactive sandbox retains real plugin state across two accounts and sepa
   assert.equal((await action('receiver', 'summary', { kind: 'inbox' })).rows[0].id, inbox[0].id);
   assert.equal((await action('receiver', 'get', { id: inbox[0].id })).sharedReceipts[0].summary, 'A stranger accepts 47b2');
   assert.equal((await action('sender', 'get', { id: job.id })).analysis.score, 9);
+  // A deliberately derived local test archive exercises same-version replacement.
+  // This fixture is not represented as the shipped candidate's byte identity.
+  const replacement = await mkdtemp(join(tmpdir(), 'issue-sandbox-upgrade-'));
+  execFileSync('tar', ['-xzf', options.archive, '-C', replacement]);
+  await appendFile(join(replacement, 'package/README.md'), '\nSandbox replacement test fixture.\n');
+  const nextArchive = join(replacement, 'replacement.tgz');
+  execFileSync('tar', ['-czf', nextArchive, '-C', replacement, 'package']);
+  await app.close();
+  await assert.rejects(launchSandbox({ ...options, archive: nextArchive }), /different archive/);
+  app = await launchSandbox({ ...options, archive: nextArchive, allowArchiveUpgrade: true });
+  assert.equal((await readWork('sender'))[0].value.patch, savedPlan);
+  assert.equal((await action('sender', 'get', { id: job.id })).analysis.score, 9);
+  assert.equal((await action('receiver', 'get', { id: inbox[0].id })).sharedReceipts[0].summary, 'A stranger accepts 47b2');
   await control({ action: 'mode', value: 'failure' });
   const failure = await action('sender', 'analyze', { repo: 'fixture/repo', number: 2, requestId: 'failed-cat' });
   assert.equal(failure.status, 'pending');

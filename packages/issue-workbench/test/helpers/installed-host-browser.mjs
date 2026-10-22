@@ -1,3 +1,4 @@
+import { expandSection } from './expand-section.mjs';
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -33,12 +34,13 @@ export async function verifyInstalledHostBrowser({ root, unpacked, sender, githu
     const errors = []; page.on('pageerror', error => errors.push(error.message));
     await page.goto('http://127.0.0.1:' + server.address().port);
     await page.getByRole('region', { name: '团队研判' }).getByText('GitHub 组织：fixture-org · 2 位成员', { exact: true }).waitFor();
-    await page.getByLabel('本仓方案', { exact: true }).fill('Isolated Host integration: keep this owner-authored plan.');
+  await expandSection(page, '补充分析（可选）');
+    await page.getByLabel('分析备注', { exact: true }).fill('Isolated Host integration: keep this owner-authored plan.');
     const saved = page.waitForResponse(response => response.url().endsWith('/work'));
-    await page.getByRole('button', { name: '保存本仓记录', exact: true }).click();
+    await page.getByRole('button', { name: '保存分析', exact: true }).click();
     assert.ok((await saved).ok());
     await page.reload();
-    assert.equal(await page.getByLabel('本仓方案', { exact: true }).inputValue(), 'Isolated Host integration: keep this owner-authored plan.');
+    assert.equal(await page.getByLabel('分析备注', { exact: true }).inputValue(), 'Isolated Host integration: keep this owner-authored plan.');
     const wakes = sender.wakes.length;
     await page.getByRole('group', { name: '研判方式', exact: true }).getByRole('button', { name: '猫猫研判', exact: true }).click();
     await page.getByRole('button', { name: '请猫分析', exact: true }).click();

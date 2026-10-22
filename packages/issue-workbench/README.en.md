@@ -41,8 +41,10 @@ Host provides that authorized route; opening the preview does not install a modu
 
 Open an Issue and choose its `研判方式`:
 
-- `人工研判` (initial view): fill in local tags, solution and evidence below,
-  then click `保存本仓记录`. This works independently of cat/organization access.
+- `人工研判` (initial view): read existing automatic classification and evidence first.
+  Expand `调整分类（可选）` or `补充分析（可选）` only when needed, then click
+  `保存分析`. New correction drafts use the automatic result; existing manual records
+  remain intact. Local repair, branch and verification forms are no longer part of this flow.
 - `猫猫研判`: choose `分析猫猫` from this café's configured Host members,
   then click `请猫分析`. The list includes members not yet in the configured
   analysis thread; unavailable members remain visible but cannot receive a task.
@@ -74,10 +76,9 @@ shows each result and its separate assignment state; completed classification do
 not mean assigned, accepted or repaired. This path needs the same authorized Host
 connection as single-issue cat analysis; it is not available in a READ-only preview.
 
-For source configuration, open `管理来源与代码基线` in the header. Enable an
-already bound repository, set its display name and default branch, then save.
-The optional code baseline is used for local verification; it does not filter the
-repository's Issue list. Repository connections are supplied by the Host. This
+For source configuration, open `管理来源` in the header. Enable an already bound
+repository and set its display name. Existing branch/baseline values are preserved
+without requiring them in the analysis workflow. Repository connections are supplied by the Host. This
 preview does not yet provide a form to add a repository or configure the team module.
 
 Set **teamOrganization** to a GitHub Organization name or profile URL, for example
@@ -190,10 +191,10 @@ stamp; source labels and authored local records are not overwritten.
 ### Multi-source investigation (pre-SDK)
 
 `mountCoordination(element, host)` adds an aggregate lightweight queue, independently
-configured source preferences, manual issue relations and per-repository remediation
-records. Source open/closed, local investigation and manually recorded verification
-are separate; closing an upstream issue never verifies its downstream counterpart.
-Label suggestions remain local drafts. There are no automatic remote writes, model
+configured source preferences, manual issue relations and per-repository analysis
+records. Classification results are displayed first; optional corrections and notes
+support assignment. Historical repair fields remain readable and are preserved.
+Source state and local analysis stay separate. There are no automatic remote writes, model
 requests, code merges or cat dispatches. Internal evidence is not copied into public
 tasks. Source prose is shown as text without fetching remote images.
 
@@ -212,8 +213,8 @@ ISSUE_COORDINATION_DATA_DIR=/absolute/isolated/issue-coordination PORT=5196 pnpm
 ```
 
 Open `http://localhost:5196`. Manage the two clearly marked synthetic sources, select
-an issue, save a per-repo plan, link its counterpart, and record baseline + verification
-evidence independently. Reload to recover the saved work. The supplied loopback Host
+an issue, inspect its classification, optionally save a correction or analysis note,
+and link its counterpart. Reload to recover the saved work. The supplied loopback Host
 is for acceptance only; production installation must provide real owner authorization.
 Its source registry is supplied by the Host, not an arbitrary URL/token form.
 
@@ -233,8 +234,8 @@ text. Unknown/unavailable sources have neutral labels. The single-source view us
 the same badges. In the multi-source queue, `全部 / Open / Closed` filters include
 counts within the current category, source and search; `其他状态` appears when
 needed. Switching state preserves investigation drafts.
-These are source-platform states. A Closed issue does not imply this repository's
-fix has been verified; local verification remains separately labeled `本仓`.
+These are source-platform states. A Closed issue does not imply that a local analysis
+or assignment is complete. This workbench does not manage local repairs.
 
 Use `按类别查看` in the issue queue, or click `分类结果` in the GitHub preview header. Open
 `http://localhost:5196/?legacy=1&classifications=1` to show the overview immediately.
@@ -244,9 +245,10 @@ primary classification (including four insufficient-information items in `待澄
 The overview shows category counts, title/number search, open/closed filters and
 Feature subgroups. It initially renders 40 results; `显示更多问题` loads the next
 40 from the same filtered set. Selecting a category in the queue opens its first issue.
-Select an issue in the overview to open its candidate card. Click
-`加入本地标记草稿`, edit the tags if needed, then `保存本仓记录` to retain them.
-Existing tags are preserved; copying a candidate alone does not save or write to GitHub.
+Select an issue to read its automatic classification and evidence immediately.
+Only open `调整分类（可选）` and click `保存分析` when correcting it.
+No copy-to-draft step or repair form is required. Existing manual tags and historical
+repair records remain intact; reading a result does not save or write to GitHub.
 
 The active public dataset lives in [data/first-classification.v1.json](data/first-classification.v1.json),
 ships inside the tgz and is loaded by the example Host only for the matching public
@@ -369,6 +371,13 @@ switch between panes. Resizing preserves unsaved inputs and independent scrollin
 small render/CSS integration when reproducing the frozen Core slice. The source
 commit and input hashes remain unchanged; `sync-state.json` records the adapted
 output hashes. This does not change Core or claim the SDK/Host cutover is complete.
+
+The classification-first flow is another explicit plugin-side delta:
+`scripts/triage-adapter.mjs` applies the reviewed replacements in `triage-adapter.json`
+after the existing layout/team adapters. All 39 mapped files remain reproducible
+from the unchanged Core cut; only the six affected output hashes change. A changed
+source seam still requires reconciliation. No Host edit or sync-policy retirement
+is needed for this UI adjustment.
 
 ## Fixed optimization-sync workflow
 

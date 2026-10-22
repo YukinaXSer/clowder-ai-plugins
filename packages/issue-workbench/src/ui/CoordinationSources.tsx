@@ -13,9 +13,9 @@ export function CoordinationSources({
 }) {
   return (
     <details className={styles.configuration}>
-      <summary>管理来源与代码基线</summary>
+      <summary>管理来源</summary>
       <div className={styles.configurationPanel}>
-        <p>选择宿主已授权的仓库，分别填写目标分支及基线。添加新站点需先由宿主配置连接；这里不保存令牌。</p>
+        <p>管理已授权来源的名称和读取状态。添加新站点需先由宿主配置连接。</p>
         {sources.map((source) => (
           <SourceForm
             key={source.profile.id + ':' + source.preference.revision}
@@ -73,9 +73,9 @@ function SourceForm({
       </label>
       <span className={styles.muted}>{source.profile.instance}</span>
       <div className={styles.fields}>
-        {(['name', 'branch', 'base'] as const).map((key, n) => (
+        {(['name'] as const).map((key) => (
           <label key={key}>
-            {['显示名称', '默认分支', '默认代码基线'][n]}
+            显示名称
             <input value={value[key]} onChange={(e) => setValue({ ...value, [key]: e.target.value })} />
           </label>
         ))}
