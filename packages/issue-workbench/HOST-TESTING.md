@@ -51,6 +51,16 @@ It stops only its own server. The test `gh` executable rejects unknown operation
 and never falls back to your authenticated CLI. No real Issue comment, assignment,
 member task or model invocation is made.
 
+The composition's `native()` helper supplies a fixture caller context; it does
+not prove that a real model can reach those tools. The package therefore also
+declares `issue-team-native` with its bundled `dist/team-mcp.js` entrypoint.
+`test/native-mcp.test.mjs` launches that stdio process, checks all nine declared
+tools against the manifest and verifies per-call credential rotation and denial.
+The artifact test repeats it against the independently installed archive. A full
+Host acceptance must additionally observe `/api/plugin-runtime/action` with the
+real invocation identity and a persisted analysis result; Manager tool calls alone
+do not establish a conversation caller.
+
 ## What still needs real acceptance
 
 The default Host policy is tested separately: the canonical archive is admitted,

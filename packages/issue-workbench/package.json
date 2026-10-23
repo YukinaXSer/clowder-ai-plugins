@@ -57,12 +57,14 @@
     "preview": "node scripts/preview.mjs",
     "check:manifest": "node scripts/check-manifest.mjs",
     "test:team": "node --import tsx --test test/team*.test.ts",
+    "test:native": "node --test test/native-mcp.test.mjs",
     "test:host": "node scripts/test-installed-host.mjs",
     "preview:sandbox": "node scripts/sandbox.mjs",
     "test:sandbox": "node --test test/sandbox.test.mjs test/sandbox-browser.test.mjs"
   },
   "devDependencies": {
     "@clowder-ai/plugin-sdk": "workspace:0.2.0-beta.21",
+    "@modelcontextprotocol/sdk": "1.26.0",
     "@types/node": "22.13.10",
     "@types/react": "18.3.18",
     "@types/react-dom": "18.3.5",

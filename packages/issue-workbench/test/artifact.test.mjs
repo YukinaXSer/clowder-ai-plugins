@@ -17,6 +17,15 @@ test('exact tgz installs outside the monorepo and persists source without runtim
   const consumer = join(dir,'consumer'); mkdirSync(consumer); writeFileSync(join(consumer,'package.json'),'{"type":"module"}');
   const npm = process.env.CLOWDER_ARTIFACT_NPM_CLI;
   run(npm ? process.execPath : 'npm', [...(npm ? [npm] : []),'install','--ignore-scripts','--omit=dev','--no-audit','--no-fund','--package-lock=false',tar],consumer);
+  assert.ok(entries.includes('package/dist/team-mcp.js'));
+  const nativeEnvironment = { ...process.env,
+    ISSUE_WORKBENCH_NATIVE_ENTRY: join(consumer, 'node_modules/@clowder-ai/issue-workbench/dist/team-mcp.js') };
+  delete nativeEnvironment.NODE_TEST_CONTEXT;
+  const nativeResult = execFileSync(process.execPath, ['--test', join(root, 'packages/issue-workbench/test/native-mcp.test.mjs')], {
+    cwd: consumer, encoding: 'utf8', maxBuffer: 8 * 1024 * 1024,
+    env: nativeEnvironment,
+  });
+  assert.match(nativeResult, /pass 2/);
   const seed = JSON.parse(readFileSync(join(consumer, 'node_modules/@clowder-ai/issue-workbench/data/initial-classification.v0.json'), 'utf8'));
   assert.equal(seed.suggestions.length, 12);
   assert.ok(seed.suggestions.every(item => item.status === 'proposed' && item.humanAcceptance === null));

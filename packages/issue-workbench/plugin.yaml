@@ -16,6 +16,8 @@ features:
     name: 对话研判与团队派工
     resources: []
     contributions:
+      - type: mcp
+        id: issue-team-native
       - type: tool
         id: team-inspect
       - type: tool
@@ -188,6 +190,21 @@ configuration:
         render: status
         action: { method: issue.workbench.controlClassification }
 contributions:
+  - type: mcp
+    id: issue-team-native
+    runtime:
+      transport: stdio
+      entrypoint: dist/team-mcp.js
+    actions:
+      - { method: issue.team.inspect }
+      - { method: issue.team.analyze }
+      - { method: issue.team.submit }
+      - { method: issue.team.get }
+      - { method: issue.team.list }
+      - { method: issue.team.receive }
+      - { method: issue.team.report }
+      - { method: issue.team.feedback }
+      - { method: issue.team.statistics }
   - type: webhook
     id: workbench-assets
     path: workbench/:asset
