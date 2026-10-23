@@ -167,7 +167,7 @@ export class IssueTeamRuntime {
   private current() { this.abort.signal.throwIfAborted(); this.authority?.signal?.throwIfAborted(); }
   private async authorized() { this.current(); await this.authority?.assertCurrent(); this.current(); }
   private async caller(caller?: TeamCaller): Promise<TeamCaller> {
-    if (!caller || !caller.threadId || !caller.catId || !caller.source?.sourceMessageId) throw new Error('Current Host caller context required');
+    if (!caller || !caller.threadId || !caller.catId || !caller.invocationId) throw new Error('Current Host caller context required');
     await caller.assertCurrent(); this.current(); return caller;
   }
   private async repositories(): Promise<string[]> {
@@ -292,6 +292,7 @@ export class IssueTeamRuntime {
     await this.save(row, revision); return row;
   }
   private async analyze(input: unknown, caller: TeamCaller) {
+    if (!caller.source?.sourceMessageId) throw new Error('A Host source is required for a new conversation request');
     const args = requestInput.parse(input);
     const id = hash([caller.threadId, args.repo, args.number, args.requestId]);
     const existing = await this.context.storage.get(prefix + id);
@@ -410,6 +411,12 @@ export class IssueTeamRuntime {
     const args = idInput.extend({ analysis: analysisSchema }).parse(input);
     const entry = await this.row(args.id), job = entry.value;
     if (job.kind !== 'analysis' || job.catId !== caller.catId || job.threadId !== caller.threadId) throw new Error('Analysis target does not match Host caller');
+    // Host wait-source projection is optional for a plugin-delivered turn.
+    // Its separately authenticated origin must match this exact delivery;
+    // never manufacture a primary source or treat it as owner acceptance.
+    const sourceMessageId = caller.source?.sourceMessageId ??
+      (job.messageId && caller.originTriggerMessageId === job.messageId ? job.messageId : undefined);
+    if (!sourceMessageId) throw new Error('Analysis requires its Host source or exact delivery origin');
     const issue = await this.issue(job.issue.repo, job.issue.number);
     if (issueVersion(issue) !== job.sourceVersion) throw new Error('Source changed; stale analysis cannot be applied');
     if (![issue.title, issue.body].some(text => text.includes(args.analysis.evidence))) throw new Error('Evidence must quote the current issue text');
@@ -421,7 +428,7 @@ export class IssueTeamRuntime {
     job.analysis = args.analysis; job.status = 'analyzed';
     const previousTimes = (await this.rows()).flatMap(row => row.kind === 'analysis' && row.issue.id === job.issue.id
       && row.issue.repo === job.issue.repo && row.provenance ? [row.provenance.recordedAt] : []);
-    job.provenance = { catId: caller.catId, invocationId: caller.invocationId, sourceMessageId: caller.source!.sourceMessageId,
+    job.provenance = { catId: caller.catId, invocationId: caller.invocationId, sourceMessageId,
       recordedAt: Math.max(Date.now(), ...previousTimes.map(time => time + 1)) };
     return this.assign(job, await this.save(job, entry.revision));
   }
@@ -789,6 +796,7 @@ export class IssueTeamRuntime {
         case 'receive': z.object({}).strict().parse(input); return this.inbox();
         case 'report': return this.report(input, caller);
         case 'feedback': {
+          if (!caller.source?.sourceMessageId) throw new Error('Owner feedback requires a Host source');
           const args = idInput.extend({ verdict: z.enum(['accepted', 'corrected', 'rejected']), reason: z.string().trim().min(1).max(1000) }).parse(input);
           const entry = await this.row(args.id), job = entry.value;
           if (job.kind !== 'analysis' || job.requesterKind === 'owner' || !job.analysis || job.threadId !== caller.threadId || job.requester !== caller.catId) throw new Error('Feedback requires the requesting conversation');

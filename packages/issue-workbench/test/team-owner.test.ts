@@ -44,7 +44,9 @@ test('owner workbench sends a real module request, reads the submitted result an
   assert.equal(s.sends.size, 1);
   await s.call('analyze', { repo: 'fixture/repo', number: 1, requestId: 'click-1' });
   assert.equal(s.sends.size, 1);
-  await s.active.actions['issue.team.submit']!({ id: job.id, analysis: s.analysis }, s.caller());
+  await s.active.actions['issue.team.submit']!({ id: job.id, analysis: s.analysis }, {
+    ...s.caller(), source: undefined, originTriggerMessageId: job.messageId,
+  });
   const current = await s.call('get', { id: job.id });
   assert.equal(current.data.analysis.score, 9);
   assert.equal(current.data.sourceStale, false);

@@ -100,3 +100,31 @@ test('Settings retry retains its owner authority throughout recovery without poi
     assert.deepEqual(s.writes, ['alice'], 'the saved automatic policy still authorizes a fresh scheduled run');
   } finally { await active.stop(); }
 });
+
+test('plugin-delivered analysis uses its verified invocation origin without a wait-source projection', async () => {
+  const s = setup(); s.config.automaticAssignment = false;
+  const runtime = s.runtime();
+  const job = await runtime.invoke('analyze', { repo: 'fixture/repo', number: 1, requestId: 'native-origin' }, s.caller('requester')) as any;
+  const caller = { ...s.caller(), source: undefined, originTriggerMessageId: job.messageId };
+  const detail = await runtime.invoke('get', { id: job.id }, caller) as any;
+  assert.equal(detail.id, job.id);
+  const result = await runtime.invoke('submit', { id: job.id, analysis: s.analysis }, caller) as any;
+  assert.equal(result.status, 'analyzed');
+  assert.equal(result.provenance.sourceMessageId, job.messageId);
+  assert.equal(result.provenance.invocationId, caller.invocationId);
+  assert.deepEqual(s.writes, []);
+  assert.deepEqual(s.dispatches, []);
+});
+
+test('missing wait-source cannot authorize another origin, owner feedback, or a new request', async () => {
+  const s = setup(); s.config.automaticAssignment = false;
+  const runtime = s.runtime();
+  const job = await runtime.invoke('analyze', { repo: 'fixture/repo', number: 1, requestId: 'native-origin-denial' }, s.caller('requester')) as any;
+  const caller = { ...s.caller(), source: undefined, originTriggerMessageId: 'unrelated-message' };
+  await assert.rejects(runtime.invoke('submit', { id: job.id, analysis: s.analysis }, caller), /origin|source/i);
+  await assert.rejects(runtime.invoke('analyze', { repo: 'fixture/repo', number: 1, requestId: 'invented-request' }, caller), /source/i);
+  await assert.rejects(runtime.invoke('feedback', { id: job.id, verdict: 'accepted', reason: 'not owner authority' }, caller), /source|owner/i);
+  await assert.rejects(runtime.invoke('get', { id: job.id }), /caller/i);
+  await assert.rejects(runtime.invoke('get', { id: job.id }, { ...caller, assertCurrent: async () => { throw new Error('expired'); } }), /expired/);
+  assert.equal((await runtime.invoke('get', { id: job.id }, s.caller()) as any).analysis, undefined);
+});
