@@ -9,7 +9,7 @@ export function TeamRecordView({ row }: { row: TeamRecordDetail }) {
     {row.sourceStale && <p className={styles.notice}>原文已更新，请重新研判</p>}
     <dl>
       <div><dt>优先级</dt><dd>{score == null ? '待研判' : `${score} / 10`}</dd></div>
-      <div><dt>当前负责人</dt><dd>{row.currentIssue.assignees.join('、') || '未分配'}</dd></div>
+      <div><dt>当前负责人</dt><dd>{row.currentIssue.assignees.map(login => `@${login}`).join('、') || '未认领'}</dd></div>
       <div><dt>提交者</dt><dd>{row.currentIssue.author ? `@${row.currentIssue.author}` : '无法确认'}</dd></div>
       <div><dt>工作人员组</dt><dd>{row.assignmentOptions.groupName || '尚未配置'}</dd></div>
       <div><dt>来源状态</dt><dd>{row.currentIssue.state === 'open' ? 'Open · 开放' : 'Closed · 已关闭'}</dd></div>

@@ -16,6 +16,8 @@ export interface IssueSourceFact {
   url: string;
   state: string;
   labels: string[];
+  /** Provider assignees. Undefined means not read yet; [] means unclaimed. */
+  assignees?: string[];
   updatedAt: string;
   body?: string;
   bodyHTML?: string;
@@ -68,6 +70,7 @@ export function issueSourceContent(fact: IssueSourceFact) {
     fact.title,
     fact.state,
     [...fact.labels].sort(),
+    fact.assignees ? [...fact.assignees].sort() : undefined,
     fact.body,
     fact.author,
     fact.createdAt,

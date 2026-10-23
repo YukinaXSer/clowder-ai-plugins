@@ -38,6 +38,7 @@ test('manual sandbox: persistent authored plan, simulated analysis and explicit 
   await page.getByText('模拟设置与故障恢复', { exact: true }).click();
   await page.getByRole('button', { name: '执行一次同步', exact: true }).click();
   await sender.getByText('9 / 10', { exact: true }).first().waitFor();
+  await sender.getByLabel('派工方式', { exact: true }).selectOption('invitation');
   await sender.getByRole('button', { name: '通知成员接手', exact: true }).click();
   await sender.getByRole('button', { name: '确认发送邀请', exact: true }).click();
   await sender.getByText('任务邀请已发布，等待成员接手', { exact: true }).waitFor();

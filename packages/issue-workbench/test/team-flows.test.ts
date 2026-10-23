@@ -16,6 +16,26 @@ function fixture() {
   return { ...s, call };
 }
 
+test('installed coordination exposes current GitHub claims, not invitation or historical assignment records', async () => {
+  const s = fixture(); const runtime = s.runtime();
+  const load = async () => (await s.call(runtime, 'coordination', { action: 'load' })).sources[0].issues[0];
+  assert.deepEqual((await load()).assignees, []);
+  const context = (await s.call(runtime, 'summary', { repo: 'fixture/repo', number: 1 })).issueContext;
+  const input = { repo: 'fixture/repo', number: 1, requestId: 'claim', login: 'alice', sourceVersion: context.sourceVersion };
+  await s.call(runtime, 'assignIssue', { ...input, delivery: 'invitation' });
+  assert.deepEqual((await load()).assignees, [], 'an invitation does not establish ownership');
+  await s.call(runtime, 'assignIssue', { ...input, requestId: 'mark-claim', delivery: 'assignment' });
+  assert.deepEqual((await load()).assignees, ['alice']);
+  s.issues[0].assignees = ['bob', 'carol'];
+  assert.deepEqual((await load()).assignees, ['bob', 'carol'], 'remote reassignment supersedes local history');
+  const detail = await s.call(runtime, 'coordination', { action: 'detail', ref: { sourceId: 'github:fixture/repo', issueId: 'issue-1', number: 1 } });
+  assert.deepEqual(detail.fact.assignees, ['bob', 'carol']);
+  s.issues[0].assignees = [];
+  assert.deepEqual((await load()).assignees, []);
+  assert.deepEqual(s.writes, ['alice']);
+  await runtime.stop();
+});
+
 test('integration starts one durable initial classification including closed history, resumes without duplicate messages', async () => {
   const s = fixture(); s.config.initialClassification = true;
   s.issues.push({ ...s.issues[0], id: 'closed-2', number: 2, state: 'closed', url: 'https://github.com/fixture/repo/issues/2' });

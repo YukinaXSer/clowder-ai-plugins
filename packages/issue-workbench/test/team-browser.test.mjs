@@ -29,7 +29,7 @@ test('packed workbench: owner click, cat result, feedback, stale source and deni
   binding.profile = { ...binding.profile, provider: 'github', instance: 'https://github.com', repository: 'fixture/repo', synthetic: false };
   const originalCatalog = await binding.catalog();
   const fact = () => ({ ...originalCatalog.issues[0], id: 'issue-1', number: 1,
-    title: s.issues[0].title, body: s.issues[0].body, updatedAt: s.issues[0].updatedAt, state: s.issues[0].state.toUpperCase() });
+    title: s.issues[0].title, body: s.issues[0].body, updatedAt: s.issues[0].updatedAt, state: s.issues[0].state.toUpperCase(), assignees: [...s.issues[0].assignees] });
   binding.catalog = async () => ({ ...originalCatalog, issues: [fact()] });
   binding.detail = async () => ({ fact: { ...fact(), comments: [] } });
   let granted = true, operations = 0;
@@ -61,16 +61,20 @@ test('packed workbench: owner click, cat result, feedback, stale source and deni
   assert.equal(s.sends.size, 0, 'opening an issue loads choices without waking a cat');
   await mkdir('artifacts/assignment-flow-2026-10-21', { recursive: true });
   await page.screenshot({ path: 'artifacts/assignment-flow-2026-10-21/open-issue.png', fullPage: true });
-  await page.getByLabel('派工方式', { exact: true }).selectOption('assignment');
+  assert.equal(await page.getByLabel('派工方式', { exact: true }).inputValue(), 'assignment', 'dispatch defaults to marking the GitHub owner');
+  await page.locator('aside [data-claim-state="unclaimed"]').waitFor();
   await page.getByRole('button', { name: '指派任务', exact: true }).click();
   assert.deepEqual(s.writes, [], 'opening confirmation alone cannot assign');
   await page.getByRole('button', { name: '确认指派', exact: true }).click();
   await page.getByText('分配与公开记录已写入 GitHub', { exact: true }).waitFor();
   assert.deepEqual(s.writes, ['alice'], 'direct assignment works before any cat request');
+  await page.locator('aside [data-claim-state="claimed"]').filter({ hasText: '@alice' }).waitFor();
+  assert.equal(await page.locator('aside [data-claim-state="unclaimed"]').count(), 0);
   assert.equal(s.sends.size, 0);
   assert.equal(s.dispatches[0].score, null);
   await page.reload();
   await page.getByText('分配与公开记录已写入 GitHub', { exact: true }).waitFor();
+  await page.locator('aside [data-claim-state="claimed"]').filter({ hasText: '@alice' }).waitFor();
   assert.deepEqual(s.writes, ['alice']);
   await modes.getByRole('button', { name: '猫猫研判', exact: true }).click();
   await expandSection(page, '补充分析（可选）');
@@ -222,6 +226,12 @@ test('packed workbench: owner click, cat result, feedback, stale source and deni
   assert.deepEqual(s.writes, ['alice'], 'automatic assignment is off throughout the batch');
   await page.keyboard.press('Escape');
   await page.setViewportSize({ width: 1440, height: 1000 });
+  s.issues[0].assignees = ['bob', 'carol'];
+  await page.getByRole('button', { name: '刷新团队结果', exact: true }).click();
+  await page.locator('aside [data-claim-state="claimed"]').filter({ hasText: '@bob、@carol' }).waitFor();
+  s.issues[0].assignees = [];
+  await page.getByRole('button', { name: '刷新团队结果', exact: true }).click();
+  await page.locator('aside [data-claim-state="unclaimed"]').waitFor();
   await modes.getByRole('button', { name: '猫猫研判', exact: true }).click();
   s.issues[0].body += ' New information.';
   await page.getByRole('button', { name: '刷新团队结果', exact: true }).click();
@@ -291,7 +301,8 @@ test('packed invitation: READ sender confirms, recipient cold-starts independent
   const errors = []; page.on('pageerror', error => errors.push(error.message));
   await page.goto('http://127.0.0.1:' + server.address().port);
   await page.getByLabel('派工方式', { exact: true }).waitFor();
-  assert.equal(await page.getByLabel('派工方式', { exact: true }).inputValue(), 'invitation');
+  assert.equal(await page.getByLabel('派工方式', { exact: true }).inputValue(), 'assignment');
+  await page.getByLabel('派工方式', { exact: true }).selectOption('invitation');
   await page.getByRole('button', { name: '通知成员接手', exact: true }).click();
   await page.getByRole('button', { name: '确认发送邀请', exact: true }).waitFor();
   assert.equal(s.dispatches.length, 0);
@@ -304,6 +315,8 @@ test('packed invitation: READ sender confirms, recipient cold-starts independent
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
   await page.getByRole('button', { name: '确认发送邀请', exact: true }).click();
   await page.getByText('任务邀请已发布，等待成员接手', { exact: true }).waitFor();
+  await page.locator('aside [data-claim-state="unclaimed"]').waitFor({ state: 'attached' });
+  assert.equal(await page.locator('aside [data-claim-state="claimed"]').count(), 0);
   assert.deepEqual(s.writes, []); assert.deepEqual(s.issues[0].assignees, []); assert.equal(s.dispatches.length, 1);
   await page.reload(); await page.setViewportSize({ width: 1440, height: 1000 });
   await page.getByText('任务邀请已发布，等待成员接手', { exact: true }).waitFor();

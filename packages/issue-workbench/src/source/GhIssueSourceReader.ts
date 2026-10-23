@@ -1,9 +1,11 @@
 import type { IssueSourceComment, IssueSourceFact, IssueSourceFailure, IssueSourceReadResult } from '../model/issue-source.js';
 const commentFields = 'id author { login } body createdAt updatedAt lastEditedAt url';
 const catalogFields = `id number title url state updatedAt createdAt author { login }
+  assignees(first:100) { nodes { login } pageInfo { hasNextPage } }
   labels(first:100) { nodes { name } pageInfo { hasNextPage } }
   comments { totalCount }`;
 const issueFields = `id number title url state updatedAt createdAt body author { login }
+  assignees(first:100) { nodes { login } pageInfo { hasNextPage } }
   labels(first:100) { nodes { name } pageInfo { hasNextPage } }
   comments(first:100) { totalCount nodes { ${commentFields} } pageInfo { hasNextPage endCursor } }`;
 interface Connection<T> {
@@ -14,9 +16,10 @@ interface Connection<T> {
 interface GhComment extends Omit<IssueSourceComment, 'author'> {
   author: { login: string } | null;
 }
-interface GhIssue extends Omit<IssueSourceFact, 'author' | 'labels' | 'comments'> {
+interface GhIssue extends Omit<IssueSourceFact, 'author' | 'labels' | 'comments' | 'assignees'> {
   author: { login: string } | null;
   labels: Connection<{ name: string }>;
+  assignees?: Connection<{ login: string }>;
   comments: Connection<GhComment>;
 }
 interface GhData {
@@ -122,10 +125,13 @@ export function createGhIssueSourceReader(query: GhQuery) {
           seenIssues.add(raw.number);
           try {
             if (raw.labels.pageInfo.hasNextPage) throw new Error('labels incomplete');
+            if (raw.assignees?.pageInfo.hasNextPage) throw new Error('assignees incomplete');
+            const assignees = raw.assignees?.nodes.map(member => member.login);
             if (scope === 'catalog') {
               const { author, labels, comments, body: _body, bodyHTML: _html, ...index } = raw;
               issues.push({
                 ...index,
+                assignees,
                 author: author?.login ?? '已注销用户',
                 labels: labels.nodes.map((l) => l.name).sort(),
                 commentCount: comments.totalCount,
@@ -152,6 +158,7 @@ export function createGhIssueSourceReader(query: GhQuery) {
             const { author, labels, comments: _, ...fact } = raw;
             issues.push({
               ...fact,
+              assignees,
               author: author?.login ?? '已注销用户',
               labels: labels.nodes.map((l) => l.name).sort(),
               commentCount: raw.comments.totalCount,

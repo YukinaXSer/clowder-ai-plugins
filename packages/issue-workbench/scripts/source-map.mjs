@@ -1,6 +1,7 @@
 import { columnsAdapter } from './columns-adapter.mjs';
 import { teamToolsAdapter } from './team-tools-adapter.mjs';
 import { triageAdapter } from './triage-adapter.mjs';
+import { claimAdapter } from './claim-adapter.mjs';
 const web = 'packages/web/src/components/settings/issue-workbench/';
 const api = 'packages/api/src/domains/community/';
 function once(text, from, to) {
@@ -97,4 +98,4 @@ export const mappings = [
       return text;
     }
   }))
-];
+].map(entry => ({ ...entry, transform: text => claimAdapter(entry.target.split('/').at(-1), entry.transform(text)) }));

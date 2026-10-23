@@ -44,7 +44,8 @@ export class IssueSourceService {
     const start = this.now();
     if (previous?.retryAt && Date.parse(previous.retryAt) > start) return previous;
     // Periodic complete catalogs reconcile presence/state; discussion freshness is checked separately.
-    const full = !previous?.lastFullAt || start - Date.parse(previous.lastFullAt) >= 30 * 60_000;
+    const full = !previous?.lastFullAt || start - Date.parse(previous.lastFullAt) >= 30 * 60_000
+      || previous.issues.some(fact => !fact.unavailable && fact.assignees === undefined);
     const since =
       !full && previous?.lastCompleteAt
         ? new Date(Date.parse(previous.lastCompleteAt) - 60_000).toISOString()

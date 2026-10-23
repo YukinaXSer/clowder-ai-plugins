@@ -25,7 +25,7 @@
       "source": "packages/web/src/components/settings/issue-workbench/IssueSourceState.tsx",
       "target": "src/ui/IssueSourceState.tsx",
       "sourceHash": "6c7b6b4d499b288594778b8746ff270116007369da1659929a11c4ba96f0f0b8",
-      "targetHash": "9136ee09d87ff57fa02c661503c5edad9cb35a05dcc56102d1771b35e887ef86"
+      "targetHash": "c068247ae9f369f62b1d32550fd12728602bf49920e643346b61f4b50d656ca2"
     },
     {
       "source": "packages/web/src/components/settings/issue-workbench/issue-source-state.module.css",
@@ -97,7 +97,7 @@
       "source": "packages/shared/src/issue-source.ts",
       "target": "src/model/issue-source.ts",
       "sourceHash": "97eaae80a30f9e93e7f59c66a5d5e133b12dcb4a6642a1a990d4f291b278c078",
-      "targetHash": "97eaae80a30f9e93e7f59c66a5d5e133b12dcb4a6642a1a990d4f291b278c078"
+      "targetHash": "c2f22cd4f83ed26b785a9d876b3689d4034c034577a82e4464eacf1cf3687b34"
     },
     {
       "source": "packages/api/src/domains/community/FileIssueSourceStore.ts",
@@ -109,13 +109,13 @@
       "source": "packages/api/src/domains/community/IssueSourceService.ts",
       "target": "src/source/IssueSourceService.ts",
       "sourceHash": "aa127cbe08554759e212f5d253b9bb7a3f529cab66f0fd9977e1ac5ea2d2d0f3",
-      "targetHash": "ac79996f09aac8e8fd0a61ca6efb7a10b995b227740ebc874ad7524dac2289d3"
+      "targetHash": "d0081f871c86025f57424752a633a8f461079a817f0fa4e493c5781362a1eb2f"
     },
     {
       "source": "packages/api/src/domains/community/GhIssueSourceReader.ts",
       "target": "src/source/GhIssueSourceReader.ts",
       "sourceHash": "3554baf669d2b6c75838fcbcbbf015e0378f735303d5136865337f5e468c3db9",
-      "targetHash": "94b8018d5f511ea188899aedb03c4a929d02a46d0e4009a39eee0275f34b7281"
+      "targetHash": "a9c7ed01616220467785779396e3eb69fa14b9d4ea3eeb64d6b9b256f8ee3f27"
     },
     {
       "source": "packages/web/src/components/settings/issue-workbench/IssueWorkbenchPreview.tsx",

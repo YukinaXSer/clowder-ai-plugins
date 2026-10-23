@@ -44,7 +44,7 @@ export class PluginCoordinationStore implements CoordinationStorage {
 export const sourceId = (repo: string) => 'github:' + repo;
 export const issueFact = (issue: TeamIssue) => ({ id: issue.id, number: issue.number, title: issue.title,
   state: issue.state === 'open' ? 'OPEN' as const : 'CLOSED' as const, labels: issue.labels, body: issue.body,
-  author: issue.author ?? undefined, updatedAt: issue.updatedAt ?? '', url: issue.url,
+  author: issue.author ?? undefined, assignees: [...issue.assignees], updatedAt: issue.updatedAt ?? '', url: issue.url,
   contentVersion: issueVersion(issue), reviewVersion: issueVersion(issue) });
 
 export async function readLocalWork(store: PluginCoordinationStore, issue: TeamIssue) {

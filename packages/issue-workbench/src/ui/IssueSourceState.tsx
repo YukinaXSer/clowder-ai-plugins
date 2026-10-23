@@ -1,7 +1,8 @@
 import type { IssueSourceFact } from '../model/issue-coordination.js';
 import styles from './issue-source-state.module.css';
+import { IssueClaimState } from './IssueClaimState';
 
-type StateFact = Pick<IssueSourceFact, 'state' | 'unavailable'>;
+type StateFact = Pick<IssueSourceFact, 'state' | 'unavailable' | 'assignees'>;
 export function issueSourceState(fact: StateFact) {
   if (fact.unavailable) return 'UNAVAILABLE';
   return fact.state === 'OPEN' || fact.state === 'CLOSED' ? fact.state : 'UNKNOWN';
@@ -21,6 +22,7 @@ const labels = {
 export function IssueSourceState({ fact }: { fact: StateFact }) {
   const state = issueSourceState(fact);
   return (
+    <>
     <span
       className={styles.badge}
       data-source-state={state}
@@ -46,6 +48,8 @@ export function IssueSourceState({ fact }: { fact: StateFact }) {
       </svg>
       {labels[state]}
     </span>
+    {state === 'OPEN' && <IssueClaimState assignees={fact.assignees} />}
+    </>
   );
 }
 

@@ -9,7 +9,7 @@ export function TeamAssignment({ host, context, row, busy, act }: {
 }) {
   const options = context.assignmentOptions;
   const [login, setLogin] = useState(options.preferredLogin ?? '');
-  const [delivery, setDelivery] = useState<'invitation' | 'assignment'>(row && row.kind !== 'inbox' && row.assignment ? row.assignment.delivery ?? 'assignment' : 'invitation');
+  const [delivery, setDelivery] = useState<'invitation' | 'assignment'>(row && row.kind !== 'inbox' && row.assignment ? row.assignment.delivery ?? 'assignment' : 'assignment');
   const [confirming, setConfirming] = useState(false);
   const requestId = useRef<string>();
   const record = row && row.kind !== 'inbox' && (row.kind === 'assignment' || row.analysis) ? row : undefined;
@@ -28,8 +28,8 @@ export function TeamAssignment({ host, context, row, busy, act }: {
     <label>派工方式
       <select aria-label="派工方式" value={delivery} disabled={busy || confirming || !!record?.assignment?.commentAttempted}
         onChange={event => { setDelivery(event.target.value as 'invitation' | 'assignment'); requestId.current = undefined; }}>
-        <option value="invitation">通知成员接手</option>
         <option value="assignment">设置 GitHub 负责人</option>
+        <option value="invitation">通知成员接手</option>
       </select>
     </label>
     <label>指派给组员
@@ -39,6 +39,9 @@ export function TeamAssignment({ host, context, row, busy, act }: {
         {options.members.map(member => <option key={member} value={member}>@{member}</option>)}
       </select>
     </label>
+    <p className={styles.muted}>{delivery === 'assignment'
+      ? '派工会在 GitHub Issue 的 Assignees 中标记负责人，并在 Open 列表显示认领人。'
+      : '只发送邀请，不标记已认领；认领状态仍以 GitHub 负责人为准。'}</p>
     <p className={styles.muted}>{options.basis === 'reporter'
       ? `提交者 @${options.preferredLogin} 是组员，优先交给本人及本人配置的猫猫处理。`
       : '只列出当前 GitHub 组织成员；发送时重新检查成员资格与所选操作的权限，并保留已有负责人。'}</p>

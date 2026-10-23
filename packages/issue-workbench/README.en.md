@@ -480,10 +480,16 @@ a local relation and never changes the source platforms.
 
 ### Notify a GitHub member to take a task
 
-In the existing member control, choose `通知成员接手` (default) and confirm the
+Dispatch defaults to `设置 GitHub 负责人`: after confirmation it writes the Issue's
+Assignees using the repository's assignment permission. Open Issue rows and details
+show `未认领` or `已认领` with every assignee's login. Invitations, analysis and local
+drafts do not establish ownership. Legacy snapshots show `认领状态待更新` until a
+source refresh fills the missing metadata. A verified read after dispatch updates
+the page immediately; refresh sources to pick up reassignment or removal on GitHub.
+
+In the existing member control, optionally choose `通知成员接手` and confirm the
 public invitation. This posts a task comment mentioning the member without
-changing GitHub assignees. `设置 GitHub 负责人` remains a separate choice with its
-own assignment permission. `邀请已发布` does not mean the member accepted.
+changing GitHub assignees. `邀请已发布` does not mean the member accepted or claimed it.
 
 The recipient installs/enables the candidate in a compatible Host, logs into their
 own GitHub account, saves the allowed repositories and organization, and enables
