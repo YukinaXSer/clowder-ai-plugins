@@ -39,7 +39,9 @@ Detailed test data is retained in the printed isolated temporary directory.
 | Owner actions | Real HTTP routes, localhost/owner checks, confirmation and activation fences | Injected test owner session; no production cookie/token |
 | Cat analysis and feedback | Declared native tools, Host messages, private storage, feedback statistics | Test caller identity and deterministic analysis; no model launched |
 | Classification queue | Durable queue and Host-declared schedule action | Test scheduler executes the registered action deterministically |
-| Browser usage | Exact packed UI, local plan save/reload, owner route, result refresh | Plugin-owned HTTP test bridge and READ source fixture, not a custom page installed in Host |
+| Browser usage | Packed HTML/JS/CSS through the existing Host authenticated webhook route; durable edits/history, discussion, owner actions and result refresh | Thin HTTP test listener supplies a fixture owner session; all plugin operations use real Host routes |
+| Initial classification and independent assignment | Open/Closed import once; manual classification dispatches before cat results; subsequent results preserve manual edits | Deterministic model results and network-disabled GitHub CLI |
+| Owner acceptance | Browser acceptance survives reload and Host recreation; original thread link and start instruction | No synthetic user message or claim that a notification started execution |
 | Invitations and explicit acceptance | Bundled `GhTeamProvider`, CLI arguments, protocol parsing, sender/receiver records and receipts | Network-disabled `gh` fixture; separate accounts and Redis databases |
 | Recovery and withdrawal | Recreated Host runtime, file inventory, Redis private state, retained inbox, source withdrawal, Manager disable | Thread/message stores retained in memory; not a whole machine restart |
 
@@ -58,8 +60,8 @@ composition. That fixture is not an installation or authorization mechanism for
 the running café. Do not copy it into production or identify this plugin as a
 different official plugin to obtain grants.
 
-Real installed acceptance still requires an existing supported grant path and an
-authorized workbench connection, followed by a real analysis cat and two GitHub
+Real installed acceptance still requires a supported grant path for the existing
+workbench connection, followed by a real analysis cat and two GitHub
 accounts using a designated test Issue. The receiver must explicitly accept; a
 notification is not acceptance. No Host source change is part of this test or
 required by the test instructions. `hostInstallable:false` remains the overall

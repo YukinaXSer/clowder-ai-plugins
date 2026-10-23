@@ -1,5 +1,21 @@
 # Validation record
 
+## Two independent flows and receiver entry — 2026-10-23
+
+Initial classification now includes Open/Closed history once; manual categories,
+version history and rule dispatch use one plugin storage record. Independent batch
+dispatch needs no extra model invocation. Regression tests cover late manual edits,
+paused/stopped batch fences, concurrent edits before writes, partial publication
+failure and restart deduplication. Receiver owner acceptance persists separately
+from execution; the UI supplies the original conversation and an explicit start
+instruction. GitHub discussions retain edited/deleted authors and page version checks.
+
+The packed page is actually served through the unchanged Host's authenticated
+webhook route. Browser checks cover save/reload, later cat results preserving manual
+classification, history and acceptance. Test grants/session/model/GitHub remain
+explicit fixtures. Full evidence and remaining delivery constraints:
+[two-flow record](../../docs/evidence/issue-workbench-two-flows.md).
+
 ## Unmodified Host integration — 2026-10-21
 
 The exact tarball now carries canonical `plugin.yaml`; the previous package failed

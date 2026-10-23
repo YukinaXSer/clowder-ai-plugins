@@ -584,6 +584,44 @@
           "            </>",
           "          ) : ("
         ]
+      },
+      {
+        "from": [
+          "import { issueContextFor } from '../classification/issue-context';",
+          "import type { IssueRef } from '../model/issue-coordination.js';",
+          "import { CoordinationEditor } from './CoordinationEditor';",
+          "import { CoordinationLinks, type RelationCandidate } from './CoordinationLinks';",
+          "import { CoordinationReading } from './CoordinationReading';",
+          "import { CoordinationSourceStatus, CoordinationSources } from './CoordinationSources';"
+        ],
+        "to": [
+          "import { issueContextFor } from '../classification/issue-context';",
+          "import type { IssueRef } from '../model/issue-coordination.js';",
+          "import { CoordinationEditor } from './CoordinationEditor';",
+          "import { CoordinationHistory } from './CoordinationHistory';",
+          "import { CoordinationLinks, type RelationCandidate } from './CoordinationLinks';",
+          "import { CoordinationReading } from './CoordinationReading';",
+          "import { CoordinationSourceStatus, CoordinationSources } from './CoordinationSources';"
+        ]
+      },
+      {
+        "from": [
+          "                  dirty={current.dirty}",
+          "                  error={saveError}",
+          "                />",
+          "                {issueTools?.(row.source.profile, row.fact, issueCategory(row).label)}",
+          "              </section>",
+          "            </>"
+        ],
+        "to": [
+          "                  dirty={current.dirty}",
+          "                  error={saveError}",
+          "                />",
+          "                <CoordinationHistory key={`history:${row.key}:${current.revision}`} host={host} issue={current.value.ref} />",
+          "                {issueTools?.(row.source.profile, row.fact, issueCategory(row).label)}",
+          "              </section>",
+          "            </>"
+        ]
       }
     ]
   },
@@ -1143,6 +1181,69 @@
           "export function matchesIssueCategory(row: ClassifiedIssue, category: string): boolean {",
           "  if (category === 'all') return true;"
         ]
+      },
+      {
+        "from": [
+          "  );",
+          "}",
+          "export type ClassifiedIssue = { source: CoordinationSource; fact: IssueSourceFact };",
+          "export function issueCategory({ source, fact }: ClassifiedIssue): { key: string; label: string } {",
+          "  if (fact.unavailable) return { key: 'unavailable', label: '来源暂不可用' };",
+          "  if (issueFeatureBindings(fact).length) return { key: 'feature', label: '随 Feature 处理' };",
+          "  const saved = source.work.find(work => work.value.ref.sourceId === source.profile.id && work.value.ref.issueId === fact.id)?.value.module.trim();",
+          "  const area = saved ? categoryDefinition(saved)?.label ?? '待判断' : primaryCategory(issueClassificationFor(source, fact)?.labels.area);",
+          "  return area !== '待判断' ? { key: `area:${area}`, label: area } : { key: 'unclassified', label: '待判断' };",
+          "}",
+          "export function matchesIssueCategory(row: ClassifiedIssue, category: string): boolean {"
+        ],
+        "to": [
+          "  );",
+          "}",
+          "export type ClassifiedIssue = { source: CoordinationSource; fact: IssueSourceFact };",
+          "/** Shared by rendering and assignment; a saved human value outranks cat proposals. */",
+          "export function effectiveIssueCategory(saved: string | undefined, areas: string[] = []) {",
+          "  return saved?.trim() ? categoryDefinition(saved.trim())?.label ?? '待判断' : primaryCategory(areas);",
+          "}",
+          "export function issueCategory({ source, fact }: ClassifiedIssue): { key: string; label: string } {",
+          "  if (fact.unavailable) return { key: 'unavailable', label: '来源暂不可用' };",
+          "  if (issueFeatureBindings(fact).length) return { key: 'feature', label: '随 Feature 处理' };",
+          "  const saved = source.work.find(work => work.value.ref.sourceId === source.profile.id && work.value.ref.issueId === fact.id)?.value.module.trim();",
+          "  const area = effectiveIssueCategory(saved, issueClassificationFor(source, fact)?.labels.area);",
+          "  return area !== '待判断' ? { key: `area:${area}`, label: area } : { key: 'unclassified', label: '待判断' };",
+          "}",
+          "export function matchesIssueCategory(row: ClassifiedIssue, category: string): boolean {"
+        ]
+      },
+      {
+        "from": [
+          "  fact: IssueSourceFact | null;",
+          "  error?: string;",
+          "  nextOffset?: number | null;",
+          "}",
+          "export interface CoordinationHost {",
+          "  load(refresh?: boolean): Promise<CoordinationSnapshot>;",
+          "  detail(ref: IssueRef, offset?: number, version?: string): Promise<CoordinationDetail>;",
+          "  saveWork(value: IssueInvestigation, expectedRevision: number): Promise<Versioned<IssueInvestigation>>;",
+          "  saveRelation(value: IssueRelation, expectedRevision: number): Promise<Versioned<IssueRelation>>;",
+          "  savePreference(",
+          "    sourceId: string,"
+        ],
+        "to": [
+          "  fact: IssueSourceFact | null;",
+          "  error?: string;",
+          "  nextOffset?: number | null;",
+          "  /** Discussion snapshot token when its version differs from the Issue's fields. */",
+          "  pageVersion?: string;",
+          "}",
+          "export interface CoordinationHost {",
+          "  load(refresh?: boolean): Promise<CoordinationSnapshot>;",
+          "  detail(ref: IssueRef, offset?: number, version?: string): Promise<CoordinationDetail>;",
+          "  saveWork(value: IssueInvestigation, expectedRevision: number): Promise<Versioned<IssueInvestigation>>;",
+          "  workHistory?(ref: IssueRef): Promise<Versioned<IssueInvestigation>[]>;",
+          "  saveRelation(value: IssueRelation, expectedRevision: number): Promise<Versioned<IssueRelation>>;",
+          "  savePreference(",
+          "    sourceId: string,"
+        ]
       }
     ]
   },
@@ -1212,6 +1313,107 @@
           "      if (generation.current === id)",
           "        setDetail((old) =>",
           "          [401, 403].includes((error as { status?: number }).status ?? 0)"
+        ]
+      },
+      {
+        "from": [
+          "      const next = await host.detail(",
+          "        issue,",
+          "        more ? (detail?.nextOffset ?? 0) : 0,",
+          "        more ? detail?.fact?.contentVersion : undefined,",
+          "      );",
+          "      if (generation.current !== id) return;",
+          "      if (!more) onDetail?.(issue, next.fact);",
+          "      if (more && (!next.fact || next.fact.contentVersion !== detail?.fact?.contentVersion)) {",
+          "        setDetail((old) => (old ? { ...old, error: '讨论版本不一致，请重新读取正文。' } : old));",
+          "        return;",
+          "      }"
+        ],
+        "to": [
+          "      const next = await host.detail(",
+          "        issue,",
+          "        more ? (detail?.nextOffset ?? 0) : 0,",
+          "        more ? detail?.pageVersion ?? detail?.fact?.contentVersion : undefined,",
+          "      );",
+          "      if (generation.current !== id) return;",
+          "      if (!more) onDetail?.(issue, next.fact);",
+          "      if (more && (!next.fact || (next.pageVersion ?? next.fact.contentVersion) !== (detail?.pageVersion ?? detail?.fact?.contentVersion))) {",
+          "        setDetail((old) => (old ? { ...old, error: '讨论版本不一致，请重新读取正文。' } : old));",
+          "        return;",
+          "      }"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "IssueCoordinationStore.ts",
+    "replacements": [
+      {
+        "from": [
+          "",
+          "export class CoordinationConflict extends Error {",
+          "  readonly status = 409;",
+          "}",
+          "/** Isolated owner root. Authored records have no TTL. Never point tests at production. */",
+          "export class IssueCoordinationStore {"
+        ],
+        "to": [
+          "",
+          "export class CoordinationConflict extends Error {",
+          "  readonly status = 409;",
+          "}",
+          "export interface CoordinationStorage {",
+          "  read<T>(partition: string, key: string): Promise<Versioned<T> | null>;",
+          "  list<T>(partition: string): Promise<Versioned<T>[]>;",
+          "  put<T>(partition: string, key: string, value: T, expectedRevision: number): Promise<Versioned<T>>;",
+          "}",
+          "/** Isolated owner root. Authored records have no TTL. Never point tests at production. */",
+          "export class IssueCoordinationStore {"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "IssueCoordinationService.ts",
+    "replacements": [
+      {
+        "from": [
+          "  type SourcePreference,",
+          "  safeIssueUrl,",
+          "} from '../model/index.js';",
+          "import { IssueCoordinationStore } from './IssueCoordinationStore.js';",
+          "",
+          "export interface CoordinationBinding {",
+          "  profile: IssueSourceProfile;"
+        ],
+        "to": [
+          "  type SourcePreference,",
+          "  safeIssueUrl,",
+          "} from '../model/index.js';",
+          "import type { CoordinationStorage } from './IssueCoordinationStore.js';",
+          "",
+          "export interface CoordinationBinding {",
+          "  profile: IssueSourceProfile;"
+        ]
+      },
+      {
+        "from": [
+          "}",
+          "export class IssueCoordinationService {",
+          "  constructor(",
+          "    private readonly store: IssueCoordinationStore,",
+          "    private readonly bindings: CoordinationBinding[],",
+          "    private readonly actor: string,",
+          "  ) {"
+        ],
+        "to": [
+          "}",
+          "export class IssueCoordinationService {",
+          "  constructor(",
+          "    private readonly store: CoordinationStorage,",
+          "    private readonly bindings: CoordinationBinding[],",
+          "    private readonly actor: string,",
+          "  ) {"
         ]
       }
     ]

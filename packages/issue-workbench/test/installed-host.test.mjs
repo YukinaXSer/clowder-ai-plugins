@@ -19,7 +19,7 @@ const owner = 'issue-host-test-owner';
 const repo = 'fixture/repo';
 const grants = ['messaging.send', 'plugin.config.read', 'plugin.state.get', 'plugin.state.set',
   'schedule.register', 'thread.listMetadata', 'thread.readContent'];
-const analysis = { category: 'runtime', score: 9, reason: 'Startup is blocked',
+const analysis = { category: 'Agent 运行', score: 9, reason: 'Startup is blocked',
   evidence: 'The café cannot start.', blocksRuntime: true, workaround: '' };
 
 test('packed Issue plugin on real isolated Host composition', async t => {
@@ -41,8 +41,8 @@ test('packed Issue plugin on real isolated Host composition', async t => {
   process.env.DEFAULT_OWNER_USER_ID = owner;
   const report = { root, hostHead: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: hostRoot, encoding: 'utf8' }).trim(),
     archive, integrity: 'sha512-' + createHash('sha512').update(await readFile(archive)).digest('base64'),
-    fixtures: ['owner session', 'cat availability and invocation identity', 'GitHub CLI transport and READ source binding', 'explicit local grant policy', 'schedule runner', 'in-memory Host thread/message stores retained across runtime recreation'],
-    nonClaims: ['production login or grant provisioning', 'real model reasoning', 'real GitHub two-account exchange', 'installed custom workbench page'],
+    fixtures: ['owner session', 'cat availability and invocation identity', 'GitHub CLI transport', 'explicit local grant policy', 'schedule runner', 'in-memory Host thread/message stores retained across runtime recreation'],
+    nonClaims: ['production login or grant provisioning', 'real model reasoning', 'real GitHub two-account exchange'],
     hostRuntimeDigests: await runtimeDigests(), testGrants: grants, result: 'failed', checks: [] };
   const check = label => { report.checks.push(label); t.diagnostic(label); };
   t.after(async () => {
@@ -52,8 +52,10 @@ test('packed Issue plugin on real isolated Host composition', async t => {
     if (output) {
       await mkdir(output, { recursive: true });
       await copyFile(join(root, 'verification.json'), join(output, 'host-verification.json'));
-      try { await copyFile(join(root, 'host-browser.png'), join(output, 'host-browser.png')); }
-      catch (error) { if (error.code !== 'ENOENT') throw error; }
+      for (const name of ['host-browser.png', 'host-receiver-browser.png']) {
+        try { await copyFile(join(root, name), join(output, name)); }
+        catch (error) { if (error.code !== 'ENOENT') throw error; }
+      }
     }
     t.diagnostic('Evidence retained: ' + join(root, 'verification.json'));
     assert.equal(report.hostSourceUnchanged, true, 'Host checkout changed during the test');
@@ -66,6 +68,7 @@ test('packed Issue plugin on real isolated Host composition', async t => {
   const { MessageStore } = await hostImport('dist/domains/cats/services/stores/ports/MessageStore.js');
   const { ThreadStore } = await hostImport('dist/domains/cats/services/stores/ports/ThreadStore.js');
   const { InstalledPluginOperations, pluginOperationRoutes } = await hostImport('dist/domains/plugin/operations/plugin-operation-routes.js');
+  const { pluginWebhookForwardingRoutes } = await hostImport('dist/routes/plugin/plugin-webhook-forwarding-routes.js');
   const { withPluginCallContext } = await hostImport('dist/domains/plugin/carrier/plugin-call-context.js');
   const { PLUGIN_MANAGER_HOST_POLICIES } = await hostImport('dist/domains/plugin/manager/host-official-catalog.js');
   const { resolveLocalPluginEffectiveGrants } = await hostImport('dist/domains/plugin/manager/machine-catalog-provider.js');
@@ -134,6 +137,7 @@ test('packed Issue plugin on real isolated Host composition', async t => {
       if (request.headers['x-test-session'] === 'owner') request.sessionUserId = owner;
     });
     await app.register(pluginOperationRoutes, { operations });
+    await app.register(pluginWebhookForwardingRoutes, { webhooks: runtime.supervisor });
     const detail = async () => (await manager.get(pluginId)).plugin;
     const configure = async values => manager.configure(pluginId, { expectedRevision: (await detail()).lifecycleRevision,
       updates: Object.entries(values).map(([key, value]) => ({ key, value: value === null ? null : String(value) })) });
@@ -175,6 +179,14 @@ test('packed Issue plugin on real isolated Host composition', async t => {
   await sender.enable(true);
   assert.equal((await sender.detail()).live, 'running');
   assert.equal(sender.schedules.size, 1);
+  const asset = await sender.app.inject({ method: 'GET', url: '/api/plugins/' + pluginId + '/workbench/installed.html',
+    headers: { host: 'localhost', 'x-test-session': 'owner' } });
+  assert.equal(asset.statusCode, 200, asset.body);
+  assert.match(asset.headers['content-type'], /text\/html/);
+  assert.match(asset.body, /installed.js/);
+  const deniedAsset = await sender.app.inject({ method: 'GET', url: '/api/plugins/' + pluginId + '/workbench/installed.html', headers: { host: 'localhost' } });
+  assert.equal(deniedAsset.statusCode, 401);
+  check('Packed workbench page is served through the existing authenticated Host webhook route');
   assert.equal((await sender.runtime.supervisor.listPluginTools(pluginId)).length, 9);
   const unauthenticated = await sender.request('summary', {}, { headers: { 'x-test-session': '' } });
   assert.equal(unauthenticated.statusCode, 401);
@@ -241,6 +253,10 @@ test('packed Issue plugin on real isolated Host composition', async t => {
   assert.equal((await githubState()).comments.length, 1, 'delivery is not acceptance');
   await receiver.native('receive', {});
   assert.equal(receiver.wakes.length, 1);
+  await verifyInstalledHostBrowser({ root, sender: receiver, inboxId: inbox[0].id });
+  assert.equal(receiver.wakes.length, 1, 'acceptance must not impersonate owner speech or claim execution');
+  assert.equal((await receiver.action('get', { id: inbox[0].id })).ownerAcceptance.userId, owner);
+  check('Installed browser persists explicit owner acceptance and offers the original conversation plus an owner-sendable start instruction');
   await receiver.native('report', { id: inbox[0].id, status: 'accepted', summary: 'Fixture member explicitly accepts', evidenceUrls: [] });
   assert.equal((await githubState()).comments.length, 2);
   assert.equal((await githubState()).comments[1].user.login, 'alice');
@@ -259,6 +275,7 @@ test('packed Issue plugin on real isolated Host composition', async t => {
   await [...receiver.schedules.values()][0].run.execute({});
   assert.equal(receiver.wakes.length, 0, 'recovery must not redeliver an acknowledged message');
   assert.equal((await receiver.action('summary', { kind: 'inbox' })).rows[0].id, inbox[0].id);
+  assert.equal((await receiver.action('get', { id: inbox[0].id })).ownerAcceptance.userId, owner);
   await changeGithub(state => { state.issues[0].state = 'closed'; });
   await receiver.native('receive', {});
   assert.equal((await receiver.action('summary', { kind: 'inbox' })).rows[0].status, 'inactive');
@@ -272,5 +289,41 @@ test('packed Issue plugin on real isolated Host composition', async t => {
   assert.equal(receiver.schedules.size, 0);
   assert.equal((await githubState()).comments.length, 2);
   check('Repository access withdrawal and Manager disable stop further work and remove scheduled/native access');
+  await changeGithub(state => {
+    state.login = 'bob';
+    state.issues.push({ ...state.issues[0], node_id: 'I_test_2', number: 2, html_url: 'https://github.com/fixture/repo/issues/2' },
+      { ...state.issues[0], node_id: 'I_test_3', number: 3, state: 'open', user: { login: 'outsider' }, html_url: 'https://github.com/fixture/repo/issues/3' });
+  });
+  const flows = await host('two-flows');
+  await flows.manager.install({ source: { kind: 'local-archive', path: archive } });
+  await flows.configure({ repositories: repo, teamOrganization: 'fixture-org', analysisCatId: catId,
+    analysisThreadId: flows.thread.id, initialClassification: true, automaticAssignment: false,
+    receiveAssignments: false, dispatchMode: 'invitation', routingRules: JSON.stringify([{ login: 'alice', categories: ['代码与交付'], features: [] }]) });
+  await flows.enable(true);
+  const flowQueue = (await flows.action('summary')).classificationQueues[0];
+  assert.equal(flowQueue.origin, 'integration'); assert.equal(flowQueue.items.length, 3);
+  const snapshot = await flows.action('coordination', { action: 'load' });
+  const source = snapshot.sources[0], fact = source.issues.find(issue => issue.number === 3);
+  const { newInvestigation } = await import(pathToFileURL(join(unpacked, 'package/dist/index.js')).href);
+  const work = newInvestigation({ sourceId: source.profile.id, issueId: fact.id, number: fact.number }, fact.title, fact.contentVersion, source.preference.value);
+  work.module = '代码与交付'; work.notes = 'Private human decision retained only in local storage';
+  await flows.action('coordination', { action: 'saveWork', value: work, expectedRevision: 0 });
+  const beforeBatch = (await githubState()).comments.length;
+  await flows.configure({ automaticAssignment: true });
+  assert.equal((await githubState()).comments.length, beforeBatch + 1, 'human classification dispatch does not wait for initial cat analysis');
+  assert.equal(flows.wakes.length, 1, 'only the first initial analysis is outstanding');
+  for (let i = 0; i < 3; i++) {
+    const pending = (await flows.action('summary', { kind: 'analysis' })).rows.find(row => !row.analysis);
+    assert.ok(pending); await flows.native('submit', { id: pending.id, analysis });
+    await [...flows.schedules.values()][0].run.execute({});
+  }
+  await [...flows.schedules.values()][0].run.execute({});
+  assert.equal((await flows.action('summary')).classificationQueues[0].status, 'completed');
+  assert.equal(flows.wakes.length, 3); assert.equal((await githubState()).comments.length, beforeBatch + 1);
+  const finalSnapshot = await flows.action('coordination', { action: 'load' });
+  assert.equal(finalSnapshot.sources[0].work[0].value.module, '代码与交付');
+  assert.ok(!(await githubState()).comments.at(-1).body.includes(work.notes));
+  await flows.enable(false);
+  check('Initial classification covers Open and Closed once; independent human-category batch dispatch runs before analysis and never duplicates its invitation');
   report.result = 'passed-with-explicit-fixtures';
 });

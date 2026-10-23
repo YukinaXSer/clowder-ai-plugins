@@ -114,11 +114,15 @@ export function issueClassificationFor(
   );
 }
 export type ClassifiedIssue = { source: CoordinationSource; fact: IssueSourceFact };
+/** Shared by rendering and assignment; a saved human value outranks cat proposals. */
+export function effectiveIssueCategory(saved: string | undefined, areas: string[] = []) {
+  return saved?.trim() ? categoryDefinition(saved.trim())?.label ?? '待判断' : primaryCategory(areas);
+}
 export function issueCategory({ source, fact }: ClassifiedIssue): { key: string; label: string } {
   if (fact.unavailable) return { key: 'unavailable', label: '来源暂不可用' };
   if (issueFeatureBindings(fact).length) return { key: 'feature', label: '随 Feature 处理' };
   const saved = source.work.find(work => work.value.ref.sourceId === source.profile.id && work.value.ref.issueId === fact.id)?.value.module.trim();
-  const area = saved ? categoryDefinition(saved)?.label ?? '待判断' : primaryCategory(issueClassificationFor(source, fact)?.labels.area);
+  const area = effectiveIssueCategory(saved, issueClassificationFor(source, fact)?.labels.area);
   return area !== '待判断' ? { key: `area:${area}`, label: area } : { key: 'unclassified', label: '待判断' };
 }
 export function matchesIssueCategory(row: ClassifiedIssue, category: string): boolean {
@@ -146,11 +150,14 @@ export interface CoordinationDetail {
   fact: IssueSourceFact | null;
   error?: string;
   nextOffset?: number | null;
+  /** Discussion snapshot token when its version differs from the Issue's fields. */
+  pageVersion?: string;
 }
 export interface CoordinationHost {
   load(refresh?: boolean): Promise<CoordinationSnapshot>;
   detail(ref: IssueRef, offset?: number, version?: string): Promise<CoordinationDetail>;
   saveWork(value: IssueInvestigation, expectedRevision: number): Promise<Versioned<IssueInvestigation>>;
+  workHistory?(ref: IssueRef): Promise<Versioned<IssueInvestigation>[]>;
   saveRelation(value: IssueRelation, expectedRevision: number): Promise<Versioned<IssueRelation>>;
   savePreference(
     sourceId: string,

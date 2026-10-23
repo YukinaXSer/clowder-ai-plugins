@@ -56,7 +56,12 @@ export function TeamClassification({ host }: { host: TeamHost }) {
     return act(() => host.controlClassification({ id: queue.id, expectedRevision: queue.revision, status }));
   }
   return <section aria-label="自动研判队列">
-    <h3>批量研判 Open 问题</h3>
+    <h3>分类分析</h3>
+    <p className={styles.notice}>{summary?.settings.initialClassification
+      ? '接入后首次自动分类已开启，包含 Open 与 Closed 历史；进度保留在下方。'
+      : '接入后首次自动分类未开启。可在插件设置中启用，也可手动创建一次分析批次。'}</p>
+    {host.settingsUrl && <a href={host.settingsUrl}>配置首轮分类与分析猫</a>}
+    <h4>手动发起一轮 Open 问题分析</h4>
     <p>先读取本次问题清单，再启动。每个队列一次请一只猫分析一个问题，收到结果后继续下一条。</p>
     <p className={styles.muted}>本次队列不包含之后新开的 Issue。暂停会保留已发出的请求和结果；停止后可重新读取清单。</p>
     <p className={styles.muted}>关闭面板不会停止队列；需要停止新分析和自动派工时，请使用下方按钮。</p>
@@ -89,7 +94,9 @@ export function TeamClassification({ host }: { host: TeamHost }) {
       const waiting = queue.items.find(item => item.status === 'waiting');
       return <article key={queue.id} className={styles.report} aria-label={`${queue.repo} 研判队列`}>
         <h4>{queue.repo} · {cats.find(cat => cat.catId === queue.catId)?.displayName ?? queue.catId}</h4>
-        <p>{({ paused: '已暂停', running: '运行中', completed: '本批研判完成', stopped: '已停止' })[queue.status]}</p>
+        <p>{queue.origin === 'integration' ? '接入后的首次自动分类 · 包含已关闭历史' : '人工发起的分类批次'}</p>
+        <p>{queue.status === 'running' && (queue.error || queue.origin === 'integration' && !summary?.settings.initialClassification)
+          ? '等待恢复' : ({ paused: '已暂停', running: '运行中', completed: '本批研判完成', stopped: '已停止' })[queue.status]}</p>
         <p>已研判 {analyzed} / {queue.items.length} · 已跳过 {skipped}</p>
         <progress aria-label={`${queue.repo} 研判进度`} max={queue.items.length || 1} value={analyzed + skipped} />
         {waiting && <p>当前问题 #{waiting.number}{waiting.reason ? `：${waiting.reason}` : '：等待猫猫研判结果'}</p>}

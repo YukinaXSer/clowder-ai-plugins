@@ -108,6 +108,11 @@ export class GhTeamProvider implements TeamProvider {
     const rows = z.array(issueSchema).parse(await this.api(`${this.path(repo)}/issues?state=open&per_page=100`, signal, undefined, true));
     return rows.filter(row => row.pull_request === undefined && row.state === 'open').map(row => this.decode(repo, row));
   }
+  async allIssues(repo: string, signal: AbortSignal) {
+    repo = repository.parse(repo);
+    const rows = z.array(issueSchema).parse(await this.api(`${this.path(repo)}/issues?state=all&per_page=100`, signal, undefined, true));
+    return rows.filter(row => row.pull_request === undefined).map(row => this.decode(repo, row));
+  }
   async assignable(repo: string, target: string, signal: AbortSignal) {
     try { await this.api(`${this.path(repo)}/assignees/${login.parse(target)}`, signal); return true; }
     catch (error) { if (String(error).includes('HTTP 404')) return false; throw error; }
@@ -121,6 +126,14 @@ export class GhTeamProvider implements TeamProvider {
   }
   private async comments(issue: TeamIssue, signal: AbortSignal) {
     return z.array(commentSchema).parse(await this.api(`${this.path(issue.repo, issue.number)}/comments?per_page=100`, signal, undefined, true));
+  }
+  async discussion(issue: TeamIssue, signal: AbortSignal) {
+    return (await this.comments(issue, signal)).map(comment => ({
+      id: String(comment.id), author: comment.user?.login ?? '[deleted]', body: comment.body,
+      createdAt: comment.created_at, updatedAt: comment.updated_at,
+      lastEditedAt: comment.updated_at === comment.created_at ? null : comment.updated_at,
+      url: `https://github.com/${issue.repo}/issues/${issue.number}#issuecomment-${comment.id}`,
+    }));
   }
   async publishDispatch(issue: TeamIssue, input: SharedDispatch, signal: AbortSignal, allowCreate: boolean) {
     const dispatch = dispatchSchema.parse(input), actor = await this.identity(signal);

@@ -19,11 +19,11 @@ export function CoordinationReading({ host, issue, onDetail }: { host: Coordinat
       const next = await host.detail(
         issue,
         more ? (detail?.nextOffset ?? 0) : 0,
-        more ? detail?.fact?.contentVersion : undefined,
+        more ? detail?.pageVersion ?? detail?.fact?.contentVersion : undefined,
       );
       if (generation.current !== id) return;
       if (!more) onDetail?.(issue, next.fact);
-      if (more && (!next.fact || next.fact.contentVersion !== detail?.fact?.contentVersion)) {
+      if (more && (!next.fact || (next.pageVersion ?? next.fact.contentVersion) !== (detail?.pageVersion ?? detail?.fact?.contentVersion))) {
         setDetail((old) => (old ? { ...old, error: '讨论版本不一致，请重新读取正文。' } : old));
         return;
       }

@@ -1,11 +1,34 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { dispatchBody, GhTeamProvider } from '../src/team/github.js';
+
+test('discussion reads complete comment pages and preserves edited and deleted authors', async () => {
+  const provider = new GhTeamProvider(async args => {
+    assert.equal(args[3], 'repos/fixture/repo/issues/1/comments?per_page=100');
+    assert.ok(args.includes('--paginate'));
+    const comment = { id: 1, body: 'First discussion', user: { login: 'Alice' }, created_at: '2026-10-20T10:00:00Z', updated_at: '2026-10-20T10:00:00Z' };
+    return JSON.stringify([[comment], [{ ...comment, id: 2, user: null, body: 'Edited discussion', updated_at: '2026-10-21T10:00:00Z' }]]);
+  });
+  const comments = await provider.discussion({ repo: 'fixture/repo', number: 1 } as any, new AbortController().signal);
+  assert.equal(comments.length, 2); assert.equal(comments[0].author, 'alice');
+  assert.equal(comments[1].author, '[deleted]'); assert.equal(comments[1].lastEditedAt, '2026-10-21T10:00:00Z');
+  assert.equal(comments[1].url, 'https://github.com/fixture/repo/issues/1#issuecomment-2');
+});
 import { issueVersion } from '../src/team/schema.js';
 
 const signal = new AbortController().signal;
 const raw = { node_id: 'I_1', number: 1, title: 'Fails to start', body: 'startup blocked', state: 'open',
   user: { login: 'Alice' }, labels: [], assignees: [{ login: 'alice' }], html_url: 'https://github.com/fixture/repo/issues/1' };
+test('initial classification reads complete Open and Closed history while excluding pull requests', async () => {
+  const provider = new GhTeamProvider(async args => {
+    assert.equal(args[3], 'repos/fixture/repo/issues?state=all&per_page=100');
+    assert.ok(args.includes('--paginate')); assert.ok(args.includes('--slurp'));
+    return JSON.stringify([[raw], [{ ...raw, node_id: 'I_2', number: 2, state: 'closed', html_url: 'https://github.com/fixture/repo/issues/2' },
+      { ...raw, pull_request: {} }]]);
+  });
+  assert.deepEqual((await provider.allIssues('fixture/repo', signal)).map(issue => issue.state), ['open', 'closed']);
+  await assert.rejects(new GhTeamProvider(async () => JSON.stringify([[raw], { message: 'failed page' }])).allIssues('fixture/repo', signal), /Incomplete/);
+});
 test('automatic classification reads every Open issue page and never queues a pull request or partial catalog', async () => {
   const provider = new GhTeamProvider(async args => {
     assert.equal(args[3], 'repos/fixture/repo/issues?state=open&per_page=100');

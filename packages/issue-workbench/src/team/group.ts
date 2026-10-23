@@ -34,7 +34,7 @@ export async function requireMember(context: TeamContext, provider: TeamProvider
   return group;
 }
 
-export async function assignmentPlan(context: TeamContext, provider: TeamProvider, signal: AbortSignal, issue: TeamIssue, analysis?: TeamAnalysis) {
+export async function assignmentPlan(context: TeamContext, provider: TeamProvider, signal: AbortSignal, issue: TeamIssue, analysis?: Pick<TeamAnalysis, 'category'>) {
   const group = await readGroup(context, provider, signal);
   const rawRules = await context.config.get('routingRules');
   const reporter = issue.author && group.members.includes(issue.author) ? issue.author : undefined;
@@ -42,7 +42,7 @@ export async function assignmentPlan(context: TeamContext, provider: TeamProvide
   if (reporter) {
     options.preferredLogin = reporter;
     options.basis = 'reporter';
-  } else if (analysis) {
+  } else if (analysis || features(issue).length) {
     let rules: z.infer<typeof rulesSchema>;
     try { rules = rulesSchema.parse(JSON.parse(typeof rawRules === 'string' ? rawRules : '[]')); }
     catch {
@@ -52,7 +52,7 @@ export async function assignmentPlan(context: TeamContext, provider: TeamProvide
     const bound = features(issue);
     const matches = [...new Set(rules.filter(rule => group.members.includes(rule.login) && (bound.length
       ? rule.features.some(feature => bound.includes(feature))
-      : rule.categories.includes(analysis.category))).map(rule => rule.login))];
+      : !!analysis && rule.categories.includes(analysis.category))).map(rule => rule.login))];
     if (matches.length === 1) {
       options.preferredLogin = matches[0];
       options.basis = bound.length ? 'feature' : 'category';
@@ -60,5 +60,5 @@ export async function assignmentPlan(context: TeamContext, provider: TeamProvide
       options.error = '请为当前分类或 Feature 配置一位明确匹配的 group 成员，或手动选择组员';
     }
   }
-  return { options, policyHash: hash([group, rawRules ?? null, reporter ?? null]) };
+  return { options, policyHash: hash([group, rawRules ?? null, reporter ?? null, analysis?.category ?? null, features(issue)]) };
 }

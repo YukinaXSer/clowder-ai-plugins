@@ -7,19 +7,19 @@
       "source": "packages/shared/src/issue-coordination.ts",
       "target": "src/model/issue-coordination.ts",
       "sourceHash": "fc52e6d793f40ab5d2c5a5a37f595e756cbd2c40f08721fe6a4948137fcb30ce",
-      "targetHash": "42e8d8fbe3fad531292c6f95dc9a3013b10646f9106b630a71da3bff76a78736"
+      "targetHash": "feee59f4e9afa10c8cc55a6f2fd8103ee53c285fda6369415b6aa86fa856447f"
     },
     {
       "source": "packages/api/src/domains/community/IssueCoordinationStore.ts",
       "target": "src/source/IssueCoordinationStore.ts",
       "sourceHash": "fd54fe47cbc7b8a39d3eb9e214fa59d8fd1f55e03ba9c8da19d48d5cfb74b880",
-      "targetHash": "8ee92568dddc6b06803d5ae1b4897ce7d33831ee13cd9af682056702b6411676"
+      "targetHash": "4880db710a3adaa2184515d65a08e0e7a54b52b64fe157be221d0593aa3ab22f"
     },
     {
       "source": "packages/api/src/domains/community/IssueCoordinationService.ts",
       "target": "src/source/IssueCoordinationService.ts",
       "sourceHash": "4693cf2fd3869433ebfed0af1c1f77d17ceb13271af5bb233ddb2ce60e571739",
-      "targetHash": "53b21818c77909c9b0c078d8edbd9b041cef4f0bc50ccf6eab31a8f352e7d98e"
+      "targetHash": "8a8cc5a38650be4eb888e393b97154697a6c42e80a39356e8694da5f82b6c42e"
     },
     {
       "source": "packages/web/src/components/settings/issue-workbench/IssueSourceState.tsx",
@@ -49,7 +49,7 @@
       "source": "packages/web/src/components/settings/issue-workbench/CoordinationWorkbench.tsx",
       "target": "src/ui/CoordinationWorkbench.tsx",
       "sourceHash": "0c636f7e0290cac61105d66e4a228843f28ffea4903b37ca2700940dc7a3cc89",
-      "targetHash": "92ad29f9b22f29058c1f54a62d77c458b16e53ed3c20818911d94db34ac56bb2"
+      "targetHash": "10b5fddd120937cf04f1843aba867462e850ffd154408a874a7c1769ca7ca932"
     },
     {
       "source": "packages/web/src/components/settings/issue-workbench/CoordinationSources.tsx",
@@ -79,7 +79,7 @@
       "source": "packages/web/src/components/settings/issue-workbench/CoordinationReading.tsx",
       "target": "src/ui/CoordinationReading.tsx",
       "sourceHash": "4983e2171702075614a395035567bc8396a6d72c54b9dc1f7578f0e50420ca08",
-      "targetHash": "756a017dbf1cd4deec9e4f97e7fa96500a96be0e0372257d444ed9a74e53498c"
+      "targetHash": "4f98675fe8e130676b3c643c10c427f200426ccc18f1f3fb0d2454d6b8d14012"
     },
     {
       "source": "packages/web/src/components/settings/issue-workbench/coordination.module.css",

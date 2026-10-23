@@ -2,10 +2,12 @@ import type { TeamClassification, TeamRecord, TeamRecordDetail, TeamStatistics }
 import type { AssignmentOptions } from '../team/group.js';
 import type { TeamIssue, TeamAnalysis } from '../team/types.js';
 import type { ClassificationQueueView } from '../team/classification-queue.js';
+import type { CoordinationHost } from '../model/issue-coordination.js';
 
 export interface TeamIssueContext {
   currentIssue: TeamIssue; sourceVersion: string; assignmentOptions: AssignmentOptions;
   features: string[]; analysis?: TeamAnalysis;
+  effectiveCategory?: { label: string; source: 'human' | 'cat' | 'none'; stale: boolean };
 }
 
 export interface TeamSummary {
@@ -14,7 +16,7 @@ export interface TeamSummary {
   nextOffset: number | null;
   statistics: TeamStatistics;
   settings: { repositories?: string; analysisCatId?: string; analysisThreadId?: string;
-    automaticAssignment?: boolean; receiveAssignments?: boolean; shareProgress?: boolean;
+    initialClassification?: boolean; automaticAssignment?: boolean; receiveAssignments?: boolean; shareProgress?: boolean;
     teamOrganization?: string; dispatchMode?: 'assignment' | 'invitation' };
   group?: { organization?: string; members: string[]; error?: string };
   configurationError?: string;
@@ -25,8 +27,11 @@ export interface TeamSummary {
   classificationQueues?: ClassificationQueueView[];
 }
 export interface TeamHost {
+  /** Installed mode uses the same durable work records as assignment rules. */
+  coordination?: CoordinationHost;
   summary(input?: { repo?: string; number?: number; kind?: 'analysis' | 'assignment' | 'inbox'; offset?: number }): Promise<TeamSummary>;
   get(id: string): Promise<TeamRecordDetail>;
+  acceptInbox(input: { id: string; expectedRevision: number }): Promise<TeamRecord>;
   analyze(input: { repo: string; number: number; requestId: string; catId?: string }): Promise<TeamRecord>;
   retry(id: string): Promise<TeamRecord>;
   assign(input: { id: string; expectedRevision: number; login: string; delivery?: 'assignment' | 'invitation' }): Promise<TeamRecord>;
@@ -58,8 +63,17 @@ export function createTeamClient(request: (path: string, options?: RequestInit) 
     return result.data as T;
   }
   return {
+    coordination: {
+      load: refresh => call('coordination', { action: 'load', refresh }),
+      detail: (ref, offset, version) => call('coordination', { action: 'detail', ref, offset, version }),
+      saveWork: (value, expectedRevision) => call('coordination', { action: 'saveWork', value, expectedRevision }),
+      workHistory: ref => call('coordination', { action: 'workHistory', ref }),
+      saveRelation: (value, expectedRevision) => call('coordination', { action: 'saveRelation', value, expectedRevision }),
+      savePreference: (sourceId, value, expectedRevision) => call('coordination', { action: 'savePreference', sourceId, value, expectedRevision }),
+    },
     summary: input => call('summary', input ?? {}),
     get: id => call('get', { id }),
+    acceptInbox: input => call('acceptInbox', input),
     analyze: input => call('analyze', input),
     retry: id => call('retry', { id }),
     assign: input => call('assign', input, true),

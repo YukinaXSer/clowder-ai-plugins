@@ -11,6 +11,11 @@ export type { CoordinationHost } from './model/issue-coordination';
 export { createCoordinationClient } from './ports/coordination';
 export { createTeamClient } from './ports/team';
 export type { TeamHost } from './ports/team';
+/** Real owner-authenticated module operations; no injected coordination bridge. */
+export function mountInstalledWorkbench(element: HTMLElement, team: TeamHost) {
+  if (!team.coordination) throw new Error('This Host does not expose the installed coordination store');
+  return mountCoordination(element, team.coordination, { team });
+}
 export function mountCoordination(element: HTMLElement, host: CoordinationHost, options: { showClassifications?: boolean; team?: TeamHost } = {}) {
   const root = createRoot(element);
   root.render(options.team ? <TeamWorkbench host={host} team={options.team} showClassifications={options.showClassifications} />

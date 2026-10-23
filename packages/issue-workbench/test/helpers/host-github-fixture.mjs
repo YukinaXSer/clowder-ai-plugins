@@ -21,7 +21,7 @@ else if (path === '/user/memberships/orgs/fixture-org') result = { state: 'activ
 else if (path === '/orgs/fixture-org/members') result = ['alice', 'bob'].map(login => ({ login, type: 'User' }));
 else if (/^\/repos\/fixture\/repo\/assignees\/(alice|bob)$/.test(path)) result = {};
 else if (/^\/repos\/fixture\/repo\/collaborators\/(alice|bob)\/permission$/.test(path)) result = { permission: 'write' };
-else if (path === '/repos/fixture/repo/issues') result = state.issues.filter(issue => issue.state === 'open' &&
+else if (path === '/repos/fixture/repo/issues') result = state.issues.filter(issue => (url.searchParams.get('state') === 'all' || issue.state === 'open') &&
   (!url.searchParams.get('assignee') || issue.assignees.some(a => a.login === url.searchParams.get('assignee'))));
 else if (path === '/repos/fixture/repo/issues/comments') result = [...state.comments].reverse();
 else {

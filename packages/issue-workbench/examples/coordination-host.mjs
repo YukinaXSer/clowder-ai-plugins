@@ -66,7 +66,7 @@ export function githubPreviewBinding({ dataRoot, query } = {}) {
 export function coordinationPreview({ dataRoot, dist, bindings = fixtureBindings(), allowedOrigins = [], allowedHosts = [], teamAction }) {
   if (!dataRoot || !dist) throw new Error('Explicit isolated dataRoot and dist are required');
   const service = new IssueCoordinationService(new IssueCoordinationStore(dataRoot), bindings, 'preview-owner');
-  const assets = { '/': ['coordination.html', 'text/html'], '/coordination.js': ['coordination.js','text/javascript'], '/browser.js': ['browser.js','text/javascript'], '/browser.css': ['browser.css','text/css'] };
+  const assets = { '/': ['coordination.html', 'text/html'], '/installed.html': ['installed.html', 'text/html'], '/installed.js': ['installed.js', 'text/javascript'], '/coordination.js': ['coordination.js','text/javascript'], '/browser.js': ['browser.js','text/javascript'], '/browser.css': ['browser.css','text/css'] };
   const server = createServer(async (req, res) => {
     res.setHeader('cache-control', 'no-store'); res.setHeader('x-content-type-options', 'nosniff');
     const port = server.address()?.port, host = req.headers.host, origin = req.headers.origin;
@@ -83,11 +83,11 @@ export function coordinationPreview({ dataRoot, dist, bindings = fixtureBindings
       if (url.pathname === '/health' && req.method === 'GET') { res.setHeader('content-type','application/json'); res.end(JSON.stringify({ ok: true, mode: 'isolated-acceptance', revision: 'issue-coordination-v1' })); return; }
       // Explicit acceptance injection only. The ordinary READ preview has no
       // owner authority, no native caller and no automatic connection to a Host.
-      const team = /^\/api\/plugins\/dev\.clowder\.issue-workbench\/actions\/teamWorkbench\/(summary|get|analyze|assign|assignIssue|retry|republish|feedback|planClassification|controlClassification)$/.exec(url.pathname);
+      const team = /^\/api\/plugins\/dev\.clowder\.issue-workbench\/actions\/teamWorkbench\/(summary|get|analyze|assign|assignIssue|retry|republish|feedback|planClassification|controlClassification|coordination|acceptInbox)$/.exec(url.pathname);
       if (team) {
         if (req.method !== 'POST' || !req.headers['content-type']?.startsWith('application/json')) { res.writeHead(403); res.end(); return; }
         if (!teamAction) { res.writeHead(503, { 'content-type': 'application/json' }); res.end(JSON.stringify({ error: 'Team Host is not connected' })); return; }
-        let raw = ''; for await (const chunk of req) { raw += chunk; if (Buffer.byteLength(raw) > 32000) throw new Error('Request too large'); }
+        let raw = ''; for await (const chunk of req) { raw += chunk; if (Buffer.byteLength(raw) > (team[1] === 'coordination' ? 256000 : 32000)) throw new Error('Request too large'); }
         const body = JSON.parse(raw);
         if (!body || typeof body.payload !== 'string' || Object.keys(body).some(key => key !== 'payload')) throw new Error('Invalid team input');
         const result = await teamAction(team[1], JSON.parse(body.payload), req.headers['x-cat-cafe-owner-confirmed'] === 'true');

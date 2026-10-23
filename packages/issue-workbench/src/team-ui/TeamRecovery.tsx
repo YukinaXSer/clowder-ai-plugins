@@ -10,7 +10,7 @@ export function TeamRecovery({ host, row, busy, act }: {
   const uncertain = row.kind !== 'inbox'
     ? !!row.assignment?.commentAttempted && !row.assignment.commentId
     : !!row.receipt?.commentAttempted && !row.receipt.commentId;
-  const retryable = row.kind !== 'assignment' && (row.error || uncertain || (row.kind !== 'inbox'
+  const retryable = (row.kind !== 'assignment' || row.automatic) && ((row.kind !== 'assignment' && row.error) || uncertain || (row.kind !== 'inbox'
     ? row.assignment && !['assigned', 'invited'].includes(row.assignment.status)
     : row.status === 'pending' || row.withdrawal?.status === 'pending'));
   return <>

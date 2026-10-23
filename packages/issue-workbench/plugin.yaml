@@ -38,6 +38,8 @@ features:
         id: issue-workbench
       - type: schedule
         id: team-reconcile
+      - type: webhook
+        id: workbench-assets
     capabilities:
       - plugin.config.read
       - plugin.state.get
@@ -70,6 +72,11 @@ configuration:
     kind: string
     required: false
     description: 填组织名或链接，例如 meow-club 或 https://github.com/meow-club。成员从 GitHub 读取；本机 gh 账号须为组织有效成员并有组织成员读取权限（read:org 或 Members:read）。旧手工名单不再用于派工，读取失败时保留研判供重试。
+  - key: initialClassification
+    label: 接入后自动分类一次
+    kind: boolean
+    required: false
+    description: 为每个已接入仓库启动一次深入语义分类，包含 Open 与 Closed 历史问题。请先选择分析猫和对话；暂停、重启或重新保存设置均保留原批次。此设置不会开启自动派工。
   - key: routingRules
     label: 成员分工
     kind: string
@@ -89,7 +96,7 @@ configuration:
     label: 按分工自动指派
     kind: boolean
     required: false
-    description: 开启后按当前 group 派工：按自动派工方式发送任务邀请或添加 assignee，并公开发布分数和理由。组员自提的问题优先本人，并建议本人参与合入前验收。保留已有负责人；不会自动修代码或合入。
+    description: 开启后独立扫描未分派的 Open 问题，使用当前有效分类与 Feature 分工批量派工，无需重新请猫分析。组员自提优先本人；人工已保存的分类优先。按所选方式发送公开邀请或设置负责人，冲突留待人工处理；不会自动修代码或合入。
   - key: receiveAssignments
     label: 启动后接收我的分配
     kind: boolean
@@ -133,10 +140,18 @@ configuration:
         label: 读取团队记录
         render: status
         action: { method: issue.workbench.summary }
+      - id: coordination
+        label: 读取与保存分类分析
+        render: status
+        action: { method: issue.workbench.coordination }
       - id: get
         label: 读取研判与回执
         render: row
         action: { method: issue.workbench.get }
+      - id: acceptInbox
+        label: 接下此任务
+        render: row
+        action: { method: issue.workbench.acceptInbox }
       - id: analyze
         label: 请猫分析
         render: row
@@ -173,6 +188,11 @@ configuration:
         render: status
         action: { method: issue.workbench.controlClassification }
 contributions:
+  - type: webhook
+    id: workbench-assets
+    path: workbench/:asset
+    methods: [GET]
+    action: { method: issue.workbench.asset }
   - type: tool
     id: team-inspect
     name: issue_team_inspect

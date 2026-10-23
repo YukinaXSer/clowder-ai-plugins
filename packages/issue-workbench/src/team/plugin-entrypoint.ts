@@ -2,6 +2,7 @@ import type { ModulePluginHostShape, PluginActionHandler, PluginHostActionContex
 import { GhTeamProvider } from './github.js';
 import { IssueTeamRuntime, WORKBENCH_METHODS } from './runtime.js';
 import type { TeamContext, TeamProvider } from './types.js';
+import { readFile } from 'node:fs/promises';
 export { GhTeamProvider } from './github.js';
 
 export const TEAM_METHODS = ['inspect', 'analyze', 'submit', 'get', 'list', 'receive', 'report', 'feedback', 'statistics'] as const;
@@ -46,6 +47,21 @@ export function createIssueTeamModule(provider?: TeamProvider): PluginModuleEntr
           const actions: Record<string, PluginActionHandler> = Object.fromEntries(TEAM_METHODS.map(method => [
             `issue.team.${method}`, async (input, caller) => { current(); return { data: await runtime.invoke(method, input, caller) }; },
           ]));
+          actions['issue.workbench.asset'] = async (input, caller, authority) => {
+            current();
+            if (caller || authority?.kind !== 'owner-http-request' || authority.pluginInstanceId !== host.pluginInstanceId
+              || authority.operation !== 'read') throw new Error('Authenticated owner HTTP read required');
+            await authority.assertCurrent(); authority.signal.throwIfAborted();
+            const request = input as { request?: { path?: unknown; method?: unknown }; path?: unknown; method?: unknown };
+            const http = request.request ?? request;
+            const assets: Record<string, string> = { 'installed.html': 'text/html; charset=utf-8', 'installed.js': 'text/javascript; charset=utf-8',
+              'browser.js': 'text/javascript; charset=utf-8', 'browser.css': 'text/css; charset=utf-8' };
+            const name = typeof http.path === 'string' ? /^workbench\/([a-z.]+)$/.exec(http.path)?.[1] : undefined;
+            if (http.method !== 'GET' || !name || !Object.hasOwn(assets, name)) return { status: 404, headers: {}, body: 'Not found' };
+            const body = await readFile(new URL(name, import.meta.url), 'utf8');
+            await authority.assertCurrent(); authority.signal.throwIfAborted(); current();
+            return { status: 200, headers: { 'content-type': assets[name], 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' }, body };
+          };
           actions['issue.team.poll'] = async (_input, caller, authority) => {
             if (caller || authority) throw new Error('Team poll is reserved for the declared Host schedule');
             return recover();
@@ -70,7 +86,7 @@ export function createIssueTeamModule(provider?: TeamProvider): PluginModuleEntr
               if (caller) throw new Error('Owner action cannot use a cat caller');
               await owner(authority);
               const payload = (params as { input?: { payload?: unknown } })?.input?.payload;
-              if (payload !== undefined && (typeof payload !== 'string' || payload.length > 16000)) throw new Error('Invalid workbench payload');
+              if (payload !== undefined && (typeof payload !== 'string' || payload.length > (method === 'coordination' ? 256000 : 16000))) throw new Error('Invalid workbench payload');
               return { render: 'status', data: await runtime.invokeOwner(method,
                 payload === undefined ? {} : JSON.parse(payload as string), authority as import('@clowder-ai/plugin-sdk').PluginOwnerOperationContext) };
             };

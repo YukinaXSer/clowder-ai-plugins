@@ -41,7 +41,7 @@ export function TeamIssuePanel({ host, profile, fact, category, onRead }: {
   useEffect(() => {
     if (supported) { setBusy(true); void load().catch(fail).finally(() => setBusy(false)); }
     return () => { generation.current++; };
-  }, [host, profile.repository, fact.number, supported]);
+  }, [host, profile.repository, fact.number, category, supported]);
   useEffect(() => {
     const pending = summary?.rows.find(item => item.kind === 'analysis' && item.status === 'delivered');
     if (!pending || busy) return;
@@ -100,9 +100,10 @@ export function TeamIssuePanel({ host, profile, fact, category, onRead }: {
     </>}
     <p aria-live="polite">当前分类：{summary?.issueContext?.features.length
         ? `随 Feature 处理 · ${summary.issueContext.features.join('、')}`
-        : category}</p>
+          : category}</p>
     {summary?.issueContext?.analysis && summary.issueContext.analysis.category !== category && !summary.issueContext.features.length &&
-      <p className={styles.muted}>已存猫研判类别：{summary.issueContext.analysis.category}。自动派工建议按该研判及已保存规则生成；本地选类不会自动修改负责人。</p>}
+      <p className={styles.muted}>已存猫研判类别：{summary.issueContext.analysis.category}。人工保存的类别优先；修改分类不会改写已有负责人。</p>}
+    {summary?.issueContext?.effectiveCategory?.stale && <p role="alert">原文已变化，请重新核对并保存人工分类后再派工。</p>}
     {supported && <>
       {summary?.issueContext && <TeamAssignment
         key={`assign:${summary.issueContext.sourceVersion}:${row?.id ?? ''}:${row?.revision ?? 0}:${JSON.stringify(summary.issueContext.assignmentOptions)}`}

@@ -5,6 +5,7 @@ import { TeamRecordView } from './TeamRecordView';
 import { TeamRecovery } from './TeamRecovery';
 import { TeamOrganization } from './TeamOrganization';
 import { TeamClassification } from './TeamClassification';
+import { TeamAcceptance } from './TeamAcceptance';
 import styles from './team.module.css';
 
 function Contents({ host }: { host: TeamHost }) {
@@ -47,12 +48,19 @@ function Contents({ host }: { host: TeamHost }) {
     <nav className={styles.actions} aria-label="团队记录视图">
       {(['inbox', 'automatic', 'analysis', 'assignment', 'statistics'] as const).map(value => <button type="button" key={value}
         aria-pressed={tab === value} onClick={() => { setTab(value); setOffset(0); }}>
-        {({ inbox: '我的收件', automatic: '自动研判', analysis: '研判记录', assignment: '直接指派', statistics: '反馈统计' })[value]}</button>)}
+        {({ inbox: '我的收件', automatic: '自动研判', analysis: '研判记录', assignment: '派工记录', statistics: '反馈统计' })[value]}</button>)}
     </nav>
     {busy && <p role="status">正在读取…</p>}
     {error && <p role="alert">{error}</p>}
     {summary?.configurationError && <p>{summary.configurationError}</p>}
     {tab === 'automatic' && <TeamClassification host={host} />}
+    {tab === 'assignment' && <section aria-label="规则批量派工">
+      <h3>派工</h3>
+      <p>{summary?.settings.automaticAssignment ? '自动批量派工已开启：使用当前有效分类和成员分工，持续处理未分派的 Open 问题。'
+        : '自动批量派工未开启：可在问题详情中人工指派，或到插件设置启用规则。'}</p>
+      <p className={styles.muted}>人工保存的类别优先；规则冲突、原文变化或发布结果不确定时保留记录供核对。已邀请不等于已接手。</p>
+      {host.settingsUrl && <a href={host.settingsUrl}>配置成员分工与自动派工</a>}
+    </section>}
     {tab === 'statistics' && stats && <div className={styles.result}>
       <p>已研判 {stats.analyzed} · 独立问题 {stats.uniqueIssues}</p><p>已反馈 {stats.feedback}</p>
       <p>采纳 {stats.accepted} · 修正 {stats.corrected} · 拒绝 {stats.rejected}</p>
@@ -75,7 +83,7 @@ function Contents({ host }: { host: TeamHost }) {
         aria-pressed={detail?.id === row.id} onClick={() => void read(row.id)}>
         <strong>{row.issue.repo}#{row.issue.number} · {row.issue.title}</strong>
         <span>{row.kind === 'inbox' ? `${row.score ?? '待研判'}${row.score === null ? '' : ' / 10'} · ${row.status === 'inactive' ? '原分配已结束' : row.status === 'delivered' ? '团队已收取' : '待投递'}`
-          : row.kind === 'assignment' ? `主人直接指派 · ${row.assignment?.status === 'invited' ? '已邀请 · 待接手' : row.assignment?.status === 'assigned' ? '已指派' : '待核对'}` : row.analysis ? `${row.analysis.score ?? '待研判'} · ${row.analysis.category}` : row.status === 'delivered' ? '等待研判' : '待发送'}</span>
+          : row.kind === 'assignment' ? `${row.automatic ? '按规则批量派工' : '主人直接指派'} · ${row.assignment?.status === 'invited' ? '已邀请 · 待接手' : row.assignment?.status === 'assigned' ? '已指派' : '待核对'}` : row.analysis ? `${row.analysis.score ?? '待研判'} · ${row.analysis.category}` : row.status === 'delivered' ? '等待研判' : '待发送'}</span>
       </button>)}</div>
       <div className={styles.actions}>
         <button type="button" disabled={busy || !offset} onClick={() => setOffset(Math.max(0, offset - 30))}>上一页</button>
@@ -84,6 +92,7 @@ function Contents({ host }: { host: TeamHost }) {
       </div>
     </>}
     {detail && <section aria-label="团队记录详情"><h3>{detail.issue.title}</h3><TeamRecordView row={detail} />
+      <TeamAcceptance key={`accept:${detail.id}`} host={host} row={detail} busy={busy} act={mutate} />
       <TeamRecovery key={`${detail.id}:${detail.revision}`} host={host} row={detail} busy={busy} act={mutate} />
     </section>}
   </>;

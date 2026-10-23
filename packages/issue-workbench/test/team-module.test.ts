@@ -15,6 +15,7 @@ function moduleHost(s: ReturnType<typeof setup>): ModulePluginHostShape {
 test('SDK module journey: two isolated Host stores, offline assignment, startup inbox and authored report return', async () => {
   const sender = setup(), receiver = setup();
   sender.issues[0].author = 'alice';
+  sender.config.automaticAssignment = false;
   receiver.config.automaticAssignment = false; receiver.config.shareProgress = true;
   const receipts: SharedReceipt[] = [];
   sender.provider.receipts = async () => receipts;
@@ -22,6 +23,7 @@ test('SDK module journey: two isolated Host stores, offline assignment, startup 
     publishReceipt: async (_issue, receipt) => { receipts.push(receipt); return 'shared-receipt'; } };
   const a = await createIssueTeamModule(sender.provider).create(manifest).start(moduleHost(sender));
   const job = (await a.actions['issue.team.analyze']!({ repo: 'fixture/repo', number: 1, requestId: 'module-1' }, sender.caller('requester')) as any).data;
+  sender.config.automaticAssignment = true;
   await a.actions['issue.team.submit']!({ id: job.id, analysis: sender.analysis }, sender.caller());
   assert.deepEqual(sender.writes, ['alice']);
   assert.equal(receiver.sends.size, 0, 'receiver has not started');

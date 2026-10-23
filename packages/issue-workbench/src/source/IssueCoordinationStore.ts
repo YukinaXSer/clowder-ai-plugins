@@ -6,6 +6,11 @@ import type { Versioned } from '../model/index.js';
 export class CoordinationConflict extends Error {
   readonly status = 409;
 }
+export interface CoordinationStorage {
+  read<T>(partition: string, key: string): Promise<Versioned<T> | null>;
+  list<T>(partition: string): Promise<Versioned<T>[]>;
+  put<T>(partition: string, key: string, value: T, expectedRevision: number): Promise<Versioned<T>>;
+}
 /** Isolated owner root. Authored records have no TTL. Never point tests at production. */
 export class IssueCoordinationStore {
   constructor(private readonly root: string) {}

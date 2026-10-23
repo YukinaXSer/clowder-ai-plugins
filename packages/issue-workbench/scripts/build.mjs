@@ -13,9 +13,11 @@ const teamBundle = await build({ entryPoints: ['src/team/plugin-entrypoint.ts'],
 await build({ entryPoints: ['src/browser.tsx'], outfile: 'dist/browser.js', bundle: true, platform: 'browser', format: 'esm', target: 'es2022', jsx: 'automatic', minify: true, define: { 'process.env.NODE_ENV': '"production"' }, legalComments: 'linked' });
 await build({ entryPoints: ['examples/demo.ts'], outfile: 'dist/demo.js', bundle: true, platform: 'browser', format: 'esm', target: 'es2022', external: ['./browser.js'] });
 await build({ entryPoints: ['examples/coordination.ts'], outfile: 'dist/coordination.js', bundle: true, platform: 'browser', format: 'esm', target: 'es2022', external: ['./browser.js'] });
+await build({ entryPoints: ['examples/installed.ts'], outfile: 'dist/installed.js', bundle: true, platform: 'browser', format: 'esm', target: 'es2022', external: ['./browser.js'] });
 const revision = execFileSync('git', ['rev-parse','HEAD'], { encoding: 'utf8' }).trim();
 if (!/^[a-f0-9]{40}$/.test(revision)) throw new Error('Preview build needs an exact source revision');
 writeFileSync('dist/coordination.html', readFileSync('examples/coordination.html','utf8').replace('<html lang="zh-CN">', '<html lang="zh-CN" data-cat-cafe-build-revision="' + revision + '">'));
+writeFileSync('dist/installed.html', readFileSync('examples/installed.html','utf8').replace('<html lang="zh-CN">', '<html lang="zh-CN" data-cat-cafe-build-revision="' + revision + '">'));
 writeFileSync('dist/coordination-host.mjs', readFileSync('examples/coordination-host.mjs','utf8').replace("'../dist/index.js'", "'./index.js'").replace("new URL('../dist', import.meta.url)", "new URL('.', import.meta.url)"));
 mkdirSync('dist', { recursive: true }); copyFileSync('examples/index.html','dist/index.html');
 

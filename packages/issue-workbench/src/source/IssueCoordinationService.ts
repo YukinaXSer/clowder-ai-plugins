@@ -16,7 +16,7 @@ import {
   type SourcePreference,
   safeIssueUrl,
 } from '../model/index.js';
-import { IssueCoordinationStore } from './IssueCoordinationStore.js';
+import type { CoordinationStorage } from './IssueCoordinationStore.js';
 
 export interface CoordinationBinding {
   profile: IssueSourceProfile;
@@ -51,7 +51,7 @@ function requireReadable(snapshot: IssueSourceSnapshot) {
 }
 export class IssueCoordinationService {
   constructor(
-    private readonly store: IssueCoordinationStore,
+    private readonly store: CoordinationStorage,
     private readonly bindings: CoordinationBinding[],
     private readonly actor: string,
   ) {

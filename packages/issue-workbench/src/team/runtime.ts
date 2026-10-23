@@ -8,14 +8,19 @@ import type { SharedReceipt, TeamCaller, TeamContext, TeamProvider } from './typ
 import { statistics, type Job, type Inbox, type DispatchRecord, type OwnerAssignment, type TeamRecord as RecordValue } from './records.js';
 import { assignmentPlan, readGroup, requireMember, type AssignmentOptions } from './group.js';
 import { ClassificationQueues, type ClassificationQueue } from './classification-queue.js';
+import { coordinationService, PluginCoordinationStore, readLocalWork, sourceId, issueFact } from './coordination.js';
+import { effectiveIssueCategory, issueRefKey, type IssueInvestigation, type IssueRelation, type SourcePreference } from '../model/issue-coordination.js';
+import { withTeamClassifications } from '../team-ui/classification-overlay.js';
 
 const prefix = 'issue-workbench.team.v1.';
 const errorText = (error: unknown) => error instanceof Error ? error.message.slice(0, 300) : 'Operation unavailable';
 const deliveryInput = z.enum(['assignment', 'invitation']);
 const completed = (row: DispatchRecord) => ['assigned', 'invited'].includes(row.assignment?.status ?? '');
+const dispatchReason = (row: DispatchRecord) => row.analysis?.reason ?? (row.kind === 'assignment' && row.automatic
+  ? `按已启用的团队分工批量派工${row.category ? `；当前类别：${row.category}` : ''}。` : '主人直接指派；尚未请求猫猫研判。');
 const requestInput = issueInput.extend({ requestId: z.string().regex(/^[A-Za-z0-9_.:-]{1,128}$/) });
 const revisionInput = idInput.extend({ expectedRevision: z.number().int().positive() });
-export const WORKBENCH_METHODS = ['summary', 'get', 'analyze', 'assign', 'assignIssue', 'retry', 'republish', 'feedback', 'planClassification', 'controlClassification'] as const;
+export const WORKBENCH_METHODS = ['summary', 'get', 'analyze', 'assign', 'assignIssue', 'retry', 'republish', 'feedback', 'planClassification', 'controlClassification', 'coordination', 'acceptInbox'] as const;
 type InboxCatchup = Array<{ repository: string; nextPage: number; state: 'catching-up' | 'current' }>;
 type RequestAuthority = { assertCurrent(): void | Promise<void>; signal?: AbortSignal };
 
@@ -26,14 +31,124 @@ export class IssueTeamRuntime {
   private tail: Promise<unknown> = Promise.resolve();
   private authority?: RequestAuthority;
   private readonly classificationQueues: ClassificationQueues;
+  private readonly localWork: PluginCoordinationStore;
   private inboxCatchup: InboxCatchup = [];
   constructor(private readonly context: TeamContext, private readonly provider: TeamProvider) {
+    this.localWork = new PluginCoordinationStore(context, () => this.authorized());
     this.classificationQueues = new ClassificationQueues(context, {
-      authorized: () => this.authorized(), allowed: repo => this.allowed(repo),
+      authorized: () => this.authorized(), allowed: repo => this.activeSource(repo),
       target: (threadId, catId) => this.routable(threadId, catId),
-      catalog: repo => provider.openIssues(repo, this.abort.signal),
+      catalog: (repo, scope) => scope === 'all' ? this.catalog(repo) : provider.openIssues(repo, this.abort.signal),
       job: (queue, item) => this.classificationJob(queue, item),
     });
+  }
+  private async catalog(repo: string) {
+    await this.allowed(repo);
+    if (!this.provider.allIssues) throw new Error('此来源尚不支持完整历史读取');
+    const issues = await this.provider.allIssues(repo, this.abort.signal);
+    await this.allowed(repo); await this.authorized();
+    if (issues.some(issue => issue.repo !== repo || !issue.id)) throw new Error('Source catalog identity mismatch');
+    return issues;
+  }
+  private async effective(issue: import('./types.js').TeamIssue, analysis?: import('./types.js').TeamAnalysis) {
+    const work = await readLocalWork(this.localWork, issue);
+    const latest = (await this.rows()).filter((row): row is Job => row.kind === 'analysis' && !!row.analysis
+        && row.issue.id === issue.id && row.issue.repo === issue.repo && row.sourceVersion === issueVersion(issue))
+        .sort((a, b) => (b.provenance?.recordedAt ?? 0) - (a.provenance?.recordedAt ?? 0) || b.id.localeCompare(a.id))[0];
+    analysis = latest?.analysis ?? analysis;
+    const label = effectiveIssueCategory(work?.value.module, analysis ? [analysis.category] : []);
+    const category = label === '待判断' ? undefined : label;
+    const stale = !!work?.value.module.trim() && work.value.sourceVersion !== issueVersion(issue);
+    return { category, analysis, work, stale };
+  }
+  private async planAssignment(issue: import('./types.js').TeamIssue, analysis?: import('./types.js').TeamAnalysis) {
+    const effective = await this.effective(issue, analysis);
+    const plan = await assignmentPlan(this.context, this.provider, this.abort.signal, issue,
+      effective.category ? { category: effective.category } : undefined);
+    if (effective.stale) { delete plan.options.preferredLogin; plan.options.error = '人工分类对应的原文已变化，请重新核对后保存'; }
+    return { ...plan, policyHash: hash([plan.policyHash, effective.work?.revision ?? null, effective.stale]) };
+  }
+  private async classifications() {
+    return (await this.rows()).flatMap(row => row.kind === 'analysis' && row.analysis && row.provenance ? [{
+      id: row.id, issue: row.issue, analysis: row.analysis, catId: row.provenance.catId, recordedAt: row.provenance.recordedAt,
+      bodySha256: createHash('sha256').update(row.issue.body).digest('hex'),
+    }] : []);
+  }
+  private async dispatchBatch() {
+    if (await this.context.config.get('automaticAssignment') !== true) return [];
+    const outcomes: Array<{ id: string; error?: string }> = [];
+    const records = await this.rows();
+    let remaining = 10;
+    for (const repo of await this.repositories()) {
+      const issues = await this.provider.openIssues(repo, this.abort.signal);
+      await this.allowed(repo); await this.authorized();
+      if (issues.some(issue => issue.repo !== repo || issue.state !== 'open' || !issue.id)) throw new Error('Invalid complete Open issue catalog');
+      for (const issue of issues.sort((a, b) => a.number - b.number)) {
+        if (!remaining || await this.context.config.get('automaticAssignment') !== true) return outcomes;
+        if (issue.assignees.length) continue;
+        const previous = records.filter(row => row.kind !== 'inbox' && row.issue.repo === repo && row.issue.id === issue.id
+          && row.sourceVersion === issueVersion(issue));
+        // An explicit dispatch (including an uncertain publication) owns this
+        // issue until it is resolved. A sweep cannot create a second invitation.
+        if (previous.some(row => row.kind !== 'inbox' && (completed(row) || row.assignment?.commentAttempted || row.assignment?.basis === 'manual'
+          || row.kind === 'assignment' && !row.automatic))) continue;
+        const batchJobs = previous.filter((row): row is Job => row.kind === 'analysis' && !!row.classificationQueueId);
+        if ((await Promise.all(batchJobs.map(row => this.classificationQueues.permits(row)))).some(permitted => !permitted)) continue;
+        const id = hash(['automatic-assignment', repo, issue.id, issueVersion(issue)]);
+        const stored = await this.context.storage.get(prefix + id);
+        const row: OwnerAssignment = stored ? (await this.row(id)).value as OwnerAssignment : {
+          kind: 'assignment', automatic: true, id, issue, sourceVersion: issueVersion(issue), features: features(issue), createdAt: Date.now(),
+          category: (await this.effective(issue)).category,
+        };
+        try {
+          const revision = stored?.revision ?? await this.save(row, null);
+          await this.assign(row, revision);
+          if (row.assignment?.login) remaining--;
+          outcomes.push({ id, ...(row.assignment?.reason ? { error: row.assignment.reason } : {}) });
+        } catch (error) { await this.authorized(); outcomes.push({ id, error: errorText(error) }); }
+      }
+    }
+    return outcomes;
+  }
+  private async coordination(input: unknown, owner: PluginOwnerOperationContext) {
+    const args = z.object({ action: z.enum(['load', 'detail', 'saveWork', 'saveRelation', 'savePreference', 'workHistory']),
+      ref: z.object({ sourceId: z.string(), issueId: z.string(), number: z.number().int().positive() }).optional(),
+      sourceId: z.string().optional(), value: z.unknown().optional(), expectedRevision: z.number().int().min(0).optional(),
+      refresh: z.boolean().optional(), offset: z.number().int().min(0).optional(), version: z.string().optional() }).strict().parse(input);
+    const repos = await this.repositories();
+    const service = coordinationService(this.localWork, repos, { allowed: repo => this.allowed(repo),
+      catalog: repo => this.catalog(repo), detail: async (repo, ref, offset = 0, version) => {
+        await this.activeSource(repo);
+        const issue = await this.issue(repo, ref.number);
+        if (!this.provider.discussion) return { fact: issueFact(issue), error: '此来源暂不能读取讨论，请到 GitHub 查看完整原文' };
+        const comments = await this.provider.discussion(issue, this.abort.signal);
+        await this.activeSource(repo); await this.authorized();
+        const detailVersion = hash([issueVersion(issue), comments]);
+        if (version && version !== detailVersion) throw new Error('讨论已变化，请刷新后重新读取');
+        return { fact: { ...issueFact(issue), detailVersion, commentCount: comments.length, comments: comments.slice(offset, offset + 25) },
+          pageVersion: detailVersion, nextOffset: offset + 25 < comments.length ? offset + 25 : null };
+      } }, owner.userId);
+    switch (args.action) {
+      case 'load': return withTeamClassifications(await service.load(args.refresh), await this.classifications());
+      case 'detail': return service.detail(args.ref!, args.offset, args.version);
+      case 'saveWork': {
+        const value = args.value as IssueInvestigation;
+        const repo = repos.find(repo => sourceId(repo) === value?.ref?.sourceId);
+        if (!repo) throw new Error('来源未授权');
+        const issue = await this.issue(repo, value.ref.number);
+        if (issue.id !== value.ref.issueId || issueVersion(issue) !== value.sourceVersion) throw new Error('原文已变化，请刷新后保存分类');
+        return service.saveWork(value, args.expectedRevision!);
+      }
+      case 'saveRelation': return service.saveRelation(args.value as IssueRelation, args.expectedRevision!);
+      case 'savePreference': return service.savePreference(args.sourceId!, args.value as SourcePreference, args.expectedRevision!);
+      case 'workHistory': {
+        const ref = args.ref!;
+        const repo = repos.find(repo => sourceId(repo) === ref?.sourceId);
+        if (!repo) throw new Error('来源未授权');
+        if ((await this.issue(repo, ref.number)).id !== ref.issueId) throw new Error('来源身份已变化');
+        return this.localWork.history<IssueInvestigation>('work:' + ref.sourceId, issueRefKey(ref));
+      }
+    }
   }
   private run<T>(action: () => Promise<T>, authority?: RequestAuthority): Promise<T> {
     const promise = this.tail.catch(() => {}).then(async () => {
@@ -63,6 +178,11 @@ export class IssueTeamRuntime {
   private async allowed(repo: string) {
     if (!(await this.repositories()).includes(repo)) throw new Error('Repository is not enabled for this installation');
     this.current();
+  }
+  private async activeSource(repo: string) {
+    await this.allowed(repo);
+    const preference = await this.localWork.read<SourcePreference>('preferences', sourceId(repo));
+    if (preference?.value.enabled === false) throw new Error('来源已停用，后台处理暂停');
   }
   private async issue(repo: string, number: number) {
     await this.allowed(repo);
@@ -104,7 +224,7 @@ export class IssueTeamRuntime {
   private async classificationJob(queue: ClassificationQueue, item: ClassificationQueue['items'][number]) {
     const issue = await this.issue(queue.repo, item.number);
     if (issue.id !== item.issueId) throw new Error('Issue identity changed; inspect the original queue');
-    if (issue.state !== 'open') return null;
+    if (issue.state !== 'open' && queue.scope !== 'all') return null;
     const id = item.jobId!;
     const existing = await this.context.storage.get(prefix + id);
     if (existing) {
@@ -116,7 +236,8 @@ export class IssueTeamRuntime {
     }
     const job: Job = { kind: 'analysis', id, classificationQueueId: queue.id, issue,
       sourceVersion: issueVersion(issue), features: features(issue), threadId: queue.threadId,
-      catId: queue.catId, requester: queue.ownerUserId, requesterKind: 'owner', targetSelection: 'owner',
+      catId: queue.catId, requester: queue.ownerUserId ?? this.context.pluginInstanceId,
+      requesterKind: queue.origin === 'integration' ? 'policy' : 'owner', targetSelection: 'owner',
       ownerUserId: queue.ownerUserId, ownerOperationId: queue.ownerOperationId,
       status: 'pending', createdAt: Date.now() };
     await this.deliver(job, await this.save(job, null));
@@ -137,6 +258,7 @@ export class IssueTeamRuntime {
     if (row.status !== 'pending') return row;
     try {
       if (row.kind === 'analysis') {
+        await this.activeSource(row.issue.repo);
         if (!await this.classificationQueues.permits(row)) throw new Error('Classification queue is paused or stopped');
         if (row.targetSelection !== 'owner' && await this.context.config.get('analysisCatId') !== row.catId) throw new Error('Analysis target changed; original request retained');
         if (row.requesterKind === 'owner' && await this.context.config.get('analysisThreadId') !== row.threadId) throw new Error('Analysis thread changed; original request retained');
@@ -207,13 +329,21 @@ export class IssueTeamRuntime {
       return job;
     }
     // A one-time owner confirmation is not a standing automatic-assignment policy.
-    if (!selectedLogin && (job.kind === 'assignment' || job.assignment?.basis === 'manual' || await this.context.config.get('automaticAssignment') !== true)) return job;
+    if (!selectedLogin && (job.kind === 'assignment' && !job.automatic || job.assignment?.basis === 'manual' || await this.context.config.get('automaticAssignment') !== true)) return job;
+    if (!selectedLogin && (await this.rows()).some(row => row.kind !== 'inbox' && row.id !== job.id
+      && row.issue.repo === job.issue.repo && row.issue.id === job.issue.id && row.sourceVersion === job.sourceVersion
+      && (completed(row) || row.assignment?.commentAttempted))) {
+      job.assignment = { ...job.assignment, status: 'needs-decision', reason: '此问题已有派工或待核对的发布记录，不重复发布' };
+      await this.save(job, revision); return job;
+    }
     try {
       const delivery = selectedDelivery ?? job.assignment?.delivery ??
         await this.dispatchMode();
       if (job.assignment?.commentAttempted && delivery !== (job.assignment.delivery ?? 'assignment')) throw new Error('Resolve previous publication before changing delivery mode');
       const current = await this.issue(job.issue.repo, job.issue.number);
-      const { options, policyHash } = await assignmentPlan(this.context, this.provider, this.abort.signal, current, job.analysis);
+      await this.activeSource(current.repo);
+      const { options, policyHash } = await this.planAssignment(current, job.analysis);
+      if (job.kind === 'assignment' && job.automatic && !job.assignment?.commentAttempted) job.category = (await this.effective(current)).category;
       const login = selectedLogin ?? options.preferredLogin;
       const reason = current.state !== 'open' ? 'Closed issue requires an explicit verification decision'
         : issueVersion(current) !== job.sourceVersion ? 'Source changed; fresh analysis required'
@@ -237,12 +367,12 @@ export class IssueTeamRuntime {
         acceptanceSuggestedFor: options.acceptanceSuggestedFor };
       revision = await this.save(job, revision);
       const currentPolicy = async () => {
-        await this.allowed(current.repo);
+        await this.activeSource(current.repo);
         if (!selectedLogin && job.kind === 'analysis' && !await this.classificationQueues.permits(job)) throw new Error('Classification queue is paused or stopped');
         // The hash includes the complete current roster and organization. One
         // fresh plan checks both membership and routing before each write.
         if ((!selectedLogin && await this.context.config.get('automaticAssignment') !== true) ||
-            (await assignmentPlan(this.context, this.provider, this.abort.signal, current, job.analysis)).policyHash !== policyHash) {
+            (await this.planAssignment(current, job.analysis)).policyHash !== policyHash) {
           throw new Error('Group or assignment policy changed; intent retained');
         }
         if (delivery === 'invitation') {
@@ -266,7 +396,7 @@ export class IssueTeamRuntime {
       await currentPolicy();
       const commentId = await this.provider.publishDispatch(after, {
         schema: 'issue-workbench.dispatch.v1', ...(delivery === 'invitation' ? { delivery } : {}), id: job.id, issueId: after.id, assignee: login,
-        score: job.analysis?.score ?? null, reason: job.analysis?.reason ?? '主人直接指派；尚未请求猫猫研判。', sourceVersion: job.sourceVersion,
+        score: job.analysis?.score ?? null, reason: dispatchReason(job), sourceVersion: job.sourceVersion,
         ...(job.assignment.acceptanceSuggestedFor ? { acceptanceSuggestedFor: job.assignment.acceptanceSuggestedFor } : {}),
       }, this.abort.signal, allowCreate);
       this.current(); job.assignment = { ...job.assignment, status: delivery === 'invitation' ? 'invited' : 'assigned', commentId };
@@ -289,7 +419,10 @@ export class IssueTeamRuntime {
     }
     await caller.assertCurrent(); this.current();
     job.analysis = args.analysis; job.status = 'analyzed';
-    job.provenance = { catId: caller.catId, invocationId: caller.invocationId, sourceMessageId: caller.source!.sourceMessageId, recordedAt: Date.now() };
+    const previousTimes = (await this.rows()).flatMap(row => row.kind === 'analysis' && row.issue.id === job.issue.id
+      && row.issue.repo === job.issue.repo && row.provenance ? [row.provenance.recordedAt] : []);
+    job.provenance = { catId: caller.catId, invocationId: caller.invocationId, sourceMessageId: caller.source!.sourceMessageId,
+      recordedAt: Math.max(Date.now(), ...previousTimes.map(time => time + 1)) };
     return this.assign(job, await this.save(job, entry.revision));
   }
   private async inbox() {
@@ -419,9 +552,17 @@ export class IssueTeamRuntime {
     const { value: row, revision } = await this.row(id);
     const currentIssue = await this.issue(row.issue.repo, row.issue.number);
     let options: AssignmentOptions;
-    try { options = (await assignmentPlan(this.context, this.provider, this.abort.signal, currentIssue, row.kind === 'analysis' ? row.analysis : undefined)).options; }
+    try { options = (await this.planAssignment(currentIssue, row.kind === 'analysis' ? row.analysis : undefined)).options; }
     catch (error) { options = { groupName: '', members: [], error: errorText(error) }; }
-    return { ...row, revision, currentIssue,
+    let receiver;
+    if (row.kind === 'inbox') {
+      const current = row.status !== 'inactive' && await this.inboxCurrent(row);
+      const thread = await this.context.threads.get(row.threadId);
+      receiver = { current, accepted: !!row.ownerAcceptance && row.ownerAcceptance.deliveryEpoch === (row.deliveryEpoch ?? 0),
+        threadUrl: thread?.deepLinkUrl,
+        requestText: `@${row.catId}\n我接下 ${row.issue.repo}#${row.issue.number}，请开始处理。先用 issue_team_get 核对收件记录 ${row.id} 和当前分配，再在本对话接续或建立正式任务，分析原因、实现修复并验证；需要我决定的事项说明取舍。未经我另外确认不合入。\n${row.issue.url}` };
+    }
+    return { ...row, revision, currentIssue, ...(receiver ? { receiver } : {}),
       assignmentOptions: options,
       sourceStale: row.kind !== 'inbox' && issueVersion(currentIssue) !== row.sourceVersion,
       sharedReceipts: await this.provider.receipts(currentIssue, this.abort.signal, options.members) };
@@ -448,7 +589,7 @@ export class IssueTeamRuntime {
         await this.authorized();
         row.assignment.commentId = await this.provider.publishDispatch(current, {
           schema: 'issue-workbench.dispatch.v1', ...(invitation ? { delivery: 'invitation' as const } : {}), id: row.id, issueId: current.id, assignee: row.assignment.login,
-          score: row.analysis?.score ?? null, reason: row.analysis?.reason ?? '主人直接指派；尚未请求猫猫研判。', sourceVersion: row.sourceVersion,
+          score: row.analysis?.score ?? null, reason: dispatchReason(row), sourceVersion: row.sourceVersion,
           ...(row.assignment.acceptanceSuggestedFor ? { acceptanceSuggestedFor: row.assignment.acceptanceSuggestedFor } : {}),
         }, this.abort.signal, true);
         row.assignment.status = invitation ? 'invited' : 'assigned'; delete row.assignment.reason;
@@ -487,6 +628,18 @@ export class IssueTeamRuntime {
       }
       await this.authorized();
       switch (method) {
+        case 'acceptInbox': {
+          const args = revisionInput.strict().parse(input), entry = await this.row(args.id), row = entry.value;
+          if (entry.revision !== args.expectedRevision) throw new Error('Record changed; reload before accepting');
+          if (row.kind !== 'inbox') throw new Error('Inbox record required');
+          await this.activeSource(row.issue.repo);
+          if (row.status === 'inactive' || !await this.inboxCurrent(row)) throw new Error('Assignment changed; reload before accepting');
+          if (row.ownerAcceptance?.deliveryEpoch === (row.deliveryEpoch ?? 0)) return row;
+          if (row.ownerAcceptance) row.ownerAcceptanceHistory = [...(row.ownerAcceptanceHistory ?? []), row.ownerAcceptance];
+          row.ownerAcceptance = { userId: owner.userId, operationId: owner.requestId, recordedAt: Date.now(), deliveryEpoch: row.deliveryEpoch ?? 0 };
+          await this.save(row, entry.revision); return row;
+        }
+        case 'coordination': return this.coordination(input, owner);
         case 'planClassification': return this.classificationQueues.plan(input, owner);
         case 'controlClassification': return this.classificationQueues.control(input, owner);
         case 'summary': {
@@ -509,8 +662,8 @@ export class IssueTeamRuntime {
               return (b.kind === 'inbox' ? b.receivedAt : b.createdAt ?? (b.kind === 'analysis' ? b.provenance?.recordedAt ?? 0 : 0)) -
                 (a.kind === 'inbox' ? a.receivedAt : a.createdAt ?? (a.kind === 'analysis' ? a.provenance?.recordedAt ?? 0 : 0)) || a.id.localeCompare(b.id);
             });
-          const keys = ['repositories', 'analysisCatId', 'analysisThreadId', 'automaticAssignment', 'receiveAssignments', 'shareProgress', 'teamOrganization', 'dispatchMode'];
-          const flags = new Set(['automaticAssignment', 'receiveAssignments', 'shareProgress']);
+          const keys = ['repositories', 'analysisCatId', 'analysisThreadId', 'initialClassification', 'automaticAssignment', 'receiveAssignments', 'shareProgress', 'teamOrganization', 'dispatchMode'];
+          const flags = new Set(['initialClassification', 'automaticAssignment', 'receiveAssignments', 'shareProgress']);
           const settings = Object.fromEntries(await Promise.all(keys.map(async key => {
             const value = await this.context.config.get(key);
             return [key, flags.has(key) ? value === true : value];
@@ -522,10 +675,13 @@ export class IssueTeamRuntime {
             const sourceVersion = issueVersion(currentIssue);
             const latest = selected.find((row): row is Job => row.kind === 'analysis' && !!row.analysis && row.sourceVersion === sourceVersion);
             let options: AssignmentOptions;
-            try { options = (await assignmentPlan(this.context, this.provider, this.abort.signal, currentIssue, latest?.analysis)).options; }
+            try { options = (await this.planAssignment(currentIssue, latest?.analysis)).options; }
             catch (error) { options = { groupName: '', members: [], error: errorText(error) }; }
             group = options;
-            issueContext = { currentIssue, sourceVersion, assignmentOptions: options, features: features(currentIssue), analysis: latest?.analysis };
+            const effective = await this.effective(currentIssue, latest?.analysis);
+            issueContext = { currentIssue, sourceVersion, assignmentOptions: options, features: features(currentIssue), analysis: latest?.analysis,
+              effectiveCategory: { label: features(currentIssue).length ? '随 Feature 处理' : effective.category ?? '待判断',
+                source: effective.work?.value.module.trim() ? 'human' : effective.analysis ? 'cat' : 'none', stale: effective.stale } };
           } else {
             try { group = await readGroup(this.context, this.provider, this.abort.signal); }
             catch (error) { group = { groupName: '', members: [], error: errorText(error) }; }
@@ -664,7 +820,16 @@ export class IssueTeamRuntime {
   async recover(authority?: PluginOwnerOperationContext) {
     return this.run(async () => {
       const results: Array<{ id: string; error?: string; invitationCatchup?: InboxCatchup }> = [];
+      for (const repo of await this.repositories()) {
+        try { await this.classificationQueues.integrate(repo); }
+        catch (error) { await this.authorized(); results.push({ id: 'initial:' + repo, error: errorText(error) }); }
+      }
       for (const row of await this.rows()) {
+        if (row.kind === 'assignment' && row.automatic && row.assignment?.status === 'pending') {
+          try { await this.assign(row, (await this.row(row.id)).revision); }
+          catch (error) { await this.authorized(); results.push({ id: row.id, error: errorText(error) }); }
+          continue;
+        }
         if (row.kind !== 'analysis') continue;
         try {
           if (!await this.classificationQueues.permits(row)) continue;
@@ -679,6 +844,8 @@ export class IssueTeamRuntime {
         if (await this.context.config.get('receiveAssignments') === true) results.push({ id: 'inbox', invitationCatchup: this.inboxCatchup });
       } catch (error) { this.current(); results.push({ id: 'inbox', error: errorText(error) }); }
       await this.classificationQueues.recover();
+      try { results.push(...await this.dispatchBatch()); }
+      catch (error) { await this.authorized(); results.push({ id: 'automatic-assignment', error: errorText(error) }); }
       return results;
     }, authority);
   }

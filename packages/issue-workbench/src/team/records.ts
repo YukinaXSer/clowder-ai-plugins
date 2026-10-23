@@ -23,7 +23,7 @@ export interface Job {
   targetSelection?: 'owner';
   sourceMessageId?: string;
   requester: string;
-  requesterKind?: 'cat' | 'owner';
+  requesterKind?: 'cat' | 'owner' | 'policy';
   ownerUserId?: string;
   ownerOperationId?: string;
   createdAt?: number;
@@ -45,14 +45,19 @@ export interface Inbox {
   status: 'pending' | 'delivered' | 'inactive'; messageId?: string; error?: string;
   dispatchId?: string;
   deliveryEpoch?: number;
+  /** Owner's local acceptance is separate from Host Task admission and execution. */
+  ownerAcceptance?: { userId: string; operationId: string; recordedAt: number; deliveryEpoch: number };
+  ownerAcceptanceHistory?: NonNullable<Inbox['ownerAcceptance']>[];
   receipt?: { value: SharedReceipt; commentAttempted?: boolean; commentId?: string };
   withdrawal?: { status: 'pending' | 'delivered'; messageId?: string; error?: string };
   withdrawalHistory?: NonNullable<Inbox['withdrawal']>[];
 }
 /** A direct owner assignment is not a cat analysis and has no cat provenance. */
 export interface OwnerAssignment extends Pick<Job, 'id' | 'issue' | 'sourceVersion' | 'features' | 'assignment' | 'createdAt'> {
-  kind: 'assignment'; ownerUserId: string; ownerOperationId: string;
-  requestedLogin: string;
+  kind: 'assignment'; ownerUserId?: string; ownerOperationId?: string;
+  requestedLogin?: string;
+  automatic?: boolean;
+  category?: string;
   analysis?: never;
 }
 export type DispatchRecord = Job | OwnerAssignment;
@@ -65,6 +70,7 @@ export interface TeamClassification {
 export type TeamRecordDetail = TeamRecord & {
   revision: number; currentIssue: TeamIssue; sourceStale: boolean; sharedReceipts: SharedReceipt[];
   assignmentOptions: AssignmentOptions;
+  receiver?: { current: boolean; accepted: boolean; threadUrl?: string; requestText: string };
 };
 export function statistics(rows: TeamRecord[]) {
   const jobs = rows.filter((row): row is Job => row.kind === 'analysis' && !!row.analysis);

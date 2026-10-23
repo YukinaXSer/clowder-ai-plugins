@@ -9,7 +9,8 @@ const request = z.object({ repo: repository, catId: z.string().trim().min(1).max
   requestId: z.string().regex(/^[A-Za-z0-9_.:-]{1,128}$/) }).strict();
 export interface ClassificationQueue {
   id: string; repo: string; catId: string; threadId: string; requestId: string;
-  ownerUserId: string; ownerOperationId: string; createdAt: number;
+  ownerUserId?: string; ownerOperationId?: string; createdAt: number;
+  origin?: 'integration'; scope?: 'all';
   status: 'paused' | 'running' | 'completed' | 'stopped';
   items: Array<{ number: number; issueId: string; status: 'pending' | 'waiting' | 'analyzed' | 'skipped'; jobId?: string; reason?: string }>;
   error?: string;
@@ -19,7 +20,7 @@ interface Driver {
   authorized(): Promise<void>;
   allowed(repo: string): Promise<void>;
   target(threadId: string, catId: string): Promise<void>;
-  catalog(repo: string): Promise<TeamIssue[]>;
+  catalog(repo: string, scope?: 'all'): Promise<TeamIssue[]>;
   job(queue: ClassificationQueue, item: ClassificationQueue['items'][number]): Promise<Job | null>;
 }
 
@@ -54,7 +55,29 @@ export class ClassificationQueues {
   async permits(job: Job) {
     if (!job.classificationQueueId) return true;
     const queue = await this.read(job.classificationQueueId);
-    return ['running', 'completed'].includes(queue.status) && queue.catId === job.catId && queue.threadId === job.threadId;
+    return ['running', 'completed'].includes(queue.status) && queue.catId === job.catId && queue.threadId === job.threadId
+      && (queue.origin !== 'integration' || await this.context.config.get('initialClassification') === true);
+  }
+  async integrate(repo: string) {
+    if (await this.context.config.get('initialClassification') !== true) return;
+    await this.driver.allowed(repo);
+    const id = hash(['initial-classification', this.context.pluginInstanceId, repo]);
+    // Presence, including stopped/completed, means this integration was handled.
+    // No config refresh or restart creates a second initial batch.
+    if (await this.context.storage.get(prefix + id)) return;
+    if ((await this.list()).some(queue => queue.repo === repo && ['paused', 'running'].includes(queue.status))) return;
+    const catId = await this.context.config.get('analysisCatId'), threadId = await this.context.config.get('analysisThreadId');
+    if (typeof catId !== 'string' || !catId || typeof threadId !== 'string' || !threadId) throw new Error('首次自动分类等待配置分析猫和对话');
+    await this.driver.target(threadId, catId);
+    const issues = await this.driver.catalog(repo, 'all');
+    if (issues.some(issue => issue.repo !== repo || !issue.id)) throw new Error('Invalid complete issue catalog');
+    await this.driver.allowed(repo);
+    if (await this.context.config.get('initialClassification') !== true || await this.context.config.get('analysisCatId') !== catId
+      || await this.context.config.get('analysisThreadId') !== threadId) throw new Error('Initial classification settings changed');
+    const items = [...new Map(issues.map(issue => [issue.id, issue])).values()].sort((a, b) => a.number - b.number)
+      .map(issue => ({ number: issue.number, issueId: issue.id, status: 'pending' as const }));
+    await this.write({ id, repo, catId, threadId, requestId: 'initial', origin: 'integration', scope: 'all',
+      createdAt: Date.now(), status: items.length ? 'running' : 'completed', items }, null);
   }
   async plan(input: unknown, owner: PluginOwnerOperationContext) {
     const args = request.parse(input);
@@ -86,7 +109,7 @@ export class ClassificationQueues {
     const args = idInput.extend({ expectedRevision: z.number().int().positive(),
       status: z.enum(['running', 'paused', 'stopped']) }).parse(input);
     const { revision, ...queue } = await this.read(args.id);
-    if (queue.ownerUserId !== owner.userId) throw new Error('Classification queue belongs to another owner');
+    if (queue.ownerUserId && queue.ownerUserId !== owner.userId) throw new Error('Classification queue belongs to another owner');
     if (revision !== args.expectedRevision) throw new Error('Classification queue revision changed; refresh first');
     if (queue.status === 'stopped') throw new Error('Stopped queue cannot resume; prepare a new queue');
     if (args.status === 'running') await this.validateTarget(queue);
@@ -96,6 +119,7 @@ export class ClassificationQueues {
   }
   private async validateTarget(queue: ClassificationQueue) {
     await this.driver.allowed(queue.repo);
+    if (queue.origin === 'integration' && await this.context.config.get('initialClassification') !== true) throw new Error('首次自动分类已关闭；原进度保留');
     if (await this.context.config.get('analysisThreadId') !== queue.threadId) throw new Error('Analysis thread changed; original queue retained');
     await this.driver.target(queue.threadId, queue.catId);
   }

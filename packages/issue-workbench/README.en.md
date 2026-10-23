@@ -2,6 +2,33 @@
 
 [Chinese guide](README.md)
 
+## Classification, assignment and acceptance
+
+The installed workbench is served by this package through the existing authenticated
+Host route `/api/plugins/dev.clowder.issue-workbench/workbench/installed.html`.
+Its human edits, history, categories and assignment rules share one durable plugin
+store. Human categories take precedence over later cat suggestions. The old
+standalone preview store is not silently migrated.
+
+`initialClassification` opts into one initial batch covering both Open and Closed
+history, excluding pull requests. Configured cat/thread routing and the complete
+catalog are required. Restart continues the same batch. `automaticAssignment` is
+independent: it scans unassigned Open Issues and can use saved human categories
+without another model call. Member authors take precedence, followed by Feature
+rules and category rules. At most ten actionable records advance per sweep;
+unmatched entries do not starve later matches. Paused/stopped analysis batches retain
+their dispatch fences. Closed Issues are classified but never auto-assigned.
+
+In `团队记录 → 我的收件`, the receiving owner can choose `接下此任务`.
+Acceptance persists locally. `复制开工指令` and `打开收件对话` provide the
+exact Issue/receipt context for an explicit user message in the original thread.
+The cat admits or resumes work from that message; a plugin acceptance or notification
+does not manufacture execution authority. Public reports still require `shareProgress`.
+
+These paths pass isolated tests using real Host implementation and packed browser
+assets. Default Host grants remain absent, so active-café authorization, real cat
+execution and two-account acceptance remain unverified; `hostInstallable` stays false.
+
 A standalone extraction of the existing Clowder Issue workbench. It reads GitHub
 observations, keeps versioned Markdown archives, and provides a browser workbench
 for local annotations, solutions, evidence and task/label drafts.

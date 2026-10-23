@@ -1,4 +1,5 @@
 import type { FeatureContext, PluginActionContext } from '@clowder-ai/plugin-sdk';
+import type { IssueSourceComment } from '../model/issue-source.js';
 
 export interface TeamIssue {
   repo: string;
@@ -48,12 +49,15 @@ export interface InvitationPage {
   newestUpdatedAt?: string;
 }
 export interface TeamProvider {
+  /** Complete history for initial classification. A partial inventory must reject. */
+  allIssues?(repo: string, signal: AbortSignal): Promise<TeamIssue[]>;
   /** Complete paginated Open Issue catalog; partial reads must reject. */
   openIssues(repo: string, signal: AbortSignal): Promise<TeamIssue[]>;
   identity(signal: AbortSignal): Promise<string>;
   /** Complete organization roster, including concealed members; throws if access is unverified. */
   organizationMembers(organization: string, signal: AbortSignal): Promise<string[]>;
   issue(repo: string, number: number, signal: AbortSignal): Promise<TeamIssue>;
+  discussion?(issue: TeamIssue, signal: AbortSignal): Promise<IssueSourceComment[]>;
   assignable(repo: string, login: string, signal: AbortSignal): Promise<boolean>;
   canWrite(repo: string, login: string, signal: AbortSignal): Promise<boolean>;
   addAssignee(issue: TeamIssue, login: string, signal: AbortSignal): Promise<void>;

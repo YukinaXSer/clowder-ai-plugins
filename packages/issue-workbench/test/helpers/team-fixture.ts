@@ -7,7 +7,7 @@ export function setup() {
     repositories: 'fixture/repo', analysisCatId: 'analyst', inboxCatId: 'receiver',
     inboxThreadId: 'inbox', receiveAssignments: true, automaticAssignment: true,
     teamOrganization: 'fixture-org',
-    routingRules: JSON.stringify([{ login: 'alice', categories: ['runtime'], features: ['F123'] }]),
+    routingRules: JSON.stringify([{ login: 'alice', categories: ['Agent 运行'], features: ['F123'] }]),
   };
   const issues: TeamIssue[] = [{
     repo: 'fixture/repo', number: 1, id: 'issue-1', title: 'Cannot start',
@@ -49,6 +49,7 @@ export function setup() {
   };
   const members = ['alice', 'bob'];
   const provider: TeamProvider = {
+    allIssues: async repo => structuredClone(issues.filter(issue => issue.repo === repo)),
     openIssues: async repo => structuredClone(issues.filter(issue => issue.repo === repo && issue.state === 'open')),
     organizationMembers: async () => [...members],
     identity: async () => login,
@@ -70,7 +71,7 @@ export function setup() {
     source: { kind: 'primary', sourceMessageId: source }, assertCurrent: async () => {},
   });
   const runtime = () => new IssueTeamRuntime(context, provider);
-  const analysis = { category: 'runtime', score: 9, reason: 'Core startup is blocked', evidence: 'The café cannot start.', blocksRuntime: true, workaround: '' };
+  const analysis = { category: 'Agent 运行', score: 9, reason: 'Core startup is blocked', evidence: 'The café cannot start.', blocksRuntime: true, workaround: '' };
   return { runtime, context, provider, caller, config, members, issues, sends, writes, dispatches, analysis,
     feedbackFromCat: () => { feedbackCat = 'analyst'; },
     login: (value: string) => { login = value; }, failSend: (value: boolean) => { failSend = value; },

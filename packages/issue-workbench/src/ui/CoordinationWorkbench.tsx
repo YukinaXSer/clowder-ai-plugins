@@ -22,6 +22,7 @@ import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import { issueContextFor } from '../classification/issue-context';
 import type { IssueRef } from '../model/issue-coordination.js';
 import { CoordinationEditor } from './CoordinationEditor';
+import { CoordinationHistory } from './CoordinationHistory';
 import { CoordinationLinks, type RelationCandidate } from './CoordinationLinks';
 import { CoordinationReading } from './CoordinationReading';
 import { CoordinationSourceStatus, CoordinationSources } from './CoordinationSources';
@@ -416,6 +417,7 @@ export function CoordinationWorkbench({
                   dirty={current.dirty}
                   error={saveError}
                 />
+                <CoordinationHistory key={`history:${row.key}:${current.revision}`} host={host} issue={current.value.ref} />
                 {issueTools?.(row.source.profile, row.fact, issueCategory(row).label)}
               </section>
             </>
