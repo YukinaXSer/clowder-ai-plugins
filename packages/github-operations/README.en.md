@@ -66,11 +66,11 @@ These contributions belong to one plugin, with one manifest, ID, version and cap
 Native GitHub Issue Assignees own the current claim; the event timeline retains claim and release history.
 Adding or removing your Assignee directly on GitHub works without an Issue Workbench comment or installation.
 
-Configure `认领收件仓库` (repositories), `认领通知对话` (Host thread), and
-`认领通知协调猫` (coordinator), then enable `接收我的 GitHub 认领`.
+Configure `assignmentRepositories` (repositories), `assignmentThreadId` (Host thread), and
+`assignmentCatId` (coordinator), then enable `receiveAssignedIssues`.
 The connection polls roughly once a minute and catches up existing assignments on first enable.
-Release, closure, and reclaim are separate observations. `GitHub 认领收件状态` exposes
-`查看认领同步状态` and `重试认领同步`; a failed source read never becomes a false withdrawal.
+Release, closure, and reclaim are separate observations. The assignment inbox status setting
+exposes status and retry actions; a failed source read never becomes a false withdrawal.
 
 Ordinary Host messaging delivers the notification and wakes the coordinator. The cat notifies its
 co-creator and uses that person's applicable authorization and normal Host work flow to begin development.

@@ -45,8 +45,18 @@ Why：GitHub 是跨成员公共事实，Host 负责对话、目标、授权与�
 
 - 真实宿主发现并修复了 Settings operation 缺少 `render`，补了失败回归。
 - 真实宿主拒绝 `threads.get` 的 `thread.readContent` 权限；改用已有 `threads.getCats` 元数据能力校验目的对话和可路由猫，不扩大宿主权限，补了默认无内容读取权的回归。
-- GitHub 包 610 项测试、typecheck/build 通过；制品已安装到 3142/5142 独立宿主。当前制品以同目录 `artifacts/public-claims-2026-10-26/github-pack-v4.json` 和 candidate catalog 摘要为准。
-- 认领消息：`0001792980286142-000000-8718addf`；原生 GitHub assignment event：`34217307307`。实验猫已启动，后续以真实回复和撤销/停启证据补录。
+- GitHub 包 610 项测试、typecheck/build 通过；制品已安装到 3142/5142 独立宿主。当前制品以同目录 `artifacts/public-claims-2026-10-26/github-pack-final.json` 和 candidate catalog 摘要为准。
+- 认领消息：`0001792980286142-000000-8718addf`；原生 GitHub assignment event：`34217307307`。实验猫已向本人转达认领和撤销；第一次撤销消息 `0001792980328668-000002-07c305af`，停启后仍是原两条通知。重新认领使用新事件 `34217676813`，新通知 `0001792980625455-000004-7819083d`；最后撤销 `0001792980740921-000006-4919a57c`。
 - GitHub 全仓门禁、最终提交/远端 HEAD、独立 review 仍待核验；未合入、未发布 npm。
 
 Architecture ownership：既有 GitHub Signals cell 内扩展采集和事实通知；普通 Host 消息负责持久投递与唤醒。Host 源码、权限策略和 Task admission 无新增修改。插件仓不具备家内 `check:architecture-ownership` / tips seed 检查入口；操作指引随双语 README 和本验收文档交付。
+
+## 实物与边界（2026-10-26）
+
+- 作者在实际 Hub 收件对话打开并展开猫回复，确认可见认领通知、撤销通知和猫转达内容；浏览器无页面错误。采样当时 Issue 工作台 `stopped`、GitHub Operations `running`。
+- 最终两次认领、两次撤销，共四条源通知；首次停启和重复手工同步未新增同一事件通知。测试结束为 Open、Assignees 空。
+- 独立宿主仍为 `cat-cafe-issue-workbench-lab`（Hub 5142 / API 3142 / Redis 6358）；原工作实例代码、配置和数据未修改。试验租期到 2026-10-26 21:28 Asia/Shanghai，届时停服务、保留数据。
+- 实验猫已回复本人，但其 `gh` 直接联网复核被只读网络沙箱拒绝；未把通知观察当作当前 GitHub 核验，也未启动开发。通用连接自身的真实 GitHub 读取、Host 普通投递和唤醒已通过。实际开发仍需宿主适用授权及工具能力；专用测试 Issue 明确不要求修代码。
+- 工作台已恢复启用，其旧 `receiveAssignments` 关闭；通用 GitHub `receiveAssignedIssues` 继续开启，避免重复接收。原工作区不受影响。
+
+本地完整证据位于独立宿主 `.cat-cafe/lab-evidence/public-claims-2026-10-26/`（最终消息、启停与包摘要、浏览器截图）；不把整段实验对话或账号配置提交到公共仓库。
