@@ -41,7 +41,7 @@ Why：GitHub 是跨成员公共事实，Host 负责对话、目标、授权与�
 
 本测试 Issue 的正文明确只允许通知验收，不要求实际修代码。实际开发的入口是宿主普通对话，由本人明确接手或适用的已有授权驱动；本轮不把收到通知或猫被唤醒当作「已完成开发」。成员角色/系统权重仍在原 Task 内续做，当前未配置成已生效规则。
 
-## 本轮自检记录
+## 首轮自检记录（修正前）
 
 - 真实宿主发现并修复了 Settings operation 缺少 `render`，补了失败回归。
 - 真实宿主拒绝 `threads.get` 的 `thread.readContent` 权限；改用已有 `threads.getCats` 元数据能力校验目的对话和可路由猫，不扩大宿主权限，补了默认无内容读取权的回归。
@@ -54,7 +54,7 @@ Why：GitHub 是跨成员公共事实，Host 负责对话、目标、授权与�
 
 Architecture ownership：既有 GitHub Signals cell 内扩展采集和事实通知；普通 Host 消息负责持久投递与唤醒。Host 源码、权限策略和 Task admission 无新增修改。插件仓不具备家内 `check:architecture-ownership` / tips seed 检查入口；操作指引随双语 README 和本验收文档交付。
 
-## 实物与边界（2026-10-26）
+## 首轮实物与边界（2026-10-26，修正前）
 
 - 作者在实际 Hub 收件对话打开并展开猫回复，确认可见认领通知、撤销通知和猫转达内容；浏览器无页面错误。采样当时 Issue 工作台 `stopped`、GitHub Operations `running`。
 - 三次认领、三次撤销，共六条源通知和六次实际猫回复；首次停启和重复手工同步未新增同一事件通知。最后一轮运行 alpha.28；浏览器截图来自较早的同功能候选，最终版本另有真实 API 与猫回复证据。测试结束为 Open、Assignees 空。
@@ -71,3 +71,13 @@ Architecture ownership：既有 GitHub Signals cell 内扩展采集和事实通�
 新增四个行为用例在原实现均失败：managed-user 本人读取、普通账号遇到其他 managed-user 负责人、这两种情形的收件持久化/重启/撤销/重认领。修复后相关 24 项和 typecheck 通过，完整 GitHub 包 747 通过、1 项既有跳过、0 失败。未新增 fallback；本插件仓没有 `check-fallback-layers.mjs`，人工检查此次 diff 无新后备分支。
 
 新制品仍为未发布的 alpha.28（重新打包前 registry 精确版本返回 404），打包记录为 `packages/issue-workbench/artifacts/public-claims-2026-10-26/review-r1/pack.json`；integrity 为 `sha512-27f4P9lkKfAgtav6oMHUuIIe5vmnFha0HuwGEfYnah04/HSnl8pmVKIkr4qP8DYhgm39xwqM+1rQ9SU3OANIWQ==`。前文旧摘要及三轮通知属于修正前的历史证据，不能作为新制品安装或最终门禁回执。
+
+修正后的同一制品已在原独立宿主更新，保留原 plugin instance。停用 Issue 工作台后，再次认领和取消本人测试 Issue；本轮两条通知为 `0001792983401700-000012-68b05d46`、`0001792983471063-000014-8530448c`，两次猫回复为 `0001792983401755-000013-41324617`、`0001792983472245-000015-f88a3a4f`。重复同步没有重发；仍未启动实际开发。
+
+本轮补齐独立状态快照：通知时工作台 `stopped`、通用 GitHub `running` 且摘要匹配；作者实际打开 Hub 并展开本轮取消回复，截图与浏览器日志均记录新摘要，page errors 为空。首次浏览器检查因等待中的模型回复尚未包含旧固定措辞而失败；改为核验稳定的取消通知内容，保留首次失败日志，没有修改产品行为。
+
+测试结束直接以 `gh issue view` 回读：测试 Issue 为 Open、Assignees 空（`updatedAt=2026-10-26T02:57:37Z`），并恢复工作台运行。证据在 lab 的 `.cat-cafe/lab-evidence/public-claims-2026-10-26/review-r1/`，汇总为 `acceptance.json`，状态及最终 GitHub 回读不再只依赖作者文字说明。
+
+首轮局部审查的两项修复不代表完整工作台已验收：Windows/macOS 硬筛选、部分成员职责与分配权重尚未实现。用户要求的完整动线审查仍须覆盖这些缺口；原 reviewer 在接续该审查时报告 `quota_exceeded`，不能把该退出当作批准。
+
+修复代码 `3d9cdec3995f67ee100a22d734b949647d29f617` 的完整 `pnpm gate:ci` 36 项通过（523 秒），见插件 `artifacts/public-claims-2026-10-26/review-r1/gate.log`。后续仅补验收文档，不改被验证的源码或制品。候选依旧未发布，远端 CI、独立复审和整体需求完成状态分别核验。
