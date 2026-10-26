@@ -578,9 +578,9 @@ Within the compatible pool, architectural duties precede the eligible reporter, 
 
 ### One-time bulk assignment board
 
-Open **批量派工 (Bulk assignment)** in the top toolbar, then **读取当前 Open 问题看板**. The board snapshots every Open Issue in enabled repositories without writing GitHub. It shows effective classifications, systems, duties, scores, candidates and routing reasons. Saved human classifications take precedence. Ordinary weighted recommendations include virtual reservations within this batch.
+Open **Bulk assignment** (`批量派工`) in the top toolbar, then **Read current Open issues** (`读取当前 Open 问题看板`). The board snapshots every Open Issue in enabled repositories without writing GitHub. It shows effective classifications, systems, duties, scores, candidates and routing reasons. Saved human classifications take precedence. Ordinary weighted recommendations include virtual reservations within this batch.
 
-Fill missing classifications using **补齐分类分析**, or save corrections in the existing issue detail and refresh the plan. Cat results return to this board without auto-dispatch. Adjust compatible recipients per row or uncheck participation. Existing GitHub owners are retained. Unknown/multiple systems, missing eligible members, stale human analysis and unresolved publications require attention or exclusion.
+Fill missing classifications using **Complete classification** (`补齐分类分析`), or save corrections in the existing issue detail and refresh the plan. Cat results return to this board without auto-dispatch. Adjust compatible recipients per row or uncheck participation. Existing GitHub owners are retained. Unknown/multiple systems, missing eligible members, stale human analysis and unresolved publications require attention or exclusion.
 
 Review counts and member distribution, then explicitly confirm. This batch sets GitHub Assignees and publishes dispatch comments. Complete permission, recipient, source and policy preflight precedes execution; each effect is checked again. Refreshing or reopening restores persisted progress. Retry retains the original recipients and skips successful items. To change a failed intent or source/policy, stop and prepare a new batch. Resolve uncertain comment publication through the existing assignment history recovery controls.
 

@@ -116,9 +116,11 @@ test('large previews share one fresh roster read; preflight uses complete catalo
   const group = s.provider.organizationMembers, issue = s.provider.issue;
   s.provider.organizationMembers = async (...args) => { rosters++; return group(...args); };
   s.provider.issue = async (...args) => { reads++; return issue(...args); };
-  const b = await s.prepare(); assert.equal(rosters, 1); assert.equal(b.items.length, 120);
+  let b = await s.prepare(); assert.equal(rosters, 1); assert.equal(b.items.length, 120);
+  b = await s.call('refreshAssignmentBatch', { id: b.id, expectedRevision: b.revision });
+  assert.equal(reads, 0, 'refresh also reads a complete catalog rather than one subprocess per issue');
   await s.call('confirmAssignmentBatch', { id: b.id, expectedRevision: b.revision });
-  assert.equal(rosters, 2); assert.equal(reads, 0); assert.deepEqual(s.writes, []);
+  assert.equal(rosters, 3); assert.equal(reads, 0); assert.deepEqual(s.writes, []);
 });
 
 test('permission preflight checks all selected recipients before any GitHub write', async () => {

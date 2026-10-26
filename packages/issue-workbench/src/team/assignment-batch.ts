@@ -117,10 +117,20 @@ export class AssignmentBatches {
     const items = await this.preview(unique);
     return this.write({ id, requestId: args.requestId, ownerUserId: owner.userId, initiator: 'system', createdAt: Date.now(), status: 'draft', items }, null);
   }
+  private async currentIssues(batch: AssignmentBatch) {
+    const catalog = new Map((await this.driver.catalog()).map(issue => [issue.repo + ':' + issue.id, issue]));
+    const issues: TeamIssue[] = [];
+    for (const item of batch.items) {
+      // Only rows absent from the complete Open catalog need an individual
+      // lookup, to distinguish closure/deletion/replacement from a stale page.
+      issues.push(catalog.get(item.issue.repo + ':' + item.issue.id) ?? await this.driver.issue(item.issue.repo, item.issue.number));
+    }
+    return issues;
+  }
   async refresh(input: unknown, owner: PluginOwnerOperationContext) {
     const { batch, revision } = await this.owned(input, owner);
     if (batch.status !== 'draft') throw new Error('只有待确认批次可以刷新计划');
-    batch.items = await this.preview(await Promise.all(batch.items.map(i => this.driver.issue(i.issue.repo, i.issue.number))), batch.items);
+    batch.items = await this.preview(await this.currentIssues(batch), batch.items);
     delete batch.error; return this.write(batch, revision);
   }
   async edit(input: unknown, owner: PluginOwnerOperationContext) {
@@ -193,7 +203,7 @@ export class AssignmentBatches {
           // not request the same model again on every scheduled tick.
           item.status = 'blocked';
         }
-        batch.items = await this.preview(await Promise.all(batch.items.map(i => this.driver.issue(i.issue.repo, i.issue.number))), batch.items);
+        batch.items = await this.preview(await this.currentIssues(batch), batch.items);
         batch.status = 'draft'; delete batch.error;
       } else if (batch.status === 'running') {
         if (!batch.confirmation) throw new Error('缺少批次确认，不能执行');
