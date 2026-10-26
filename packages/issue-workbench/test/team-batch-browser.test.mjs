@@ -14,7 +14,6 @@ const repo = fileURLToPath(new URL('../../../', import.meta.url));
 
 test('packed bulk board: complete Open snapshot, edits, skips, confirmation, system dispatch and durable restart', { timeout: 90000 }, async t => {
   const directory = await mkdtemp(join(tmpdir(), 'issue-batch-browser-')); t.after(() => rm(directory, { recursive: true, force: true }));
-  execFileSync('pnpm', ['build'], { cwd: new URL('../', import.meta.url), stdio: 'pipe' });
   const [pack] = JSON.parse(execFileSync(process.execPath, ['scripts/pack-publish-artifact.mjs', 'packages/issue-workbench', directory], { cwd: repo, encoding: 'utf8' }));
   execFileSync('tar', ['-xzf', join(directory, pack.filename), '-C', directory]);
   const { createIssueTeamModule } = await import(pathToFileURL(join(directory, 'package/dist/team-plugin.js')).href);
