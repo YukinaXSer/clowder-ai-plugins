@@ -1,4 +1,5 @@
 import {expect, test, vi} from 'vitest';
+import {createHash} from 'node:crypto';
 import type {FeatureContext, PluginActionContext, PluginTaskReadItem, PluginOwnerHttpContext} from '@clowder-ai/plugin-sdk';
 import {fixture} from './communication-work-custody.fixture.js';
 import {collectiveEventSourceIdentity} from '../../contracts/index.js';
@@ -51,10 +52,11 @@ async function setup(mode: 'agent' | 'human-standing' | 'human-manual' = 'agent'
     }}, pluginInstanceId: 'installed-collective',
 
     tasks: {get: async (selector: {id?: string; subjectKey?: string}) => selector.id===task.id || created && selector.subjectKey===task.subjectKey ? task : null,
-      list: async () => [], create: async (input: {entrustedWork?: {sourceMessageId: string; time?: unknown}}, options?: {onConflict?: string}) => {
+      list: async () => created ? [task] : [], create: async (input: {entrustedWork?: {sourceMessageId: string; time?: unknown}}, options?: {onConflict?: string}) => {
         expect(options).toEqual({onConflict:'update'});created = true;
         if (input.entrustedWork) Object.assign(task, {entrustedWork: {revision: 1, closure: {state: 'open'},
-          time: input.entrustedWork.time ?? {}, artifactRefs: [], admission: {sourceRefs: [`message:${input.entrustedWork.sourceMessageId}`]}}});
+          time: input.entrustedWork.time ?? {}, artifactRefs: [], admission: {sourceRefs: [`message:${input.entrustedWork.sourceMessageId}`],
+            authorityRef:`plugin-task-data:${createHash('sha256').update(JSON.stringify(['installed-collective',task.subjectKey])).digest('hex')}`}}});
         return task;},
       update: async (id: string, patch: object, conditions?: {expectedThreadId?: string}) => {
         if (task.id !== id || task.threadId !== conditions?.expectedThreadId) return null;
@@ -67,7 +69,8 @@ async function setup(mode: 'agent' | 'human-standing' | 'human-manual' = 'agent'
             ...(change.entrustedWork.artifactRefs ? {artifactRefs: [...change.entrustedWork.artifactRefs]} : {})}, updatedAt: task.updatedAt + 1});
         } else Object.assign(task, patch, {updatedAt: task.updatedAt + 1});
         return task;
-      }},
+      },bindDataController:async()=>{throw new Error('new Tasks do not need controller adoption');},
+      revokeDataController:async()=>{throw new Error('new Tasks have no controller adoption');}},
     threads: {get:async(id:string)=>({id,title:'Work',deepLinkUrl:'https://fixture/'+id,createdAt:1,lastActiveAt:1,preferredCats:[],featureRefs:[]}),create:async()=>({id:'private',title:'Work',deepLinkUrl:'https://fixture/private',createdAt:1,lastActiveAt:1,preferredCats:[],featureRefs:[]})},
     messaging: {get: async (id: string) => id === auth.source.id ? {...original, id, threadId: auth.threadId} : original, send: async (thread: string, draft: {wake?: unknown}) => {
       if (!draft.wake) {expect(thread).toBe('channel');return {messageId: original.id, threadId: original.threadId};}
@@ -132,7 +135,7 @@ test('Service comment wakes the one existing private Task and its actual native 
   } finally {vi.restoreAllMocks();await f.close();}
 });
 
-test('browser acceptance closes only the same current Service result and repeats without another Task mutation', async () => {
+test('browser acceptance repeats read-only after the same installation lifecycle makes its satisfied Task controller stale', async () => {
   const f = await setup();
   try {
     const operation = await f.caller.withCurrentMessage(f.action, async binding => {
@@ -164,9 +167,33 @@ test('browser acceptance closes only the same current Service result and repeats
     await expect(reconcile({...input, workRevision: input.workRevision - 1})).rejects.toMatchObject({code: 'COLLECTIVE_RESULT_NOT_CURRENT'});
     await expect(reconcile(input, 'foreign-owner')).rejects.toMatchObject({code: 'CONNECTOR_OWNER_MISMATCH'});
     expect(f.updates()).toBe(0);
+    const controller = (currentForCaller: boolean) => ({
+      bindingRevision: 1, state: 'active' as const, currentForCaller,
+      binding: {userId: f.auth.userId, catId: f.auth.catId, threadId: f.task.threadId,
+        subjectKey: f.task.subjectKey!, firstSourceRef: 'message:canonical-source',
+        admissionAuthorityRef: f.task.entrustedWork!.admission.authorityRef!,
+        pluginId: 'official.collective-connector', pluginInstanceId: 'installed-collective',
+        moduleRef: 'plugin:official.collective-connector', lifecycleRevision: 1, grantRevision: 1,
+        ownerOperationReceiptRef: `task-data-controller:${'a'.repeat(64)}`},
+    });
+    Object.assign(f.task, {entrustedWork: {...f.task.entrustedWork!, dataController: controller(false)}});
+    await expect(reconcile()).rejects.toMatchObject({code: 'OWNER_ADOPTION_REQUIRED'});
+    expect(f.updates()).toBe(0);
+    Object.assign(f.task, {entrustedWork: {...f.task.entrustedWork!, dataController: controller(true)}});
     expect(await reconcile()).toEqual({result: 'closed', taskId: f.task.id, revision: 2});
     expect(f.task.status).toBe('done');
+    Object.assign(f.task, {entrustedWork: {...f.task.entrustedWork!, dataController: controller(false)}});
     expect(await reconcile()).toEqual({result: 'already_closed', taskId: f.task.id, revision: 2});
+    expect(f.updates()).toBe(1);
+    Object.assign(f.task, {entrustedWork: {...f.task.entrustedWork!, dataController: {
+      ...controller(false), state: 'revoked' as const,
+      revocationReceiptRef: `task-data-controller:${'b'.repeat(64)}`,
+    }}});
+    await expect(reconcile()).rejects.toMatchObject({code: 'OWNER_ADOPTION_REQUIRED'});
+    Object.assign(f.task, {entrustedWork: {...f.task.entrustedWork!, dataController: controller(false)}});
+    await expect(reconcileCollectiveMessageWorkResult(f.connector,
+      {...f.context, pluginInstanceId: 'replacement-collective'}, f.auth.userId, f.connection.connectionId,
+      input, async () => {})).rejects.toMatchObject({code: 'OWNER_ADOPTION_REQUIRED'});
     expect(f.updates()).toBe(1);
   } finally {await f.close();}
 });
@@ -207,12 +234,83 @@ test('ordinary no-policy/no-Task-binding invocation returns Work to the real Ser
   } finally {await f.close();}
 });
 
-test('ordinary Work uses the injected Cat and instance while ordinary message visibility remains independent', async () => {
+test('a matching legacy Task without an active controller stops before Task create or Cat wake',async()=>{
+  const f=await setup();
+  try{
+    Object.assign(f.task,{subjectKey:'entrusted:legacy',entrustedWork:{...f.task.entrustedWork!,revision:3,
+      admission:{sourceRefs:['message:canonical-source'],authorityRef:'message:original-admission'}}});
+    const before=structuredClone(f.task),create=vi.spyOn(f.context.tasks,'create'),send=vi.spyOn(f.context.messaging,'send');
+    await expect(f.caller.send(f.source.connectionId,f.source.eventId,f.auth.userId,async()=>{}))
+      .rejects.toMatchObject({code:'OWNER_ADOPTION_REQUIRED'});
+    expect(create).not.toHaveBeenCalled();expect(send).not.toHaveBeenCalled();expect(f.task).toEqual(before);
+  }finally{vi.restoreAllMocks();await f.close();}
+});
+
+test('Task controller authority is rechecked after the last pre-wake yield',async()=>{
+  const f=await setup();
+  try{
+    const send=vi.spyOn(f.context.messaging,'send');
+    const caller=createCollectiveMessageWorkCaller(f.connector,f.context,{beforeWake:async()=>{
+      Object.assign(f.task,{entrustedWork:{...f.task.entrustedWork!,admission:{...f.task.entrustedWork!.admission,
+        authorityRef:'message:retired-installation'}}});
+    }});
+    await expect(caller.send(f.source.connectionId,f.source.eventId,f.auth.userId,async()=>{}))
+      .rejects.toMatchObject({code:'OWNER_ADOPTION_REQUIRED'});
+    expect(send).not.toHaveBeenCalled();
+  }finally{vi.restoreAllMocks();await f.close();}
+});
+
+test.each([
+  ['revoked controller','OWNER_ADOPTION_REQUIRED'],
+  ['terminal Task','OWNER_TASK_UNAVAILABLE'],
+  ['locator drift','WORK_EXECUTION_NOT_CURRENT'],
+] as const)('wake revalidates %s before sending',async(drift,code)=>{
+  const f=await setup();
+  try{
+    const work=f.task.entrustedWork!;
+    Object.assign(f.task,{entrustedWork:{...work,dataController:{
+      bindingRevision:1,state:'active',currentForCaller:true,
+      binding:{userId:f.auth.userId,catId:f.auth.catId,threadId:f.task.threadId,
+        subjectKey:f.task.subjectKey!,firstSourceRef:'message:canonical-source',
+        admissionAuthorityRef:work.admission.authorityRef!,pluginId:'official.collective-connector',
+        pluginInstanceId:'installed-collective',moduleRef:'plugin:official.collective-connector',
+        lifecycleRevision:1,grantRevision:1,ownerOperationReceiptRef:`task-data-controller:${'a'.repeat(64)}`},
+    }}});
+    await f.store.postHumanMessage(f.owner.sessionToken,{serviceInstanceId:f.connection.serviceInstanceId,
+      collectiveId:f.connection.collectiveId,clientEventId:`wake-${drift}`,
+      location:{channelId:'general',rootEventId:f.work.sourceEventId},recipient:{kind:'channel'},
+      replyToEventId:f.work.assignmentEventId,body:'Continue original Work.'});
+    await f.connector.sync(f.connection.connectionId);
+    const event=(await f.connector.listInbox(f.connection.connectionId))
+      .find(row=>row.event.workWakeNotice?.workId===f.work.workId)!.event;
+    const send=vi.spyOn(f.context.messaging,'send');
+    const caller=createCollectiveMessageWorkCaller(f.connector,f.context,{beforeWake:async()=>{
+      if(drift==='revoked controller')Object.assign(f.task,{entrustedWork:{...f.task.entrustedWork!,
+        revision:f.task.entrustedWork!.revision+1,dataController:{...f.task.entrustedWork!.dataController!,
+          bindingRevision:2,state:'revoked',currentForCaller:false,
+          revocationReceiptRef:`task-data-controller:${'b'.repeat(64)}`}}});
+      else if(drift==='terminal Task')Object.assign(f.task,{status:'done',entrustedWork:{...f.task.entrustedWork!,
+        revision:f.task.entrustedWork!.revision+1,closure:{...f.task.entrustedWork!.closure,state:'satisfied'}}});
+      else{
+        const drifted=structuredClone({...f.task,id:'other-task'});
+        const originalGet=f.context.tasks.get.bind(f.context.tasks);
+        vi.spyOn(f.context.tasks,'list').mockResolvedValue([drifted]);
+        vi.spyOn(f.context.tasks,'get').mockImplementation(async selector=>
+          selector.id===drifted.id?drifted:originalGet(selector));
+      }
+    }});
+    await expect(caller.wake(f.connection.connectionId,event.eventId,f.auth.userId,async()=>{}))
+      .rejects.toMatchObject({code});
+    expect(send).not.toHaveBeenCalled();
+  }finally{vi.restoreAllMocks();await f.close();}
+});
+
+test('ordinary Work uses the injected Cat and current installation as separate authorization coordinates', async () => {
   const f = await setup();
   try {
     await expect(f.caller.withCurrentMessage({...f.action, catId: 'other-cat'}, async () => true)).rejects.toThrow();
     await expect(createCollectiveMessageWorkCaller(f.connector, {...f.context, pluginInstanceId: 'other-instance'})
-      .withCurrentMessage(f.action, async binding => binding.auth.pluginInstanceId)).resolves.toBe('other-instance');
+      .withCurrentMessage(f.action, async binding => binding.auth.pluginInstanceId)).rejects.toMatchObject({code:'OWNER_ADOPTION_REQUIRED'});
   } finally {await f.close();}
 });
 
@@ -255,12 +353,14 @@ test('original Human standing Work uses ordinary invocation and its current rout
 });
 
 
-test('original manual Human click retains its choice across HTTP retry without a Task execution identity', async () => {
+test('original manual Human click retains one exact Task locator across HTTP retry without inventing execution authority', async () => {
   const f = await setup('human-manual');
   try {
     const first = structuredClone([...f.records]);
-    expect((first[0]![1].value as {basis: {kind: string}; binding?: unknown}).basis.kind).toBe('manual_owner_write');
-    expect(first[0]![1].value).not.toHaveProperty('binding');
+    const choice = first.find(([,entry]) => (entry.value as {basis?:{kind?:string}}).basis?.kind === 'manual_owner_write')!;
+    expect((choice[1].value as {basis: {kind: string};binding?:{taskRef:string;dataControllerReceiptRef?:string}}).basis.kind).toBe('manual_owner_write');
+    expect((choice[1].value as {binding:{taskRef:string}}).binding.taskRef).toBe(`task:work:${f.task.id}`);
+    expect((choice[1].value as {binding:{dataControllerReceiptRef?:string}}).binding.dataControllerReceiptRef).toBeUndefined();
     const replay = await admitCollectiveMessageWork(f.connector, f.context, f.caller,
       {...f.ownerHttp, requestIdentity: {...f.ownerHttp.requestIdentity!, requestId: 'another-authenticated-http'}},
       f.source.connectionId, f.ownerInput, async () => {});

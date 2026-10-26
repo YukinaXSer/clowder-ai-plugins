@@ -17,6 +17,8 @@ export type { GitHubAuthorAssociation } from './types/community-event.js';
 export type { GitHubReviewThreadBaseline } from './types/github-wait.js';
 export type { GitHubReviewVerdictState } from './types/github-wait.js';
 export type { GitHubReviewVerdicts } from './types/github-wait.js';
+export type { GitHubSubmittedReviewState } from './types/github-wait.js';
+export type { GitHubSubmittedReviewStates } from './types/github-wait.js';
 export type { IssueCommentSuppressionReason } from './types/community-event.js';
 export type { IssueFixEvidence } from './types/community-event.js';
 export type { IssueState } from './types/community-issue.js';

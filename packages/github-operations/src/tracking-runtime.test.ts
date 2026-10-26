@@ -206,10 +206,12 @@ test('activation without tracking does no IO; registered comments use SDK messag
   ] });
   await runtime.poll('review-feedback');
   assert.equal(f.messages.length, 1);
-  const message = f.messages[0] as { threadId: string; input: { wake: { catId: string }; payload: unknown } };
+  const message = f.messages[0] as { threadId: string; input: { wake: { catId: string }; payload: unknown; url?: string } };
   assert.equal(message.threadId, 'thread-1');
   assert.deepEqual(message.input.wake, { catId: 'cat-1' });
   assert.match(JSON.stringify(message.input.payload), /maintainer/);
+  assert.match(JSON.stringify(message.input.payload), /\[example\/project#12\]\(https:\/\/github\.com\/example\/project\/pull\/12\)/u);
+  assert.equal(message.input.url, undefined);
   assert.doesNotMatch(JSON.stringify(message.input), /waitContinuationCarrier|ownerFence|parser/);
   await runtime.poll('review-feedback');
   assert.equal(f.messages.length, 1);
@@ -240,6 +242,39 @@ test('persisted pending delivery survives restart and failed send does not lose 
   const count = f.requests();
   await second.poll('cicd-check');
   assert.equal(f.requests(), count);
+  await second.stop();
+});
+
+test('pre-upgrade pending delivery gains an explicit subject link during recovery', async () => {
+  const f = fixture();
+  const first = new GitHubTrackingRuntime(f.deps);
+  await first.register(target);
+  f.set({ ...f.snapshot(), ci: 'fail' });
+  f.fail(true);
+  await assert.rejects(first.poll('cicd-check'), /delivery unavailable/);
+  await first.stop();
+
+  const tracking = [...f.records.entries()].find(([key]) => key.startsWith('github.tracking.v1.'))!;
+  const value = tracking[1].value as {
+    pending: Array<{ id: string; text: string; identity: string; wake: boolean }>;
+  };
+  value.pending = value.pending.map(notification => ({
+    ...notification,
+    text: notification.text.replace(
+      '[example/project#12](https://github.com/example/project/pull/12)',
+      'pr:example/project#12',
+    ),
+  }));
+
+  f.fail(false);
+  const second = new GitHubTrackingRuntime(f.deps);
+  await second.poll('cicd-check');
+  assert.equal(f.messages.length, 1);
+  assert.match(
+    JSON.stringify(f.messages[0]),
+    /\[example\/project#12\]\(https:\/\/github\.com\/example\/project\/pull\/12\)/u,
+  );
+  assert.equal((f.messages[0] as { input: { url?: string } }).input.url, undefined);
   await second.stop();
 });
 

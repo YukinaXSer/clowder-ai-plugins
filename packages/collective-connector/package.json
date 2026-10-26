@@ -1,7 +1,6 @@
 {
   "name": "@clowder-ai/collective-connector",
-  "version": "0.1.0-alpha.2",
-  "private": true,
+  "version": "0.1.0-alpha.9",
   "description": "Collective backend business and Host-loadable module",
   "license": "MIT",
   "type": "module",
@@ -36,11 +35,11 @@
     "test:source": "node --test test/source-continuity.test.mjs",
     "test": "pnpm test:lifecycle && pnpm test:control && pnpm test:transport && pnpm test:business",
     "prepack": "pnpm build",
-    "test:control": "node --import tsx --test test/owner-control.test.ts test/entry-control.test.ts test/participation-reconciler.test.ts test/context-refs.test.ts test/work-entry.test.ts test/accountability-attention.test.ts",
+    "test:control": "node --import tsx --test test/owner-control.test.ts test/entry-control.test.ts test/participation-reconciler.test.ts test/context-refs.test.ts test/work-entry.test.ts test/accountability-attention.test.ts src/collective-work-thread.test.ts src/collective-task-data-controller.test.ts",
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@clowder-ai/plugin-sdk": "0.2.0-beta.21",
+    "@clowder-ai/plugin-sdk": "0.2.0-beta.23",
     "zod": "3.25.76",
     "@clowder-ai/plugin-contract": "0.1.0-beta.37",
     "@modelcontextprotocol/sdk": "1.26.0"
@@ -51,5 +50,13 @@
     "tsx": "^4.19.0",
     "vitest": "4.0.18",
     "yaml": "2.9.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/zts212653/clowder-ai-plugins.git",
+    "directory": "packages/collective-connector"
   }
 }

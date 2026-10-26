@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import type { PluginMessagingHost } from '@clowder-ai/plugin-sdk';
 import type { AutomationState, TaskItem, WaitTerminationEventV1 } from '../../model/index.js';
 
@@ -28,7 +29,6 @@ export interface ConnectorDeliveryInput {
     readonly connector: string;
     readonly label: string;
     readonly icon: string;
-    readonly url: string;
     readonly meta: Readonly<Record<string, unknown>>;
   };
   readonly extra?: Readonly<Record<string, unknown>>;
@@ -39,15 +39,19 @@ export interface ConnectorDeliveryDeps {
 }
 
 export function deliverConnectorMessage(deps: ConnectorDeliveryDeps, input: ConnectorDeliveryInput) {
+  // Preserve every previously valid receipt/payload. Only identifiers that could
+  // never satisfy the public message contract receive a stable digest coordinate.
+  const digest = createHash('sha256').update(input.idempotencyKey).digest('hex');
+  const idempotencyKey = input.idempotencyKey.length <= 200 ? input.idempotencyKey : `github-notification:${digest}`;
+  const elementId = input.idempotencyKey.length <= 128 ? input.idempotencyKey : `text:${digest}`;
   return deps.messaging.send({
     threadId: input.threadId,
     identity: input.source.connector,
-    idempotencyKey: input.idempotencyKey,
+    idempotencyKey,
     payload: { provenance: { epistemicStatus: 'observation' }, elements: [
-      { elementId: input.idempotencyKey, kind: 'text', payload: { text: input.content } },
+      { elementId, kind: 'text', payload: { text: input.content } },
     ] },
     wake: { catId: input.catId },
-    url: input.source.url,
     meta: { ...input.extra, ...input.source.meta },
   });
 }

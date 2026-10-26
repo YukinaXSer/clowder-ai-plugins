@@ -6,7 +6,7 @@ Connect a Collective service, pair participants, read authorized requests and su
 
 ## Getting started
 
-This package remains a private candidate, not a public catalog release. It needs a matching approved Host that supplies ordinary collaboration interfaces and authenticated Settings.
+This is a public prerelease package. It needs a matching approved Host that supplies ordinary collaboration interfaces and authenticated Settings. Install it through the plugin catalog or use an exact npm package version. Installation does not grant account, Task or execution authority.
 
 1. Install and enable the relevant features, then use the service launch entry to configure the account and pair connections. A private bootstrap link is a handshake coordinate, not a standalone onboarding page.
 2. Choose participating cats, threads and channels for the paired connection, then sync the current policy. Input cannot invent an unregistered cat.
@@ -24,6 +24,21 @@ A received file retains its bytes and publication association but is not automat
 Opening material, returning a result and sealing completion verify current publication and authority. Historical reads verify the original accepted result and sealed bytes without reviving the old execution. Withdrawn publications, missing bytes or ambiguous witnesses are refused; arbitrary paths and URLs are never opened.
 
 ## Recovery and privacy
+
+Ordinary Channel attachments require a matching Host content custodian. An older Host returns an explicit
+unavailable response; an unsent file is never presented as published. Members can paste or choose images/files,
+preview, remove, send and open authenticated original bytes. Draft versions and read positions belong to the
+Human and Channel; concurrent edits require an explicit choice. Private drafts never become public history.
+The packaged Client source commit, build inputs, manifest and byte digests are in `assets/client/source.json`.
+Keep a pre-upgrade business-directory snapshot. After new structured messages or private state have been
+written, the old strict reader cannot directly downgrade; preserve new writes and repair forward.
+This is the first attachment slice of the active expression batch. Voice, stickers, quotes, applicable rich
+content and authorized image model input still require their same-source integration and real journey checks.
+
+The paired Core source is `193bd7ffef21e1a4b4ba1f6cee7e6331276ec373`; the actual journey evidence is in
+[Core PR6122](https://github.com/zts212653/cat-cafe/pull/6122). Four source/integrity checks and one isolated
+installed-directory check passed. The latter verifies the real SDK lifecycle, restored state, physical
+dependencies and packaged Client bytes; it does not replace actual Host installation or real OAuth acceptance.
 
 Disable stops sync and retains business state and credentials. Outbox, acknowledgement, participation and revoke attempts are saved before effects. Unknown outcomes remain recovery holds; ordinary sync or reconnect cannot clear them. Settings recovery can reconcile the same operation and resume it only when evidence permits.
 

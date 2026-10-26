@@ -70,8 +70,24 @@ test('immutable registry validation runs against the current catalog before fina
   assert.equal(steps[registry + 1].command, 'pnpm pack:gate');
 });
 
+test('contract build precedes unit tests so artifact-consistency packs a built package', () => {
+  const steps = buildGateSteps();
+  const build = steps.findIndex(
+    (entry) => entry.name === 'Build' && entry.command === 'pnpm --filter @clowder-ai/plugin-contract build',
+  );
+  const tests = steps.findIndex(
+    (entry) => entry.name === 'Unit tests' && entry.command === 'pnpm --filter @clowder-ai/plugin-contract test',
+  );
+  assert.ok(build !== -1 && tests !== -1, 'contract build and unit test steps must exist');
+  assert.ok(build < tests, 'artifact-consistency packs packages/plugin-contract; a clean checkout has no dist until the build step');
+});
+
 test('catalog check builds packages whose publish surface is generated', () => {
   const command = workspacePackage.scripts['catalog:check'];
+  for (const name of ['xiangqi', 'github-operations']) {
+    assert.ok(command.includes(`pnpm --filter @clowder-ai/${name} build`),
+      `standalone catalog activation must build ${name} before packing`);
+  }
   assert.ok(
     command.includes('pnpm --filter @clowder-ai/genoffice-docx build:renderer'),
     'catalog check must build the frozen GenOffice renderer',

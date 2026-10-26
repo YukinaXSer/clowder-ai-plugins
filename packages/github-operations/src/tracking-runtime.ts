@@ -4,7 +4,10 @@ import type { PluginMessagingDraft, PluginStorageHost, PluginThreadHost } from '
 import { createGitHubFeedbackFilter } from './business/infrastructure/email/github-feedback-filter.js';
 import { createSetupNoiseFilter } from './business/infrastructure/email/setup-noise-filter.js';
 import { classifyIssueComment } from './business/domains/community/issue-analysis/issue-comment-classifier.js';
-import { classifyGitHubReviewLoopBrake } from './business/domains/github-signals/github-wait-renderer.js';
+import {
+  classifyGitHubReviewLoopBrake,
+  renderGitHubSubjectLink,
+} from './business/domains/github-signals/github-wait-renderer.js';
 import { classifyExternalCloudReview, type CloudReviewRequest } from './business/domains/community/external-review/external-cloud-review-classifier.js';
 import type { ExternalCloudObservation } from './business/domains/community/external-review/ExternalReviewCoordinator.js';
 import { copyLegacyIssueProgress, readLegacyIssueProgress } from './legacy-issue-progress.js';
@@ -102,7 +105,9 @@ export interface GitHubTrackingDependencies {
 
 const PREFIX = 'github.tracking.v1.';
 const channels: readonly Channel[] = ['cicd-check', 'conflict-check', 'review-feedback', 'issue-tracking'];
-function subject(value: Pick<GitHubTarget, 'kind' | 'repoFullName' | 'number'>): string {
+function subject(
+  value: Pick<GitHubTarget, 'kind' | 'repoFullName' | 'number'>,
+): `pr:${string}#${number}` | `issue:${string}#${number}` {
   if (value.kind !== 'pr' && value.kind !== 'issue') throw new TypeError('kind must be pr or issue');
   if (typeof value.repoFullName !== 'string' || !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(value.repoFullName)) {
     throw new TypeError('repoFullName must be owner/repository');
@@ -112,6 +117,11 @@ function subject(value: Pick<GitHubTarget, 'kind' | 'repoFullName' | 'number'>):
 }
 function keyOf(target: Pick<GitHubTarget, 'kind' | 'repoFullName' | 'number'>): string {
   return PREFIX + createHash('sha256').update(subject(target)).digest('hex');
+}
+function notificationTextWithSubjectLink(text: string, target: GitHubTarget): string {
+  const subjectRef = subject(target);
+  const linked = renderGitHubSubjectLink(subjectRef);
+  return text.includes(linked) ? text : text.replace(subjectRef, linked);
 }
 // GitHub dismisses a review in place. Preserve the migrated #1392 rule:
 // dismissal is final for that review ID, including late/omitted observations.
@@ -360,7 +370,11 @@ export class GitHubTrackingRuntime {
       const pauseReviewWake = snapshot.state === 'open' && channel === 'review-feedback' && newChangesRequested.length > 0 &&
         classifyGitHubReviewLoopBrake(snapshot.reviews, newChangesRequested.map(review => review.id), snapshot.authorLogin).kind === 'pause_once';
       if (pauseReviewWake) changes.push('- Automatic review wake paused once after four formal changes-requested reviews. Read the accepted source and write a Finding Pattern Summary before requesting another review.');
-      const text = [`🔔 **GitHub update** — ${subject(record.target)}`, '', ...changes].join('\n');
+      const text = [
+        `🔔 **GitHub update** — ${renderGitHubSubjectLink(subject(record.target))}`,
+        '',
+        ...changes,
+      ].join('\n');
       const pollSequence = record.pollSequence + 1;
       if (!Number.isSafeInteger(pollSequence)) throw new Error('GitHub tracking poll sequence exhausted');
       const pending = changes.length ? [{
@@ -432,9 +446,9 @@ export class GitHubTrackingRuntime {
       await this.deps.send(record.target.threadId, {
         identity: notification.identity, idempotencyKey: notification.id,
         ...(notification.wake ? { wake: { catId: record.target.catId } } : {}),
-        url: `https://github.com/${record.target.repoFullName}/${record.target.kind === 'pr' ? 'pull' : 'issues'}/${record.target.number}`,
         payload: { provenance: { epistemicStatus: 'observation' }, elements: [
-          { elementId: notification.id, kind: 'text', payload: { text: notification.text } },
+          { elementId: notification.id, kind: 'text',
+            payload: { text: notificationTextWithSubjectLink(notification.text, record.target) } },
         ] },
       });
     }

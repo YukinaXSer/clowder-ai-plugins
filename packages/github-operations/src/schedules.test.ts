@@ -5,13 +5,13 @@ import { parse } from 'yaml';
 
 import { GITHUB_SCHEDULES } from './schedules.js';
 
-test('schedule inventory unifies PR observations and preserves issue/repository polling budgets', () => {
+test('schedule carrier deadlines leave settlement room around bounded PR/Issue polling', () => {
   assert.deepEqual(GITHUB_SCHEDULES, [
-    { id: 'pr-tracking', everyMs: 60_000, timeoutMs: 30_000 },
+    { id: 'pr-tracking', everyMs: 60_000, timeoutMs: 90_000 },
     { id: 'repo-scan', everyMs: 300_000, timeoutMs: 90_000 },
-    { id: 'issue-tracking', everyMs: 60_000, timeoutMs: 30_000 },
+    { id: 'issue-tracking', everyMs: 60_000, timeoutMs: 90_000 },
     { id: 'assignment-inbox', everyMs: 60_000, timeoutMs: 90_000 },
-    { id: 'repo-comment-poll', everyMs: 60_000, timeoutMs: 30_000 },
+    { id: 'repo-comment-poll', everyMs: 60_000, timeoutMs: 120_000 },
     { id: 'community-reconciler', everyMs: 600_000, timeoutMs: 120_000 },
   ]);
 });
@@ -47,6 +47,6 @@ test('native tracking MCP and skill use the same installed entrypoint and direct
   assert.deepEqual(manifest.contributions.filter((item: { type: string }) => item.type === 'mcp'),
     [{ type: 'mcp', id: 'github-tracking', runtime: { transport: 'stdio', entrypoint: 'dist/mcp-entrypoint.js' },
       actions: [{ method: 'github.typed-wait.register-pr' }, { method: 'github.typed-wait.register-issue' },
-        { method: 'github.typed-wait.unregister' }, { method: 'github.review.record-verdict' }, ...['triage-complete', 'request-guardian', 'guardian-signoff', 'validate-route', 'report', 'await-external'].map(name => ({ method: `github.community.${name}` }))] }]);
+        { method: 'github.typed-wait.unregister' }, { method: 'github.migration.bind-wait' }, { method: 'github.review.record-verdict' }, ...['triage-complete', 'request-guardian', 'guardian-signoff', 'validate-route', 'report', 'await-external'].map(name => ({ method: `github.community.${name}` }))] }]);
   assert.equal(manifest.runtime.transport, 'builtin');
 });

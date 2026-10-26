@@ -1,11 +1,14 @@
 pluginId: official.collective-connector
-version: 0.1.0-alpha.2
+version: 0.1.0-alpha.9
 contractVersion: 0.1.0
 name: Collective
 description:
   default: Collective service and web client managed by the plugin.
   translations:
     zh-CN: 插件管理的 Collective 服务与网页客户端。
+icon:
+  type: svg
+  src: assets/icon.svg
 configuration:
   - key: service
     label: Service status
@@ -77,6 +80,23 @@ configuration:
         render: row
         resultRender: rows
         action: { method: collective.work.owner.sync }
+      - id: result-attention
+        label: Current returned results
+        render: button
+        resultRender: status
+        action: { method: collective.work.owner.result-attention }
+      - id: adopt-task
+        label: Let this Collective installation maintain the original Task
+        render: row
+        resultRender: rows
+        confirm: Keep the original Task and let this installed Collective maintain its data until you revoke it?
+        action: { method: collective.work.owner.adopt-task }
+      - id: revoke-task
+        label: Revoke Collective Task maintenance
+        render: row
+        resultRender: rows
+        confirm: Revoke this Collective installation's ability to maintain the original Task data?
+        action: { method: collective.work.owner.revoke-task }
   - key: accountability
     label: Collective accountability
     kind: operation

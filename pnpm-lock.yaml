@@ -19,10 +19,10 @@ importers:
     dependencies:
       '@clowder-ai/plugin-contract':
         specifier: 0.1.0-beta.37
-        version: link:../plugin-contract
+        version: 0.1.0-beta.37
       '@clowder-ai/plugin-sdk':
-        specifier: 0.2.0-beta.21
-        version: link:../plugin-sdk
+        specifier: 0.2.0-beta.23
+        version: 0.2.0-beta.23
       '@modelcontextprotocol/sdk':
         specifier: 1.26.0
         version: 1.26.0(zod@3.25.76)
@@ -50,10 +50,10 @@ importers:
     devDependencies:
       '@clowder-ai/plugin-contract':
         specifier: 0.1.0-beta.37
-        version: link:../plugin-contract
+        version: 0.1.0-beta.37
       '@clowder-ai/plugin-sdk':
-        specifier: 0.2.0-beta.21
-        version: link:../plugin-sdk
+        specifier: 0.2.0-beta.23
+        version: 0.2.0-beta.23
       playwright:
         specifier: 1.61.1
         version: 1.61.1
@@ -62,10 +62,10 @@ importers:
     dependencies:
       '@clowder-ai/plugin-contract':
         specifier: 0.1.0-beta.37
-        version: link:../plugin-contract
+        version: 0.1.0-beta.37
       '@clowder-ai/plugin-sdk':
-        specifier: 0.2.0-beta.21
-        version: link:../plugin-sdk
+        specifier: 0.2.0-beta.23
+        version: 0.2.0-beta.23
       dingtalk-stream:
         specifier: 2.1.6-beta.1
         version: 2.1.6-beta.1
@@ -86,10 +86,10 @@ importers:
   packages/connector-feishu:
     dependencies:
       '@clowder-ai/plugin-contract':
-        specifier: 0.1.0-beta.37
+        specifier: 0.2.0
         version: link:../plugin-contract
       '@clowder-ai/plugin-sdk':
-        specifier: 0.2.0-beta.21
+        specifier: 0.2.0-beta.24
         version: link:../plugin-sdk
       '@larksuiteoapi/node-sdk':
         specifier: 1.59.0
@@ -118,10 +118,10 @@ importers:
     dependencies:
       '@clowder-ai/plugin-contract':
         specifier: 0.1.0-beta.37
-        version: link:../plugin-contract
+        version: 0.1.0-beta.37
       '@clowder-ai/plugin-sdk':
-        specifier: 0.2.0-beta.21
-        version: link:../plugin-sdk
+        specifier: 0.2.0-beta.23
+        version: 0.2.0-beta.23
       grammy:
         specifier: 1.41.1
         version: 1.41.1
@@ -143,10 +143,10 @@ importers:
     dependencies:
       '@clowder-ai/plugin-contract':
         specifier: 0.1.0-beta.37
-        version: link:../plugin-contract
+        version: 0.1.0-beta.37
       '@clowder-ai/plugin-sdk':
-        specifier: 0.2.0-beta.21
-        version: link:../plugin-sdk
+        specifier: 0.2.0-beta.23
+        version: 0.2.0-beta.23
       fast-xml-parser:
         specifier: 5.5.9
         version: 5.5.9
@@ -168,10 +168,10 @@ importers:
     dependencies:
       '@clowder-ai/plugin-contract':
         specifier: 0.1.0-beta.37
-        version: link:../plugin-contract
+        version: 0.1.0-beta.37
       '@clowder-ai/plugin-sdk':
-        specifier: 0.2.0-beta.21
-        version: link:../plugin-sdk
+        specifier: 0.2.0-beta.23
+        version: 0.2.0-beta.23
       '@wecom/aibot-node-sdk':
         specifier: 1.0.4
         version: 1.0.4
@@ -193,10 +193,10 @@ importers:
     dependencies:
       '@clowder-ai/plugin-contract':
         specifier: 0.1.0-beta.37
-        version: link:../plugin-contract
+        version: 0.1.0-beta.37
       '@clowder-ai/plugin-sdk':
-        specifier: 0.2.0-beta.21
-        version: link:../plugin-sdk
+        specifier: 0.2.0-beta.23
+        version: 0.2.0-beta.23
       qrcode:
         specifier: 1.5.4
         version: 1.5.4
@@ -224,10 +224,10 @@ importers:
     dependencies:
       '@clowder-ai/plugin-contract':
         specifier: 0.1.0-beta.37
-        version: link:../plugin-contract
+        version: 0.1.0-beta.37
       '@clowder-ai/plugin-sdk':
-        specifier: 0.2.0-beta.21
-        version: link:../plugin-sdk
+        specifier: 0.2.0-beta.23
+        version: 0.2.0-beta.23
       ws:
         specifier: 8.21.3
         version: 8.21.3
@@ -251,15 +251,15 @@ importers:
   packages/enterprise-workflow:
     dependencies:
       '@clowder-ai/plugin-sdk':
-        specifier: 0.2.0-beta.21
-        version: link:../plugin-sdk
+        specifier: 0.2.0-beta.23
+        version: 0.2.0-beta.23
       ajv:
         specifier: 8.20.0
         version: 8.20.0
     devDependencies:
       '@clowder-ai/plugin-contract':
         specifier: 0.1.0-beta.37
-        version: link:../plugin-contract
+        version: 0.1.0-beta.37
       '@types/node':
         specifier: ^20.17.0
         version: 20.19.43
@@ -283,10 +283,10 @@ importers:
         version: 1.7.0
       '@clowder-ai/plugin-contract':
         specifier: 0.1.0-beta.37
-        version: link:../plugin-contract
+        version: 0.1.0-beta.37
       '@clowder-ai/plugin-sdk':
-        specifier: 0.2.0-beta.21
-        version: link:../plugin-sdk
+        specifier: 0.2.0-beta.23
+        version: 0.2.0-beta.23
       '@larksuite/cli':
         specifier: 1.0.85
         version: 1.0.85
@@ -341,7 +341,7 @@ importers:
     dependencies:
       '@clowder-ai/plugin-contract':
         specifier: 0.1.0-beta.37
-        version: link:../plugin-contract
+        version: 0.1.0-beta.37
     devDependencies:
       '@types/node':
         specifier: ^20.17.0
@@ -360,10 +360,10 @@ importers:
     dependencies:
       '@clowder-ai/plugin-contract':
         specifier: 0.1.0-beta.37
-        version: link:../plugin-contract
+        version: 0.1.0-beta.37
       '@clowder-ai/plugin-sdk':
-        specifier: 0.2.0-beta.21
-        version: link:../plugin-sdk
+        specifier: 0.2.0-beta.23
+        version: 0.2.0-beta.23
       '@modelcontextprotocol/sdk':
         specifier: 1.26.0
         version: 1.26.0(zod@3.25.76)
@@ -458,10 +458,10 @@ importers:
     dependencies:
       '@clowder-ai/plugin-contract':
         specifier: 0.1.0-beta.37
-        version: link:../plugin-contract
+        version: 0.1.0-beta.37
       '@clowder-ai/plugin-sdk':
-        specifier: 0.2.0-beta.21
-        version: link:../plugin-sdk
+        specifier: 0.2.0-beta.23
+        version: 0.2.0-beta.23
     devDependencies:
       '@types/node':
         specifier: ^20.17.0
@@ -504,7 +504,7 @@ importers:
   packages/plugin-sdk:
     dependencies:
       '@clowder-ai/plugin-contract':
-        specifier: 0.1.0-beta.37
+        specifier: 0.2.0
         version: link:../plugin-contract
     devDependencies:
       '@types/node':
@@ -541,6 +541,15 @@ importers:
       typescript:
         specifier: ^5.7.0
         version: 5.9.3
+
+  packages/tripo-studio:
+    dependencies:
+      '@modelcontextprotocol/sdk':
+        specifier: 1.30.0
+        version: 1.30.0(zod@3.25.76)
+      zod:
+        specifier: 3.25.76
+        version: 3.25.76
 
   packages/video-analysis:
     dependencies:
@@ -589,8 +598,8 @@ importers:
   packages/wechat-visible-reader:
     dependencies:
       '@clowder-ai/plugin-sdk':
-        specifier: 0.2.0-beta.21
-        version: link:../plugin-sdk
+        specifier: 0.2.0-beta.23
+        version: 0.2.0-beta.23
       zod:
         specifier: 3.25.76
         version: 3.25.76
@@ -611,8 +620,8 @@ importers:
   packages/weixin-mp:
     dependencies:
       '@clowder-ai/plugin-sdk':
-        specifier: 0.2.0-beta.21
-        version: link:../plugin-sdk
+        specifier: 0.2.0-beta.23
+        version: 0.2.0-beta.23
     devDependencies:
       '@types/node':
         specifier: ^20.17.0
@@ -629,6 +638,9 @@ importers:
 
   packages/xiangqi:
     dependencies:
+      '@clowder-ai/plugin-sdk':
+        specifier: 0.2.0-beta.21
+        version: 0.2.0-beta.21
       '@modelcontextprotocol/sdk':
         specifier: 1.26.0
         version: 1.26.0(zod@4.4.3)
@@ -638,7 +650,7 @@ importers:
     devDependencies:
       '@clowder-ai/plugin-contract':
         specifier: 0.1.0-beta.37
-        version: link:../plugin-contract
+        version: 0.1.0-beta.37
       playwright:
         specifier: 1.61.1
         version: 1.61.1
@@ -679,6 +691,18 @@ packages:
   '@clack/prompts@1.7.0':
     resolution: {integrity: sha512-y7/yvZ2TPAnR9+jnc00klvNNLkJiXFFrQA/hlLCcxA9a2A4zQIOimyFQ9XfwYKiGD1fb5GY8vbKIIgO8d5Tb2A==}
     engines: {node: '>= 20.12.0'}
+
+  '@clowder-ai/plugin-contract@0.1.0-beta.37':
+    resolution: {integrity: sha512-6J4XPbWRWHRd7IkvZuITm/zGy8/ZxZfZiSGiEBXbeDDABhOzPcbHwxf7krcF5NIfDtUwdHNHA5kd6blb2apgbw==}
+    engines: {node: '>=20.0.0'}
+
+  '@clowder-ai/plugin-sdk@0.2.0-beta.21':
+    resolution: {integrity: sha512-acvi9BWJWXDgi0Ttk8BVQ54ZcPwds+MyHpOW0ohb9WFSfL92C3SFHD/ilfZcNp7lxx4euh8EEFhIABfVtyMSzA==}
+    engines: {node: '>=20.0.0'}
+
+  '@clowder-ai/plugin-sdk@0.2.0-beta.23':
+    resolution: {integrity: sha512-aotIxaNXscJLS6bUPkHp39erh2kTasJUOCJAOUzKIgCBWqy71AKY2Mdb75U9ucrnTeA76/9Z3JYOaZ1sFx0KRA==}
+    engines: {node: '>=20.0.0'}
 
   '@csstools/color-helpers@6.1.2':
     resolution: {integrity: sha512-grhRy3OKmniaAEKXMjua5z/EODX0MSqBGjunw8+j/3HQjOnahs2AGhvEOIYVUWcU6ScApbhLhVrQTX8XqrMrow==}
@@ -1220,7 +1244,6 @@ packages:
   '@larksuite/cli@1.0.85':
     resolution: {integrity: sha512-EtoX13gfn5eeqDI4oSbaMKcc2R++TyIxDVAKAw/cMXaMM7q0MKIqfWcKM0r02PCxQVC5JjBd1QPxKyra+n//Qw==}
     engines: {node: '>=16'}
-    cpu: [x64, arm64, riscv64]
     os: [darwin, linux, win32]
     hasBin: true
 
@@ -1229,6 +1252,16 @@ packages:
 
   '@modelcontextprotocol/sdk@1.26.0':
     resolution: {integrity: sha512-Y5RmPncpiDtTXDbLKswIJzTqu2hyBKxTNsgKqKclDbhIgg1wgtf1fRuvxgTnRfcnxtvvgbIEcqUOzZrJ6iSReg==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      '@cfworker/json-schema': ^4.1.1
+      zod: ^3.25 || ^4.0
+    peerDependenciesMeta:
+      '@cfworker/json-schema':
+        optional: true
+
+  '@modelcontextprotocol/sdk@1.30.0':
+    resolution: {integrity: sha512-xKd8OIzlqNzcqcNumGAa6g+PW2kjD5vrpcKOnfldAUPP3j7lnqMPwlTXQm8gF+UwH72z0lqaRbjr9hqGz0eITA==}
     engines: {node: '>=18'}
     peerDependencies:
       '@cfworker/json-schema': ^4.1.1
@@ -2695,6 +2728,19 @@ snapshots:
       fast-wrap-ansi: 0.2.2
       sisteransi: 1.0.5
 
+  '@clowder-ai/plugin-contract@0.1.0-beta.37':
+    dependencies:
+      ajv: 8.20.0
+      ajv-formats: 3.0.1(ajv@8.20.0)
+
+  '@clowder-ai/plugin-sdk@0.2.0-beta.21':
+    dependencies:
+      '@clowder-ai/plugin-contract': 0.1.0-beta.37
+
+  '@clowder-ai/plugin-sdk@0.2.0-beta.23':
+    dependencies:
+      '@clowder-ai/plugin-contract': 0.1.0-beta.37
+
   '@csstools/color-helpers@6.1.2': {}
 
   '@csstools/css-calc@3.4.1(@csstools/css-parser-algorithms@4.0.1(@csstools/css-tokenizer@4.0.2))(@csstools/css-tokenizer@4.0.2)':
@@ -3038,6 +3084,28 @@ snapshots:
       raw-body: 3.0.2
       zod: 4.4.3
       zod-to-json-schema: 3.25.2(zod@4.4.3)
+    transitivePeerDependencies:
+      - supports-color
+
+  '@modelcontextprotocol/sdk@1.30.0(zod@3.25.76)':
+    dependencies:
+      '@hono/node-server': 1.19.17(hono@4.12.33)
+      ajv: 8.20.0
+      ajv-formats: 3.0.1(ajv@8.20.0)
+      content-type: 1.0.5
+      cors: 2.8.6
+      cross-spawn: 7.0.6
+      eventsource: 3.0.7
+      eventsource-parser: 3.1.0
+      express: 5.2.1
+      express-rate-limit: 8.6.1(express@5.2.1)
+      hono: 4.12.33
+      jose: 6.2.6
+      json-schema-typed: 8.0.2
+      pkce-challenge: 5.0.1
+      raw-body: 3.0.2
+      zod: 3.25.76
+      zod-to-json-schema: 3.25.2(zod@3.25.76)
     transitivePeerDependencies:
       - supports-color
 

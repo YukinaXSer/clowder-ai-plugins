@@ -5,11 +5,14 @@ import type {
   GitHubIssueWaitBaseline,
   GitHubPrWaitBaseline,
   GitHubReviewVerdicts,
+  GitHubSubmittedReviewStates,
   IssueWaitAutomationState,
   PrAutomationState,
 } from '../../model/index.js';
 import type { WaitRenewalInstruction } from '../ball-custody/wait-state-machine.js';
-import { mergeReviewVerdicts } from './GitHubReviewVerdicts.js';
+import {
+  anchorGitHubReviewVerdicts, latestGitHubReviewDecision, isGitHubReviewDecisionState, mergeReviewVerdicts, mergeSubmittedReviewStates,
+} from './GitHubReviewVerdicts.js';
 import type { GitHubWaitFacts } from './GitHubWaitPredicateCatalog.js';
 
 /**
@@ -41,6 +44,33 @@ function maxCursor(previous: number, ...observed: (number | undefined)[]): numbe
 const UNOBSERVED_MERGE_STATE = 'UNKNOWN';
 const unobservedCiFingerprint = (headSha: string) => `${headSha}:unobserved`;
 
+function renewedReviewVerdicts(previous: GitHubPrWaitBaseline, facts: GitHubWaitFacts, headSha: string): GitHubReviewVerdicts | undefined {
+  // A missing row is not a revocation. Keep the consumed evidence and replace it only with an
+  // observed state change. Older records lack HEAD metadata; anchor those to their installed HEAD.
+  const retained = anchorGitHubReviewVerdicts(previous.review?.verdicts, previous.headSha);
+  const observed = { ...facts.review?.verdicts };
+  for (const review of facts.review?.decisions ?? []) {
+    if (isGitHubReviewDecisionState(review.state)) observed[String(review.id)] = {
+      ...observed[String(review.id)], state: review.state, author: review.author,
+      commitId: headSha, ...(review.submittedAt ? { submittedAt: review.submittedAt } : {}),
+    };
+  }
+  return mergeReviewVerdicts(retained,
+    facts.review?.verdicts !== undefined || Object.keys(observed).length > 0 ? observed : undefined);
+}
+
+function sameReviewStateMap(
+  left: Readonly<Record<string, { state: string; author?: string; commitId?: string; submittedAt?: string }>> | undefined,
+  right: Readonly<Record<string, { state: string; author?: string; commitId?: string; submittedAt?: string }>> | undefined,
+): boolean {
+  if (left === undefined || right === undefined) return left === right;
+  const leftEntries = Object.entries(left);
+  const rightEntries = Object.entries(right);
+  if (leftEntries.length !== rightEntries.length) return false;
+  return leftEntries.every(([id, value]) => value.state === right[id]?.state && value.author === right[id]?.author &&
+    value.commitId === right[id]?.commitId && value.submittedAt === right[id]?.submittedAt);
+}
+
 export function renewPrWaitBaseline(
   previous: GitHubPrWaitBaseline,
   collector: Pick<PrAutomationState, 'review' | 'ci' | 'conflict'>,
@@ -49,29 +79,40 @@ export function renewPrWaitBaseline(
 ): GitHubPrWaitBaseline {
   const headSha = facts.headSha ?? collector.ci?.headSha ?? previous.headSha;
   const headChanged = headSha !== previous.headSha;
+  // Select and persist from the SAME anchored evidence; temporary anchoring would be lost after a
+  // HEAD-follow generation, allowing the next renewal to reinterpret old verdicts on the new HEAD.
+  const verdicts = renewedReviewVerdicts(previous, facts, headSha);
+  const observedDecision = latestGitHubReviewDecision(verdicts, headSha);
+  const previousReview = previous.review;
+  const previousReviewWithoutDecision = previousReview && (() => {
+    const { decision: _revokedOrReplacedDecision, ...rest } = previousReview;
+    return rest;
+  })();
 
   // Review ids are not head-scoped, so they advance across a push. A late review of the old HEAD is
   // absorbed rather than reported — it is not an approval of the new HEAD — while a review OF the
   // new HEAD in this poll was already reported by N (the matcher reads `headDecisionCursor`).
   // Thread snapshots differ: N cannot report a thread change across a push, and N+1 re-reads the
   // threads every poll, so after a push N+1 keeps the previous snapshot and reports it next poll.
-  const review = previous.review
+  const review = previousReview && previousReviewWithoutDecision
     ? {
-        ...previous.review,
-        inlineCommentCursor: maxCursor(previous.review.inlineCommentCursor, collector.review?.lastInlineCommentCursor),
+        ...previousReviewWithoutDecision,
+        inlineCommentCursor: maxCursor(previousReview.inlineCommentCursor, collector.review?.lastInlineCommentCursor),
         conversationCommentCursor: maxCursor(
-          previous.review.conversationCommentCursor,
+          previousReview.conversationCommentCursor,
           collector.review?.lastConversationCommentCursor,
           facts.review?.resultConversationCommentCursor,
         ),
         decisionCursor: maxCursor(
-          previous.review.decisionCursor,
+          previousReview.decisionCursor,
           collector.review?.lastDecisionCursor,
           facts.review?.decisionCursor,
         ),
-        ...(facts.review?.decision ? { decision: facts.review.decision } : {}),
+        // Merge submitted evidence across pages; only an explicit dismissal revokes a verdict.
+        ...(observedDecision ? { decision: observedDecision } : {}),
         ...(facts.review?.threads && !headChanged ? { threads: facts.review.threads } : {}),
-        ...renewVerdicts(previous.review.verdicts, facts),
+        ...(verdicts !== undefined ? { verdicts } : {}),
+        ...renewSubmittedReviewStates(previousReview.submittedReviewStates, facts),
       }
     : undefined;
 
@@ -94,13 +135,12 @@ export function renewPrWaitBaseline(
   };
 }
 
-/** #1392: verdicts are not head-scoped either; a dismissal is reported whichever HEAD it happens on. */
-function renewVerdicts(
-  seen: GitHubReviewVerdicts | undefined,
+function renewSubmittedReviewStates(
+  seen: GitHubSubmittedReviewStates | undefined,
   facts: GitHubWaitFacts,
-): { readonly verdicts?: GitHubReviewVerdicts } {
-  const verdicts = mergeReviewVerdicts(seen, facts.review?.verdicts);
-  return verdicts ? { verdicts } : {};
+): { readonly submittedReviewStates?: GitHubSubmittedReviewStates } {
+  const submittedReviewStates = mergeSubmittedReviewStates(seen, facts.review?.submittedReviewStates);
+  return submittedReviewStates ? { submittedReviewStates } : {};
 }
 
 function renewCi(
@@ -164,10 +204,20 @@ export function followPushedHead(
  */
 export function adoptReviewVerdicts(active: AwaitStateV1, facts: GitHubWaitFacts): GitHubPrWaitBaseline | null {
   const baseline = active.baseline;
-  if (!('headSha' in baseline) || !baseline.review || baseline.review.verdicts || !facts.review?.verdicts) {
-    return null;
-  }
-  return { ...baseline, review: { ...baseline.review, verdicts: facts.review.verdicts } };
+  if (!('headSha' in baseline) || !baseline.review || !facts.review) return null;
+  const verdicts = mergeReviewVerdicts(baseline.review.verdicts, facts.review.verdicts);
+  const observedSubmittedReviewStates = facts.review.submittedReviewStates;
+  const submittedReviewStates = baseline.review.submittedReviewStates === undefined &&
+      Object.keys(observedSubmittedReviewStates ?? {}).length === 0
+    ? undefined
+    : mergeSubmittedReviewStates(baseline.review.submittedReviewStates, observedSubmittedReviewStates);
+  if (sameReviewStateMap(baseline.review.verdicts, verdicts) &&
+      sameReviewStateMap(baseline.review.submittedReviewStates, submittedReviewStates)) return null;
+  return { ...baseline, review: {
+    ...baseline.review,
+    ...(verdicts !== undefined ? { verdicts } : {}),
+    ...(submittedReviewStates !== undefined ? { submittedReviewStates } : {}),
+  } };
 }
 
 /**

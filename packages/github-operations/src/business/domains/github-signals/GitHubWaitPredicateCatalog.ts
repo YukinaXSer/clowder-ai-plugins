@@ -4,13 +4,14 @@ import type {
   GitHubIssueWaitPredicate,
   GitHubReviewThreadBaseline,
   GitHubReviewVerdicts,
+  GitHubSubmittedReviewStates,
   GitHubWaitBaseline,
   GitHubWaitMatchedDelta,
   GitHubWaitPredicate,
 } from '../../model/index.js';
 import { GITHUB_ISSUE_WAIT_PREDICATE_LIMIT, GITHUB_PR_WAIT_PREDICATE_LIMIT, sameGitHubLogin } from '../../model/index.js';
 import { z } from 'zod';
-import { dismissedVerdicts } from './GitHubReviewVerdicts.js';
+import { dismissedVerdicts, isGitHubReviewDecisionState } from './GitHubReviewVerdicts.js';
 
 /**
  * #1392 AC-3: a positive audience, frozen at registration. It must name someone — an empty
@@ -162,6 +163,25 @@ export interface GitHubWaitFacts {
     readonly headDecisionCursor?: number;
     readonly decision?: string;
     readonly reviewer?: string;
+    /** Current-HEAD review objects retain their own source for actor policy. */
+    readonly decisions?: readonly {
+      readonly id: number;
+      readonly state: string;
+      readonly author: string;
+      readonly submittedAt?: string;
+    }[];
+    /**
+     * Raw review states can change without changing their GitHub id. This observation-local delta
+     * comes from the durable collector frontier, not the decision cursor, so a PENDING review can
+     * later become a submitted result (or be dismissed) without being swallowed as old history.
+     */
+    readonly stateChanges?: readonly {
+      readonly id: number;
+      readonly previousState: string;
+      readonly state: string;
+      readonly author: string;
+      readonly currentHead: boolean;
+    }[];
     readonly resultTriggerCommentId?: number;
     readonly resultSourceRef?: string;
     readonly resultConversationCommentCursor?: number;
@@ -170,6 +190,8 @@ export interface GitHubWaitFacts {
     readonly comments?: readonly GitHubObservedComment[];
     /** #1392: the current state of every review that holds or held a verdict, old ids included. */
     readonly verdicts?: GitHubReviewVerdicts;
+    /** Submitted-result consumption frontier; absent only on legacy wait baselines. */
+    readonly submittedReviewStates?: GitHubSubmittedReviewStates;
   };
   readonly ci?: {
     readonly bucket: GitHubCiBaselineBucket;
@@ -383,10 +405,21 @@ export function matchGitHubWaitPredicates(
         if (!('headSha' in baseline) || !current.headSha) break;
         const before = baseline.review;
         const after = current.review;
+        const resultReviewId = /^review:([1-9][0-9]*)$/.exec(after?.resultSourceRef ?? '')?.[1];
+        const submittedSameIdResult = resultReviewId !== undefined &&
+          before?.submittedReviewStates !== undefined &&
+          before.submittedReviewStates[resultReviewId] === undefined &&
+          before.verdicts?.[resultReviewId] === undefined &&
+          after?.stateChanges?.some(change =>
+          change.id === Number(resultReviewId) && change.previousState === 'PENDING' && change.currentHead &&
+          change.state === after.decision) === true;
         const resultFrontierAdvanced =
           before !== undefined &&
           after !== undefined &&
-          (after.decisionCursor > before.decisionCursor ||
+          ((resultReviewId !== undefined && Number(resultReviewId) > before.decisionCursor &&
+              before.verdicts?.[resultReviewId] === undefined &&
+              before.submittedReviewStates?.[resultReviewId] === undefined) ||
+            submittedSameIdResult ||
             (after.resultConversationCommentCursor !== undefined &&
               after.resultConversationCommentCursor > before.conversationCommentCursor));
         if (
@@ -415,12 +448,49 @@ export function matchGitHubWaitPredicates(
         // not its approval. N must report it here, because N+1 starts past this poll's review ids.
         const frontier = current.headSha === baseline.headSha ? after?.decisionCursor : after?.headDecisionCursor;
         if (before && after && frontier !== undefined && frontier > before.decisionCursor) {
-          const verdict = after.decision ?? 'RESULT_AVAILABLE';
-          matches.push({
-            kind: predicate.kind,
-            delta: `review ${before.decision ?? 'pending'} → ${verdict}${after.reviewer ? ` (${after.reviewer})` : ''}`,
-            ...(after.resultSourceRef ? { sourceRef: after.resultSourceRef } : {}),
-          });
+          if (after.decisions) {
+            for (const review of [...after.decisions].sort((a, b) => a.id - b.id)) {
+              if (review.id <= before.decisionCursor || review.id > frontier ||
+                  before.verdicts?.[String(review.id)] !== undefined ||
+                  before.submittedReviewStates?.[String(review.id)] !== undefined) continue;
+              matches.push({ kind: predicate.kind,
+                delta: `review ${before.decision ?? 'pending'} → ${review.state} (${review.author})`,
+                sourceRef: `review:${review.id}` });
+            }
+          } else {
+            const verdict = after.decision ?? 'RESULT_AVAILABLE';
+            matches.push({
+              kind: predicate.kind,
+              delta: `review ${before.decision ?? 'pending'} → ${verdict}${after.reviewer ? ` (${after.reviewer})` : ''}`,
+              ...(after.resultSourceRef ? { sourceRef: after.resultSourceRef } : {}),
+            });
+          }
+        }
+        // GitHub can expose a review before it is submitted. Its PENDING id advances the raw
+        // collector cursor, then that same id later becomes APPROVED or CHANGES_REQUESTED. The
+        // verdict map records a separate frontier: an empty map means this generation explicitly
+        // saw no submitted verdict for that id. Match the first formal state without rolling the id
+        // cursor back. A legacy baseline has no verdict map at all and must still adopt history
+        // quietly rather than replaying every old formal review.
+        if (before?.verdicts !== undefined && after?.stateChanges) {
+          for (const review of [...after.stateChanges].sort((a, b) => a.id - b.id)) {
+            if (review.previousState !== 'PENDING' || before.verdicts[String(review.id)] !== undefined) continue;
+            if (review.state === 'DISMISSED') {
+              // Current-HEAD new ids are already emitted by `decisions` below. Older-HEAD reviews
+              // never enter that list, so their in-place dismissal has to use the raw state delta.
+              if (!review.currentHead || review.id <= before.decisionCursor) {
+                matches.push({ kind: predicate.kind,
+                  delta: `review PENDING → DISMISSED (${review.author})`,
+                  sourceRef: `review:${review.id}` });
+              }
+              continue;
+            }
+            if (review.id > before.decisionCursor) continue;
+            if (!review.currentHead || !isGitHubReviewDecisionState(review.state)) continue;
+            matches.push({ kind: predicate.kind,
+              delta: `review ${before.decision ?? 'pending'} → ${review.state} (${review.author})`,
+              sourceRef: `review:${review.id}` });
+          }
         }
         matches.push(...matchDismissedVerdicts(before?.verdicts, after?.verdicts));
         break;

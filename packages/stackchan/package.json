@@ -27,7 +27,7 @@
     "typecheck": "tsc -p tsconfig.build.json --noEmit && tsc -p tsconfig.test.json",
     "test": "pnpm --filter @clowder-ai/plugin-contract build && node --import tsx --test src/**/*.test.ts && node --test test/*.test.mjs",
     "lint": "tsc -p tsconfig.build.json --noEmit && tsc -p tsconfig.test.json",
-    "clean": "rm -rf dist",
+    "clean": "node ../../scripts/clean-path.mjs dist",
     "prepack": "pnpm build"
   },
   "dependencies": {

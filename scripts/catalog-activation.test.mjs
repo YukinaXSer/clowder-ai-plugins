@@ -4,9 +4,30 @@ import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import { parse } from 'yaml';
-import { activateCatalog, assertCatalogAvailable, assertPublishedArchive } from './catalog-activation.mjs';
+import { activateCatalog, assertCatalogActivated, assertCatalogAvailable, assertInitialPluginSelectionAvailable, assertPublishedArchive } from './catalog-activation.mjs';
+
+test('the default initial selection contains only installable live catalog identities', async () => {
+  const selection = JSON.parse(await readFile(new URL('../catalog/initial-plugins.json', import.meta.url), 'utf8'));
+  const live = JSON.parse(await readFile(new URL('../catalog/catalog.json', import.meta.url), 'utf8'));
+  assert.equal(assertInitialPluginSelectionAvailable(selection, live), selection.plugins.length);
+});
+
+test('repository candidate retains live release identities before any activation provider work', async () => {
+  const root = fileURLToPath(new URL('../', import.meta.url));
+  const livePath = join(root, 'catalog/catalog.json');
+  const candidatePath = join(root, 'catalog/candidate.json');
+  const liveBefore = await readFile(livePath, 'utf8'), candidateBefore = await readFile(candidatePath, 'utf8');
+  const reachedProvider = new Error('Offline activation boundary reached');
+  await assert.rejects(activateCatalog({ root,
+    registryIntegrity: async () => { throw reachedProvider; },
+    readArchive: async () => { assert.fail('Must stop before downloading or writing a live catalog'); },
+  }), error => error === reachedProvider);
+  assert.equal(await readFile(livePath, 'utf8'), liveBefore);
+  assert.equal(await readFile(candidatePath, 'utf8'), candidateBefore);
+});
 
 async function fixture(t) {
   const directory = await mkdtemp(join(tmpdir(), 'catalog-activation-'));
@@ -32,7 +53,7 @@ async function fixture(t) {
   const previous = await archive('@clowder-ai/example', '0.1.0-alpha.1');
   const next = await archive('@clowder-ai/example', '0.1.0-alpha.2');
   const core = await archive('@clowder-ai/plugin-contract', '0.1.0-beta.37');
-  const sdk = await archive('@clowder-ai/plugin-sdk', '0.2.0-beta.21');
+  const sdk = await archive('@clowder-ai/plugin-sdk', '0.2.0-beta.23');
   const row = artifact => ({ version: artifact.version, contractVersion: '0.1.0', manifestPath: 'plugin.yaml', artifact });
   const entry = versions => ({ pluginId: 'official.example', name: 'Example', description: 'Example',
     icon: { type: 'svg', src: 'assets/icon.svg' }, publisher: { id: 'example', name: 'Example' }, versions: versions.map(row) });
@@ -41,6 +62,9 @@ async function fixture(t) {
   const livePath = join(directory, 'catalog/catalog.json');
   await writeFile(livePath, JSON.stringify(live));
   await writeFile(join(directory, 'catalog/candidate.json'), JSON.stringify(candidate));
+  await writeFile(join(directory, 'catalog/initial-plugins.json'), JSON.stringify({
+    schemaVersion: 1, plugins: [{ pluginId: 'official.example', enabled: true }],
+  }));
   await writeFile(join(directory, '.github/workflows/contract-ci.yml'), `jobs:
   publish:
     steps:
@@ -84,6 +108,44 @@ test('metadata without a retrievable archive cannot activate the catalog', async
   assert.equal(await readFile(f.livePath, 'utf8'), before);
 });
 
+test('activation refuses a default identity absent from its candidate without writing discovery', async t => {
+  const f = await fixture(t), before = await readFile(f.livePath, 'utf8');
+  await writeFile(join(f.directory, 'catalog/initial-plugins.json'), JSON.stringify({
+    schemaVersion: 1, plugins: [{ pluginId: 'official.unpublished-meeting', enabled: true }],
+  }));
+  await assert.rejects(activateCatalog(f.options), /Initial plugin is absent from catalog: official.unpublished-meeting/);
+  assert.equal(await readFile(f.livePath, 'utf8'), before);
+});
+
+test('disabled defaults still require a release and duplicate identities are rejected', async t => {
+  const f = await fixture(t);
+  const selection = plugins => ({ schemaVersion: 1, plugins });
+  assert.equal(assertInitialPluginSelectionAvailable(selection([
+    { pluginId: 'official.example', enabled: false },
+  ]), f.live), 1);
+  assert.throws(() => assertInitialPluginSelectionAvailable(selection([
+    { pluginId: 'official.unpublished-meeting', enabled: false },
+  ]), f.live), /Initial plugin is absent from catalog/);
+  assert.throws(() => assertInitialPluginSelectionAvailable(selection([
+    { pluginId: 'official.example', enabled: true }, { pluginId: 'official.example', enabled: false },
+  ]), f.live), /Duplicate initial plugin/);
+});
+
+test('a concurrent initial selection edit does not activate stale admission evidence', async t => {
+  const f = await fixture(t), before = await readFile(f.livePath, 'utf8');
+  let edited = false;
+  await assert.rejects(activateCatalog({ ...f.options, readArchive: async url => {
+    if (!edited) {
+      edited = true;
+      await writeFile(join(f.directory, 'catalog/initial-plugins.json'), JSON.stringify({
+        schemaVersion: 1, plugins: [{ pluginId: 'official.unpublished-meeting', enabled: true }],
+      }));
+    }
+    return f.options.readArchive(url);
+  } }), /Initial selection changed/);
+  assert.equal(await readFile(f.livePath, 'utf8'), before);
+});
+
 test('a mismatching actual tarball blocks activation even if registry metadata claims the expected digest', async t => {
   const f = await fixture(t), before = await readFile(f.livePath, 'utf8');
   f.archives.set(f.next.tarballUrl, Buffer.from('corrupt archive'));
@@ -106,6 +168,28 @@ test('a complete published batch updates discovery without changing staged sourc
   assert.equal(await readFile(join(f.directory, 'catalog/candidate.json'), 'utf8'), staged);
   await activateCatalog(f.options); // Retry is idempotent without publishing or replacing archives.
   assert.equal(await assertCatalogAvailable(f.candidate, f.options), 1);
+});
+
+test('publication alone does not satisfy the activation completion check', async t => {
+  const f = await fixture(t);
+  assert.throws(() => assertCatalogActivated(f.candidate, f.live), /official.example@0.1.0-alpha.2/);
+  await activateCatalog(f.options);
+  assertCatalogActivated(f.candidate, JSON.parse(await readFile(f.livePath, 'utf8')));
+});
+
+test('completion detects missing plugins and rewritten selected identities', async t => {
+  const f = await fixture(t);
+  assert.throws(() => assertCatalogActivated(f.candidate, { ...f.live, plugins: [] }), /official.example/);
+  const changed = structuredClone(f.candidate);
+  changed.plugins[0].versions[0].artifact.shasum = '0'.repeat(40);
+  assert.throws(() => assertCatalogActivated(f.candidate, changed), /official.example/);
+});
+
+test('candidate-only history does not create a false activation obligation', async t => {
+  const f = await fixture(t);
+  const live = structuredClone(f.candidate);
+  live.plugins[0].versions.pop();
+  assertCatalogActivated(f.candidate, live);
 });
 
 test('inactive historical rows do not require publishing old candidates or change the offered current version', async t => {
@@ -158,4 +242,13 @@ test('the ordinary npm publication job never activates live discovery', async ()
   for (const step of workflow.jobs.publish.steps) {
     assert.doesNotMatch(step.run ?? '', /catalog:activate|catalog-activation\.mjs\s+--activate/);
   }
+  assert.equal(workflow.jobs.publish.steps.at(-1).run, 'pnpm catalog:activation-check');
+});
+
+test('manual npm publication is covered by a scheduled read-only activation audit', async () => {
+  const audit = parse(await readFile(new URL('../.github/workflows/catalog-activation.yml', import.meta.url), 'utf8'));
+  assert.ok(audit.on.workflow_dispatch);
+  assert.ok(audit.on.schedule.length > 0);
+  assert.deepEqual(audit.permissions, { contents: 'read' });
+  assert.equal(audit.jobs.activation.steps.at(-1).run, 'pnpm catalog:activation-check');
 });

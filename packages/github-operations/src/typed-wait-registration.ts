@@ -5,7 +5,7 @@ import {
   expandGitHubPrTrackingGoal, expandGitHubIssueTracking,
   resolveGitHubNotificationPerspective, resolveGitHubIssueNotificationPerspective,
   type AutomationState, type AwaitStateV1, type TaskItem, type GitHubTrackingIdentityV1,
-  type GitHubNotificationCoverageV1, type GitHubPrWaitPredicate,
+  type GitHubNotificationCoverageV1, type GitHubPrWaitPredicate, type PrAutomationState,
 } from './business/model/index.js';
 import { canonicalizeGitHubWaitPredicates, canonicalizeGitHubIssueWaitPredicates } from './business/domains/github-signals/GitHubWaitPredicateCatalog.js';
 import type { InitialPrWaitSnapshot } from './business/domains/github-signals/GitHubWaitBaselineReader.js';
@@ -14,6 +14,9 @@ import { transitionWaitState } from './business/domains/ball-custody/wait-state-
 import { automationGeneration } from './business/domains/github-signals/TaskAutomationState.js';
 import type { GitHubWaitStorage } from './typed-wait-storage.js';
 import { lifecycleEvent } from './business/domains/github-signals/GitHubWaitLifecycleService.js';
+import {
+  anchorGitHubReviewVerdicts, latestGitHubReviewDecision, mergeReviewVerdicts, mergeSubmittedReviewStates, reviewVerdictsOf, submittedReviewStatesOf,
+} from './business/domains/github-signals/GitHubReviewVerdicts.js';
 import { registerPrTrackingInputSchema, registerIssueTrackingInputSchema } from './tracking-mcp-schemas.js';
 
 export class TrackingRegistrationError extends Error {
@@ -152,6 +155,80 @@ function assertSameOwner(current: TaskItem, task: TaskItem): void {
   }
 }
 
+function preserveSubmittedReviewFrontier(previous: AutomationState, planned: AutomationState): AutomationState {
+  const before = previous as PrAutomationState;
+  const after = planned as PrAutomationState;
+  const previousBaseline = before.await?.baseline;
+  const plannedBaseline = after.await?.baseline;
+  if (!after.await || !plannedBaseline || !('headSha' in plannedBaseline)) return planned;
+
+  const previousObserved = before.review?.observedReviews ?? {};
+  const plannedObserved = after.review?.observedReviews ?? {};
+  const observedReviews: Record<string, string> = { ...previousObserved, ...plannedObserved };
+  for (const [reviewId, state] of Object.entries(previousObserved)) {
+    const plannedState = plannedObserved[reviewId];
+    if (state === 'DISMISSED' || (plannedState === 'PENDING' && state !== 'PENDING')) {
+      observedReviews[reviewId] = state;
+    }
+  }
+
+  const collectedVerdicts = reviewVerdictsOf(Object.entries(previousObserved).map(([id, state]) => ({
+    id: Number(id), state,
+  })));
+  const collectedSubmittedReviewStates = submittedReviewStatesOf(Object.entries(previousObserved).map(([id, state]) => ({
+    id: Number(id), state,
+  })));
+  const previousReviewBaseline = previousBaseline && 'headSha' in previousBaseline
+    ? previousBaseline.review
+    : undefined;
+  const previousHeadSha = previousBaseline && 'headSha' in previousBaseline
+    ? previousBaseline.headSha : before.ci?.headSha;
+  const previousVerdicts = mergeReviewVerdicts(previousReviewBaseline?.verdicts, collectedVerdicts);
+  // Bind legacy evidence before installing it on a different HEAD. Once installed, renewal can
+  // only see the new baseline HEAD and would otherwise turn an old approval into a new decision.
+  const anchoredVerdicts = previousVerdicts && previousHeadSha
+    ? anchorGitHubReviewVerdicts(previousVerdicts, previousHeadSha)
+    : previousVerdicts;
+  const durableVerdicts = mergeReviewVerdicts(
+    anchoredVerdicts,
+    plannedBaseline.review?.verdicts,
+  );
+  const durableSubmittedReviewStates = mergeSubmittedReviewStates(
+    mergeSubmittedReviewStates(previousReviewBaseline?.submittedReviewStates, collectedSubmittedReviewStates),
+    plannedBaseline.review?.submittedReviewStates,
+  );
+  const decision = latestGitHubReviewDecision(durableVerdicts, plannedBaseline.headSha);
+  const { decision: _discardedPlannedDecision, ...plannedReview } = plannedBaseline.review ?? {};
+  const decisionCursor = Math.max(after.review?.lastDecisionCursor ?? 0,
+    before.review?.lastDecisionCursor ?? 0, previousReviewBaseline?.decisionCursor ?? 0,
+    plannedBaseline.review?.decisionCursor ?? 0,
+    Object.keys(observedReviews).reduce((max, id) => Math.max(max, Number(id)), 0));
+  const inlineCommentCursor = Math.max(after.review?.lastInlineCommentCursor ?? 0,
+    before.review?.lastInlineCommentCursor ?? 0, previousReviewBaseline?.inlineCommentCursor ?? 0,
+    plannedBaseline.review?.inlineCommentCursor ?? 0);
+  const conversationCommentCursor = Math.max(after.review?.lastConversationCommentCursor ?? 0,
+    before.review?.lastConversationCommentCursor ?? 0, previousReviewBaseline?.conversationCommentCursor ?? 0,
+    plannedBaseline.review?.conversationCommentCursor ?? 0);
+  const baseline = plannedBaseline.review ? {
+    ...plannedBaseline,
+    review: {
+      ...plannedReview,
+      decisionCursor, inlineCommentCursor, conversationCommentCursor,
+      ...(decision ? { decision } : {}),
+      ...(durableVerdicts ? { verdicts: durableVerdicts } : {}),
+      ...(durableSubmittedReviewStates ? { submittedReviewStates: durableSubmittedReviewStates } : {}),
+    },
+  } : plannedBaseline;
+  return {
+    ...after,
+    review: { ...after.review, observedReviews, lastDecisionCursor: decisionCursor,
+      lastInlineCommentCursor: inlineCommentCursor, lastConversationCommentCursor: conversationCommentCursor,
+      lastCommentCursor: Math.max(before.review?.lastCommentCursor ?? 0, after.review?.lastCommentCursor ?? 0,
+        inlineCommentCursor, conversationCommentCursor) },
+    await: { ...after.await, baseline },
+  };
+}
+
 /** Port of the route's generation/outbox transition, on the plugin-private aggregate. */
 export async function installPreparedWait(store: GitHubWaitStorage, task: TaskItem, plan: PreparedGitHubWait): Promise<TaskItem> {
   if (task.kind !== plan.kind || task.subjectKey !== plan.subjectKey || !task.ownerCatId) {
@@ -177,7 +254,10 @@ export async function installPreparedWait(store: GitHubWaitStorage, task: TaskIt
     return created;
   }
   const previous = current.automationState;
-  const at = plan.state.await!.createdAt;
+  const installedState = plan.kind === 'pr_tracking' && previous
+    ? preserveSubmittedReviewFrontier(previous, plan.state)
+    : plan.state;
+  const at = installedState.await!.createdAt;
   const generation = (automationGeneration(previous) ?? 0) + 1;
   const superseded = previous?.await ? transitionWaitState(previous, {
     type: 'superseded', generation: previous.await.generation, at,
@@ -188,10 +268,10 @@ export async function installPreparedWait(store: GitHubWaitStorage, task: TaskIt
     throw new TrackingRegistrationError(409, 'Tracking has a pending delivery; retry after recovery');
   }
   const retained = pending ?? supersededOutcome;
-  const active = { ...plan.state.await, generation, ownerFence: { kind: 'containing_task', generation } } as AwaitStateV1;
+  const active = { ...installedState.await, generation, ownerFence: { kind: 'containing_task', generation } } as AwaitStateV1;
   const installed = await store.replaceAutomationStateIfGeneration(task.id, {
     expectedGeneration: automationGeneration(previous), expectedUpdatedAt: current.updatedAt,
-    status: 'doing', automationState: { ...previous, ...plan.state, await: active, waitOutcome: retained } as AutomationState,
+    status: 'doing', automationState: { ...previous, ...installedState, await: active, waitOutcome: retained } as AutomationState,
     registration: request,
     notification: plan.notification,
     ...(supersededOutcome ? { lifecycleEvent: lifecycleEvent(current, supersededOutcome) } : {}),

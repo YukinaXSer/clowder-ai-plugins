@@ -9,6 +9,15 @@ export type GitHubReviewLoopBrake =
   | { readonly kind: 'continue'; readonly formalChangesRequested: number }
   | { readonly kind: 'warn_open'; readonly reason: string };
 
+export function renderGitHubSubjectLink(subjectRef: `pr:${string}#${number}` | `issue:${string}#${number}`): string {
+  const isIssue = subjectRef.startsWith('issue:');
+  const subject = subjectRef.slice(isIssue ? 'issue:'.length : 'pr:'.length);
+  const numberSeparator = subject.lastIndexOf('#');
+  const repo = subject.slice(0, numberSeparator);
+  const number = subject.slice(numberSeparator + 1);
+  return `[${subject}](https://github.com/${repo}/${isIssue ? 'issues' : 'pull'}/${number})`;
+}
+
 export function classifyGitHubReviewLoopBrake(
   history: readonly { readonly id: number; readonly state: string; readonly author: string }[],
   newDecisionIds: readonly number[],
@@ -27,12 +36,12 @@ export function classifyGitHubReviewLoopBrake(
 
 export function renderGitHubWaitOutcome(outcome: GitHubWaitOutcomeV1): string {
   const isIssue = outcome.subjectRef.startsWith('issue:');
-  const subject = outcome.subjectRef.slice(isIssue ? 'issue:'.length : 'pr:'.length);
   const kind = isIssue ? 'Issue' : 'PR';
+  const subjectLink = renderGitHubSubjectLink(outcome.subjectRef);
   const lines =
     outcome.reason === 'expired'
-      ? [`⏰ **${kind} tracking expired** — ${subject}`, '']
-      : [`🔔 **${kind} wait satisfied** — ${subject}`, ''];
+      ? [`⏰ **${kind} tracking expired** — ${subjectLink}`, '']
+      : [`🔔 **${kind} wait satisfied** — ${subjectLink}`, ''];
 
   // A terminal outcome — a final state or a deadline — first lists what its last poll observed.
   for (const match of outcome.matched ?? []) {

@@ -1,15 +1,15 @@
 {
   "name": "@clowder-ai/enterprise-workflow",
-  "version": "0.1.0-alpha.2",
+  "version": "0.1.0-alpha.4",
   "lockfileVersion": 3,
   "requires": true,
   "packages": {
     "": {
       "name": "@clowder-ai/enterprise-workflow",
-      "version": "0.1.0-alpha.2",
+      "version": "0.1.0-alpha.4",
       "license": "MIT",
       "dependencies": {
-        "@clowder-ai/plugin-sdk": "0.2.0-beta.21",
+        "@clowder-ai/plugin-sdk": "0.2.0-beta.23",
         "ajv": "8.20.0"
       },
       "devDependencies": {
@@ -37,9 +37,9 @@
       }
     },
     "node_modules/@clowder-ai/plugin-sdk": {
-      "version": "0.2.0-beta.21",
-      "resolved": "https://registry.npmjs.org/@clowder-ai/plugin-sdk/-/plugin-sdk-0.2.0-beta.21.tgz",
-      "integrity": "sha512-acvi9BWJWXDgi0Ttk8BVQ54ZcPwds+MyHpOW0ohb9WFSfL92C3SFHD/ilfZcNp7lxx4euh8EEFhIABfVtyMSzA==",
+      "version": "0.2.0-beta.23",
+      "resolved": "https://registry.npmjs.org/@clowder-ai/plugin-sdk/-/plugin-sdk-0.2.0-beta.23.tgz",
+      "integrity": "sha512-aotIxaNXscJLS6bUPkHp39erh2kTasJUOCJAOUzKIgCBWqy71AKY2Mdb75U9ucrnTeA76/9Z3JYOaZ1sFx0KRA==",
       "license": "MIT",
       "dependencies": {
         "@clowder-ai/plugin-contract": "0.1.0-beta.37"

@@ -13,6 +13,7 @@ on:
       - 'packages/plugin-contract/**'
       - 'packages/plugin-sdk/**'
       - 'packages/companion/**'
+      - 'packages/collective-connector/**'
       - 'packages/connector-dingtalk/**'
       - 'packages/connector-feishu/**'
       - 'packages/connector-telegram/**'
@@ -24,6 +25,7 @@ on:
       - 'packages/personal-chrome-companion/**'
       - 'packages/feishu-meeting-intake/**'
       - 'packages/video-analysis/**'
+      - 'packages/tripo-studio/**'
       - 'packages/video-generation/**'
       - 'packages/wechat-visible-reader/**'
       - 'packages/weixin-mp/**'
@@ -255,6 +257,9 @@ jobs:
             pnpm --filter "$package" build
           done
 
+      - name: Build Collective package
+        run: pnpm --filter @clowder-ai/collective-connector build
+
       - name: Build enterprise workflow package
         run: pnpm --filter @clowder-ai/enterprise-workflow build
 
@@ -292,11 +297,18 @@ jobs:
         with:
           package-directory: packages/plugin-contract
           npm-token: ${{ secrets.NPM_TOKEN }}
+          allowed-stable-version: '0.2.0'
 
       - name: Publish SDK prerelease
         uses: ./.github/actions/publish-prerelease
         with:
           package-directory: packages/plugin-sdk
+          npm-token: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish Collective prerelease
+        uses: ./.github/actions/publish-prerelease
+        with:
+          package-directory: packages/collective-connector
           npm-token: ${{ secrets.NPM_TOKEN }}
 
       - name: Publish enterprise workflow prerelease
@@ -400,3 +412,8 @@ jobs:
         with:
           package-directory: packages/github-operations
           npm-token: ${{ secrets.NPM_TOKEN }}
+
+      # A successful upload is not a completed release. Keep a visible failure
+      # until the publication owner delivers the separate reviewed catalog PR.
+      - name: Require published catalog activation
+        run: pnpm catalog:activation-check
