@@ -4,7 +4,7 @@
 延续原 Task 与 PR #80，不修改正在使用的宿主实例。
 
 Before：认领依赖工作台本地记录/其收件开关，接收方需要工作台才能进入后续流程。
-After：成员在 GitHub 或工作台认领、取消认领，其他人直接在 GitHub 看见；接收方的通用 GitHub 接入将事实送到宿主对话，猫通知本人，并由宿主按本人授权接续开发。
+After：工作台派工写入 GitHub Assignees；成员可在 GitHub 原生界面认领、取消认领，其他人直接在 GitHub 看见。接收方的通用 GitHub 接入将事实送到宿主对话，猫通知本人，并由宿主按本人授权接续开发。本轮未新增工作台取消认领按钮。
 
 ## 事实、通知与开发权限
 
@@ -45,16 +45,19 @@ Why：GitHub 是跨成员公共事实，Host 负责对话、目标、授权与�
 
 - 真实宿主发现并修复了 Settings operation 缺少 `render`，补了失败回归。
 - 真实宿主拒绝 `threads.get` 的 `thread.readContent` 权限；改用已有 `threads.getCats` 元数据能力校验目的对话和可路由猫，不扩大宿主权限，补了默认无内容读取权的回归。
-- GitHub 包 610 项测试、typecheck/build 通过；制品已安装到 3142/5142 独立宿主。当前制品以同目录 `artifacts/public-claims-2026-10-26/github-pack-final.json` 和 candidate catalog 摘要为准。
+- 最终代码 `4bf424e17e003be11ca9db3f6553d87c0bda70f8` 已同步上游 `ec0ef60`。GitHub 包 743 项通过、1 项既有跳过、0 失败；typecheck/build 通过。全仓 `pnpm gate:ci` 36 项一次完整通过（720 秒），记录在 `packages/issue-workbench/artifacts/public-claims-2026-10-26/upstream-gate.log`。后续本文件仅补充验收记录，不改变被验证的源码或制品。
+- 制品为 `@clowder-ai/github-operations@0.1.0-alpha.28`，已安装到 3142/5142 独立宿主。打包记录为 `packages/issue-workbench/artifacts/public-claims-2026-10-26/github-pack-alpha28.json`；integrity 为 `sha512-zyPVsDszwuwOlQ8TYQapOtKOXfS1lxrwwIxedQFAM9FHk46JPzzfFJT7uJeqZuzFqHVai88RYG+kbRZl39skNw==`，与 candidate catalog 一致。
 - 认领消息：`0001792980286142-000000-8718addf`；原生 GitHub assignment event：`34217307307`。实验猫已向本人转达认领和撤销；第一次撤销消息 `0001792980328668-000002-07c305af`，停启后仍是原两条通知。重新认领使用新事件 `34217676813`，新通知 `0001792980625455-000004-7819083d`；最后撤销 `0001792980740921-000006-4919a57c`。
-- GitHub 全仓门禁、最终提交/远端 HEAD、独立 review 仍待核验；未合入、未发布 npm。
+- 最终 alpha.28 再次在工作台停用时验收：认领事件 `34218560767`、通知 `0001792981714247-000008-014ce3d4`、猫回复 `0001792981714267-000009-80186307`；撤销通知 `0001792981949578-000010-5fbbb9ca`、猫回复 `0001792981949597-000011-49be2999`。
+- 早期完整门禁发现英文 README 未按字面按钮名标记，随后发现 alpha.16 已发布、不得替换摘要。现已修正文档，并同步上游最新 alpha.27 后新增 alpha.28 候选；历史已发布版本的 catalog 条目保持上游原值。失败日志保留，最终 36 项通过不覆盖或抹除早期失败。
+- 最终远端 HEAD、远端 CI 和独立 review 以 PR #80 实时记录为准；本地通过不代表远端批准。未合入、未发布 npm。
 
 Architecture ownership：既有 GitHub Signals cell 内扩展采集和事实通知；普通 Host 消息负责持久投递与唤醒。Host 源码、权限策略和 Task admission 无新增修改。插件仓不具备家内 `check:architecture-ownership` / tips seed 检查入口；操作指引随双语 README 和本验收文档交付。
 
 ## 实物与边界（2026-10-26）
 
 - 作者在实际 Hub 收件对话打开并展开猫回复，确认可见认领通知、撤销通知和猫转达内容；浏览器无页面错误。采样当时 Issue 工作台 `stopped`、GitHub Operations `running`。
-- 最终两次认领、两次撤销，共四条源通知；首次停启和重复手工同步未新增同一事件通知。测试结束为 Open、Assignees 空。
+- 三次认领、三次撤销，共六条源通知和六次实际猫回复；首次停启和重复手工同步未新增同一事件通知。最后一轮运行 alpha.28；浏览器截图来自较早的同功能候选，最终版本另有真实 API 与猫回复证据。测试结束为 Open、Assignees 空。
 - 独立宿主仍为 `cat-cafe-issue-workbench-lab`（Hub 5142 / API 3142 / Redis 6358）；原工作实例代码、配置和数据未修改。试验租期到 2026-10-26 21:28 Asia/Shanghai，届时停服务、保留数据。
 - 实验猫已回复本人，但其 `gh` 直接联网复核被只读网络沙箱拒绝；未把通知观察当作当前 GitHub 核验，也未启动开发。通用连接自身的真实 GitHub 读取、Host 普通投递和唤醒已通过。实际开发仍需宿主适用授权及工具能力；专用测试 Issue 明确不要求修代码。
 - 工作台已恢复启用，其旧 `receiveAssignments` 关闭；通用 GitHub `receiveAssignedIssues` 继续开启，避免重复接收。原工作区不受影响。
