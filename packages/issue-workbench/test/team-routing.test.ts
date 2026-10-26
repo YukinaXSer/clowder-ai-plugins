@@ -174,3 +174,18 @@ test('a Windows core planner also participates in ordinary Windows work, while M
   await analyze(s); await analyze(s, 2);
   assert.deepEqual(s.writes, ['bob', 'planner']);
 });
+
+test('owner confirmation of a weighted recommendation advances its durable allocation', async () => {
+  const s = fixture('macOS'); s.config.routingRules = '[]'; s.config.automaticAssignment = false;
+  const profiles = JSON.parse(s.config.memberProfiles as string); profiles[1].system = 'macos';
+  s.config.memberProfiles = JSON.stringify(profiles);
+  s.issues.push({ ...structuredClone(s.issues[0]), number: 2, id: 'issue-2' });
+  for (const number of [1, 2]) {
+    await analyze(s, number);
+    const r = s.runtime(), summary = await r.invokeOwner('summary', { repo: 'fixture/repo', number }, owner(s, 'summary')) as any;
+    const login = summary.issueContext.assignmentOptions.preferredLogin;
+    await r.invokeOwner('assignIssue', { repo: 'fixture/repo', number, requestId: `confirm-${number}`,
+      sourceVersion: issueVersion(s.issues[number - 1]), login }, owner(s, 'assignIssue'));
+  }
+  assert.deepEqual(s.writes, ['alice', 'bob']);
+});

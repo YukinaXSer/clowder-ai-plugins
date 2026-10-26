@@ -369,7 +369,8 @@ export class IssueTeamRuntime {
       }
       job.assignment = { ...job.assignment, status: 'pending', login, delivery, rulesHash: policyHash,
         basis: selectedLogin ? 'manual' : options.basis, groupName: options.groupName,
-        ...(!selectedLogin && delivery === 'assignment' ? { allocation: job.assignment?.allocation ?? options.allocation } : {}),
+        allocation: delivery === 'assignment' ? (job.assignment?.login === login ? job.assignment.allocation : undefined)
+          ?? ((!selectedLogin || selectedLogin === options.preferredLogin) && !current.assignees.includes(login) ? options.allocation : undefined) : undefined,
         acceptanceSuggestedFor: options.acceptanceSuggestedFor };
       revision = await this.save(job, revision);
       const currentPolicy = async () => {
