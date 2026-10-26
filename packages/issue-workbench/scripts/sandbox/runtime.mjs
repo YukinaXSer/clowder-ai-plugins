@@ -124,7 +124,8 @@ export async function sandboxRuntime({ root, hostRoot, archive, settings, allowA
     const installed = (await runtime.inventoryStore.snapshot()).instances.find(i => i.pluginId === pluginId);
     if (!installed) {
       await manager.install({ source: { kind: 'local-archive', path: archive } });
-      await configure({ repositories: 'fixture/repo', teamOrganization: 'fixture-org', analysisCatId: catId,
+      await configure({ repositories: 'fixture/repo', teamOrganization: 'fixture-org',
+    memberProfiles: JSON.stringify(['alice', 'bob'].map(login => ({ login, system: 'macos', role: 'member', weight: 1 }))), analysisCatId: catId,
         analysisThreadId: thread.id, automaticAssignment: false, dispatchMode: 'invitation',
         inboxCatId: catId, inboxThreadId: thread.id, receiveAssignments: name === 'receiver', shareProgress: true });
       await enable(true);

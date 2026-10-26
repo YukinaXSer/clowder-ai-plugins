@@ -536,3 +536,21 @@ legacy names remain undecided. Historical custom tags are retained read-only.
 New cat tasks use the same category boundary table. Origin, operating system and
 request kind are separate dimensions. Local edits do not change remote labels or
 the authority of existing team analyses and assignment rules.
+
+
+### Environment-aware member routing
+
+Configure `memberProfiles` in plugin Settings, for example:
+
+```json
+[
+  { "login": "alice", "system": "macos", "role": "member", "weight": 2 },
+  { "login": "bob", "system": "windows", "role": "core-planner", "weight": 1 }
+]
+```
+
+Profiles cannot add members to the live GitHub organization. Supported systems are `macos` and `windows`; roles are `architect-reviewer`, `core-planner`, and `member`; integer weights range from 1 to 20. A Windows core planner also participates in ordinary Windows work. Unconfigured members remain visible with an exclusion reason. Managed-user logins containing underscores are supported.
+
+The analysis panel allows a human to save the affected system and routing focus. Saved human values take priority over structured cat analysis, then source extraction. Explicitly choosing unknown remains unknown. Unsaved edits disable assignment. Manual assignment, automatic dispatch, and recovery all enforce the same system boundary. Unknown, other, and multiple systems require an explicit scope decision first.
+
+Within the compatible pool, architectural duties precede the eligible reporter, Feature/category rules, and ordinary weighted allocation. Equal-tier candidates are selected by confirmed assignments divided by weight. The durable dispatch journal records each verified assignment once; failed writes consume no slot. Role, explicit routing, and ordinary pools are separate; invitations and manual selections do not consume ordinary slots. Counts belong to this plugin instance and are not a cross-Host quota service.

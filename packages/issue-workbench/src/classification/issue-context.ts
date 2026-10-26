@@ -8,6 +8,7 @@ export interface IssueContextClassification {
   basis: 'title' | 'description';
   origin: keyof typeof originLabels;
   systems: (keyof typeof systemLabels)[];
+  systemsSource?: 'human' | 'cat' | 'source';
   originEvidence: string[];
   systemEvidence: string[];
 }
@@ -56,9 +57,11 @@ export function classifyIssueContext(fact: Pick<IssueSourceFact, 'title' | 'body
 }
 
 /** A body-backed persisted analysis is usable only for the exact current source stamp. */
-export function issueContextFor(fact: IssueSourceFact, result?: IssueClassification): IssueContextClassification {
+export function issueContextFor(fact: IssueSourceFact, result?: IssueClassification, human?: { affectedSystems?: (keyof typeof systemLabels)[] }): IssueContextClassification {
+  if (!fact.unavailable && human?.affectedSystems !== undefined) return { ...issueContextFor(fact, result),
+    systems: human.affectedSystems, systemsSource: 'human', systemEvidence: ['人工确认的受影响系统'] };
   if (fact.unavailable) return classifyIssueContext({ title: '' });
-  if (fact.body === undefined && result?.context && result.source.issueId === fact.id
+  if ((fact.body === undefined || result?.context?.systemsSource === 'cat') && result?.context && result.source.issueId === fact.id
     && result.source.number === fact.number && result.source.updatedAt === fact.updatedAt) return result.context;
   return classifyIssueContext(fact);
 }

@@ -88,3 +88,19 @@ it('one explicit class selection changes grouping after save without generating 
     expect(s.node.querySelector('[aria-label="问题类别"]')?.textContent).not.toContain('界面交互 · 1');
   } finally { s.close(); }
 });
+
+it('lets the owner save a system correction and explicitly return it to unknown without autosaving', async () => {
+  const s = await setup(false, 'Windows 11 fails to launch');
+  try {
+    const select = s.node.querySelector<HTMLSelectElement>('[aria-label="受影响操作系统"]');
+    expect(select).not.toBeNull();
+    await act(async () => { select!.value = 'macos'; select!.dispatchEvent(new Event('change', { bubbles: true })); });
+    expect(s.saveWork).not.toHaveBeenCalled();
+    await act(async () => select!.closest('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })));
+    expect(s.snapshot.sources[0].work[0].value.affectedSystems).toEqual(['macos']);
+    expect(s.node.querySelector('form [aria-label="问题来源与操作系统"]')!.textContent).toContain('人工确认');
+    await act(async () => { select!.value = 'unknown'; select!.dispatchEvent(new Event('change', { bubbles: true })); });
+    await act(async () => select!.closest('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })));
+    expect(s.snapshot.sources[0].work[0].value.affectedSystems).toEqual([]);
+  } finally { s.close(); }
+});

@@ -66,7 +66,7 @@ export async function startSandbox({ root, hostRoot, archive, port = 0, automati
       { node_id: 'I_sandbox_2', number: 2, title: '希望批量分类时能暂停', body: '处理一批问题时需要暂停，检查分类结果后再继续。', author: 'bob' },
       { node_id: 'I_sandbox_3', number: 3, title: '窄屏下说明文字被截断', body: '手机浏览工作台时，说明文字超出边界。可以横屏临时查看。', author: 'alice' },
     ].map(({ author, ...i }) => ({ ...i, state: 'open', updated_at: '2026-10-21T00:00:00Z', user: { login: author },
-      labels: [], assignees: [], html_url: 'https://github.com/fixture/repo/issues/' + i.number })) });
+      body: i.body + '\n## Environment\nmacOS', labels: [], assignees: [], html_url: 'https://github.com/fixture/repo/issues/' + i.number })) });
     const bin = join(root, 'bin'); await mkdir(bin, { recursive: true });
     await writeFile(join(bin, 'gh'), '#!' + process.execPath + '\n' + await readFile(new URL('../../test/helpers/host-github-fixture.mjs', import.meta.url), 'utf8'));
     await chmod(join(bin, 'gh'), 0o700); process.env.PATH = bin + ':' + process.env.PATH; process.env.ISSUE_HOST_TEST_GITHUB = githubFile;

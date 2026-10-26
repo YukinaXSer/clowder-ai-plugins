@@ -1,3 +1,4 @@
+import type { RoutingInput } from '../classification/routing-context.js';
 import type { IssueSourceFact } from './issue-source.js';
 import type { IssueContextClassification } from '../classification/issue-context.js';
 import { categoryDefinition, primaryCategory } from '../classification/taxonomy.js';
@@ -31,7 +32,7 @@ export interface Versioned<T> {
   value: T;
 }
 export type ImpactScope = 'unknown' | 'common' | 'internal';
-export interface IssueInvestigation {
+export interface IssueInvestigation extends RoutingInput {
   ref: IssueRef;
   /** Last observed metadata keeps authored work discoverable if the catalog loses the item. */
   title: string;

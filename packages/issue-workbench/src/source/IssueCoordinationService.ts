@@ -1,3 +1,4 @@
+import { affectedSystemsSchema, routingFocusSchema } from '../classification/routing-context.js';
 import {
   type CoordinationDetail,
   type CoordinationSnapshot,
@@ -185,6 +186,8 @@ export class IssueCoordinationService {
       !['pending', 'failed', 'passed'].includes(value.verification)
     )
       throw new Error('Invalid work state');
+    if (value.affectedSystems !== undefined) clean.affectedSystems = affectedSystemsSchema.parse(value.affectedSystems);
+    if (value.routingFocus !== undefined) clean.routingFocus = routingFocusSchema.parse(value.routingFocus);
     clean.scope = value.scope;
     clean.adoption = value.adoption;
     clean.verification = value.verification;

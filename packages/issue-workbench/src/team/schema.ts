@@ -1,3 +1,4 @@
+import { affectedSystemsSchema, routingFocusSchema } from '../classification/routing-context.js';
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import type { TeamIssue } from './types.js';
@@ -5,7 +6,7 @@ import type { TeamIssue } from './types.js';
 export const repository = z.string().max(200).regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/)
   .refine(value => value.split('/').every(segment => segment !== '.' && segment !== '..'), 'Repository must not contain path traversal')
   .transform(value => value.toLowerCase());
-export const login = z.string().regex(/^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/).transform(value => value.toLowerCase());
+export const login = z.string().regex(/^[A-Za-z0-9](?:[A-Za-z0-9_-]{0,38})$/).transform(value => value.toLowerCase());
 /** Accept an organization slug or its github.com profile URL, never an arbitrary endpoint. */
 export const organization = z.string().trim().max(200).transform(value => {
   const url = /^https:\/\/github\.com\/([A-Za-z0-9-]+)\/?$/i.exec(value);
@@ -16,6 +17,8 @@ export const organization = z.string().trim().max(200).transform(value => {
 export const issueInput = z.object({ repo: repository, number: z.number().int().positive() }).strict();
 export const idInput = z.object({ id: z.string().regex(/^[a-f0-9]{64}$/) }).strict();
 export const analysisSchema = z.object({
+  affectedSystems: affectedSystemsSchema.optional(),
+  routingFocus: routingFocusSchema.optional(),
   category: z.string().trim().min(1).max(80),
   score: z.number().int().min(1).max(10).nullable(),
   reason: z.string().trim().min(1).max(1000),

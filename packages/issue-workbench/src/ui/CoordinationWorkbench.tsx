@@ -42,7 +42,7 @@ export function CoordinationWorkbench({
   showClassifications?: boolean;
   tools?: ReactNode;
   projectSnapshot?: (snapshot: CoordinationSnapshot) => CoordinationSnapshot;
-  issueTools?: (profile: IssueSourceProfile, fact: IssueSourceFact, category: string) => ReactNode;
+  issueTools?: (profile: IssueSourceProfile, fact: IssueSourceFact, category: string, workRevision: number, dirty: boolean) => ReactNode;
 }) {
   const columns = useWorkbenchColumns();
   const [sourceSnapshot, setSnapshot] = useState<CoordinationSnapshot>({ sources: [], relations: [] });
@@ -147,7 +147,7 @@ export function CoordinationWorkbench({
   const groups = issueCategoryCounts(scoped);
   const row = rows.find((r) => r.key === selected);
   const classification = row && issueClassificationFor(row.source, row.fact);
-  const context = row && issueContextFor(row.fact, classification);
+  const context = row && issueContextFor(row.fact, classification, drafts[row.key]?.value ?? row.saved?.value);
   useEffect(() => {
     if (!selected && rows[0]) setSelected(rows[0].key);
   }, [selected, rows[0]?.key]);
@@ -418,7 +418,7 @@ export function CoordinationWorkbench({
                   error={saveError}
                 />
                 <CoordinationHistory key={`history:${row.key}:${current.revision}`} host={host} issue={current.value.ref} />
-                {issueTools?.(row.source.profile, row.fact, issueCategory(row).label)}
+                {issueTools?.(row.source.profile, row.fact, issueCategory(row).label, row.saved?.revision ?? 0, current.dirty)}
               </section>
             </>
           ) : (

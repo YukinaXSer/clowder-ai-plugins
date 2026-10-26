@@ -7,11 +7,12 @@ export function setup() {
     repositories: 'fixture/repo', analysisCatId: 'analyst', inboxCatId: 'receiver',
     inboxThreadId: 'inbox', receiveAssignments: true, automaticAssignment: true,
     teamOrganization: 'fixture-org',
+    memberProfiles: JSON.stringify(['alice', 'bob'].map(login => ({ login, system: 'macos', role: 'member', weight: 1 }))),
     routingRules: JSON.stringify([{ login: 'alice', categories: ['Agent 运行'], features: ['F123'] }]),
   };
   const issues: TeamIssue[] = [{
     repo: 'fixture/repo', number: 1, id: 'issue-1', title: 'Cannot start',
-    body: 'The café cannot start. No workaround.', updatedAt: '2026-10-14T10:00:00Z', author: 'reporter', state: 'open', labels: [], assignees: [],
+    body: 'The café cannot start. No workaround.\n## Environment\nmacOS', updatedAt: '2026-10-14T10:00:00Z', author: 'reporter', state: 'open', labels: [], assignees: [],
     url: 'https://github.com/fixture/repo/issues/1',
   }];
   const sends = new Map<string, any>();

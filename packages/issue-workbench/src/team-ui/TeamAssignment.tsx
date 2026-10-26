@@ -1,3 +1,5 @@
+import { memberDescription } from '../classification/member-profile';
+import { systemLabels } from '../classification/issue-context';
 import { useRef, useState } from 'react';
 import type { TeamHost, TeamIssueContext } from '../ports/team.js';
 import type { TeamRecord, TeamRecordDetail } from '../team/records.js';
@@ -15,7 +17,7 @@ export function TeamAssignment({ host, context, row, busy, act }: {
   const record = row && row.kind !== 'inbox' && (row.kind === 'assignment' || row.analysis) ? row : undefined;
   if (record?.assignment && ['assigned', 'invited'].includes(record.assignment.status)) return null;
   if (!options.members.length) return <p className={styles.notice}>{options.error || '关联组织暂无可用成员，请刷新组织成员后重试'}</p>;
-  const blocked = busy || row?.sourceStale || context.currentIssue.state !== 'open' || !options.members.includes(login)
+  const blocked = busy || row?.sourceStale || context.currentIssue.state !== 'open' || !options.eligibleMembers?.includes(login) || !!options.blockedReason
     || context.currentIssue.assignees.some(member => member !== login);
   async function assign() {
     if (record) return host.assign({ id: record.id, expectedRevision: record.revision, login, delivery });
@@ -36,15 +38,19 @@ export function TeamAssignment({ host, context, row, busy, act }: {
       <select aria-label="指派给组员" value={login} disabled={busy || confirming || !!record?.assignment?.commentAttempted}
         onChange={event => { setLogin(event.target.value); requestId.current = undefined; }}>
         <option value="">选择组织成员</option>
-        {options.members.map(member => <option key={member} value={member}>@{member}</option>)}
+        {options.members.map(member => <option key={member} value={member} disabled={!options.eligibleMembers?.includes(member)}>
+          @{member} · {memberDescription(options.profiles?.find(profile => profile.login === member))}
+          {options.excluded?.find(item => item.login === member) ? ` · ${options.excluded.find(item => item.login === member)!.reason}` : ''}
+        </option>)}
       </select>
     </label>
     <p className={styles.muted}>{delivery === 'assignment'
       ? '派工会在 GitHub Issue 的 Assignees 中标记负责人，并在 Open 列表显示认领人。'
       : '只发送邀请，不标记已认领；认领状态仍以 GitHub 负责人为准。'}</p>
-    <p className={styles.muted}>{options.basis === 'reporter'
-      ? `提交者 @${options.preferredLogin} 是组员，优先交给本人及本人配置的猫猫处理。`
-      : '只列出当前 GitHub 组织成员；发送时重新检查成员资格与所选操作的权限，并保留已有负责人。'}</p>
+    <p>派工系统：{options.affectedSystems?.map(system => systemLabels[system]).join('、') || '待判断'} · {options.systemsSource === 'human' ? '人工确认' : options.systemsSource === 'cat' ? '猫研判' : '原文判断'}</p>
+    {options.preferredLogin && <p>推荐 @{options.preferredLogin}：{options.recommendationReason}</p>}
+    {!!options.excluded?.length && <details><summary>查看未参与推荐的成员</summary><ul>{options.excluded.map(item =>
+      <li key={item.login}>@{item.login}：{item.reason}</li>)}</ul></details>}
     {context.currentIssue.assignees.length > 0 && <p>当前负责人：{context.currentIssue.assignees.join('、')}。如需改派，请先在 GitHub 核对。</p>}
     {confirming ? <div className={styles.notice}>
       <p>将 {context.currentIssue.repo}#{context.currentIssue.number} {delivery === 'invitation' ? '发送任务邀请给' : '设置负责人为'} @{login}，并在 GitHub 公开记录{record?.analysis

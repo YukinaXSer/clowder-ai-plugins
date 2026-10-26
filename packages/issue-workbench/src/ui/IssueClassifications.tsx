@@ -81,7 +81,7 @@ export function IssueClassificationResults({
         source,
         fact,
         result: issueClassificationFor(source, fact),
-        context: issueContextFor(fact, issueClassificationFor(source, fact)),
+        context: issueContextFor(fact, issueClassificationFor(source, fact), source.work.find(work => work.value.ref.issueId === fact.id)?.value),
         features: issueFeatureBindings(fact),
       })),
   );

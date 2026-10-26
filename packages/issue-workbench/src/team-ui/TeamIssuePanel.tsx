@@ -8,8 +8,8 @@ import { TeamAssignment } from './TeamAssignment';
 import { TeamOrganization } from './TeamOrganization';
 import styles from './team.module.css';
 
-export function TeamIssuePanel({ host, profile, fact, category, onRead }: {
-  host: TeamHost; profile: IssueSourceProfile; fact: IssueSourceFact; category: string; onRead: (summary?: TeamSummary) => void;
+export function TeamIssuePanel({ host, profile, fact, category, workRevision = 0, dirty = false, onRead }: {
+  host: TeamHost; profile: IssueSourceProfile; fact: IssueSourceFact; category: string; workRevision?: number; dirty?: boolean; onRead: (summary?: TeamSummary) => void;
 }) {
   const [summary, setSummary] = useState<TeamSummary>();
   const [row, setRow] = useState<TeamRecordDetail>();
@@ -41,7 +41,7 @@ export function TeamIssuePanel({ host, profile, fact, category, onRead }: {
   useEffect(() => {
     if (supported) { setBusy(true); void load().catch(fail).finally(() => setBusy(false)); }
     return () => { generation.current++; };
-  }, [host, profile.repository, fact.number, category, supported]);
+  }, [host, profile.repository, fact.number, category, workRevision, supported]);
   useEffect(() => {
     const pending = summary?.rows.find(item => item.kind === 'analysis' && item.status === 'delivered');
     if (!pending || busy) return;
@@ -94,7 +94,7 @@ export function TeamIssuePanel({ host, profile, fact, category, onRead }: {
           await load(result.id);
         })}>{row?.kind === 'analysis' && row.analysis ? '重新研判' : '请猫分析'}</button>
         {configured && <p className={styles.muted}>{summary?.settings.automaticAssignment
-          ? '发送任务：问题分类 + 按限制规则指派人员。研判后仅向关联组织成员自动派工，成员自提的问题优先本人，并公开分数与理由。'
+          ? '发送任务：问题分类 + 按限制规则指派人员。研判后仅向关联组织成员自动派工，先匹配成员系统与职责，再考虑兼容的提交者与加权分工，并公开分数与理由。'
           : '发送任务：问题分类 + 按限制规则推荐人员。自动指派未开启，需由你确认派工。'}</p>}
       </>}
     </>}
@@ -104,16 +104,17 @@ export function TeamIssuePanel({ host, profile, fact, category, onRead }: {
     {summary?.issueContext?.analysis && summary.issueContext.analysis.category !== category && !summary.issueContext.features.length &&
       <p className={styles.muted}>已存猫研判类别：{summary.issueContext.analysis.category}。人工保存的类别优先；修改分类不会改写已有负责人。</p>}
     {summary?.issueContext?.effectiveCategory?.stale && <p role="alert">原文已变化，请重新核对并保存人工分类后再派工。</p>}
+    {dirty && <p role="status">上方分析尚未保存；保存后刷新推荐并允许派工。</p>}
     {supported && <>
       {summary?.issueContext && <TeamAssignment
         key={`assign:${summary.issueContext.sourceVersion}:${row?.id ?? ''}:${row?.revision ?? 0}:${JSON.stringify(summary.issueContext.assignmentOptions)}`}
-        host={host} context={summary.issueContext} row={row} busy={busy}
+        host={host} context={summary.issueContext} row={row} busy={busy || dirty}
         act={work => act(async () => { const result = await work(); await load(result.id); })} />}
       {summary && <TeamOrganization group={summary.group} />}
       {busy && <p role="status">正在读取或处理…</p>}
       {row && <>
         <TeamRecordView row={row} />
-        <TeamRecovery key={`${row.id}:${row.revision}`} host={host} row={row} busy={busy}
+        <TeamRecovery key={`${row.id}:${row.revision}`} host={host} row={row} busy={busy || dirty}
           act={work => act(async () => { await work(); await load(row.id); })} />
         {row.kind === 'analysis' && row.analysis && <details>
           <summary>人工反馈</summary>

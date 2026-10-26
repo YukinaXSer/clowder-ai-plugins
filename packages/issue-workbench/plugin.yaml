@@ -79,11 +79,16 @@ configuration:
     kind: boolean
     required: false
     description: 为每个已接入仓库启动一次深入语义分类，包含 Open 与 Closed 历史问题。请先选择分析猫和对话；暂停、重启或重新保存设置均保留原批次。此设置不会开启自动派工。
-  - key: routingRules
-    label: 成员分工
+  - key: memberProfiles
+    label: 成员环境与职责
     kind: string
     required: false
-    description: JSON 数组，每项 login、categories、features。组员自己提的问题优先本人；其他问题按 Feature 绑定、分类分工选择组员。只有唯一匹配才自动派工。
+    description: JSON 数组，每项 login、system（macos 或 windows）、role（architect-reviewer、core-planner 或 member）、weight（1–20）。仅当前组织成员生效；未配置环境的成员不可派工。普通成员按持久化的已确认派工数加权分配。
+  - key: routingRules
+    label: Feature 与类别分工
+    kind: string
+    required: false
+    description: JSON 数组，每项 login、categories、features。先按系统兼容与职责筛选，再考虑兼容提交者、Feature 绑定及类别分工；同级多名候选按权重分配。
   - key: dispatchMode
     label: 自动派工方式
     kind: select
@@ -98,7 +103,7 @@ configuration:
     label: 按分工自动指派
     kind: boolean
     required: false
-    description: 开启后独立扫描未分派的 Open 问题，使用当前有效分类与 Feature 分工批量派工，无需重新请猫分析。组员自提优先本人；人工已保存的分类优先。按所选方式发送公开邀请或设置负责人，冲突留待人工处理；不会自动修代码或合入。
+    description: 开启后独立扫描未分派的 Open 问题，使用当前有效分类与 Feature 分工批量派工，无需重新请猫分析。仅单一已知系统可自动派工；人工保存的系统与分类优先，系统兼容的职责负责人先于提交者。按所选方式发送公开邀请或设置负责人，冲突留待人工处理；不会自动修代码或合入。
   - key: receiveAssignments
     label: 启动后接收我的分配
     kind: boolean
@@ -278,6 +283,15 @@ contributions:
             - blocksRuntime
             - workaround
           properties:
+            affectedSystems:
+              type: array
+              maxItems: 3
+              items:
+                type: string
+                enum: [windows, macos, other]
+            routingFocus:
+              type: string
+              enum: [general, framework, core-plan]
             category:
               type: string
               minLength: 1

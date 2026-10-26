@@ -1,4 +1,5 @@
 import { type IssueClassification, type IssueInvestigation } from '../model/issue-coordination.js';
+import { IssueRoutingEditor } from './IssueRoutingEditor';
 import styles from './coordination.module.css';
 import { IssueClassificationCandidate } from './IssueClassifications';
 import { IssueContextFacets } from './IssueContextFacets';
@@ -38,6 +39,7 @@ export function CoordinationEditor({
       </div>
       <div className={styles.editorBody}>
         {context && <IssueContextFacets context={context} />}
+        <IssueRoutingEditor value={value} change={change} />
         {!featureBindings?.length && <IssueCategoryPicker value={value.module} areas={classification?.labels.area}
           change={module => change({ ...value, module })} />}
         <IssueClassificationCandidate result={classification} featureBindings={featureBindings} sourceUpdatedAt={sourceUpdatedAt} />

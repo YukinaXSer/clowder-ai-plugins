@@ -1,3 +1,4 @@
+import { routingAdapter } from './routing-adapter.mjs';
 import { columnsAdapter } from './columns-adapter.mjs';
 import { teamToolsAdapter } from './team-tools-adapter.mjs';
 import { triageAdapter } from './triage-adapter.mjs';
@@ -98,4 +99,4 @@ export const mappings = [
       return text;
     }
   }))
-].map(entry => ({ ...entry, transform: text => claimAdapter(entry.target.split('/').at(-1), entry.transform(text)) }));
+].map(entry => ({ ...entry, transform: text => routingAdapter(entry.target.split('/').at(-1), claimAdapter(entry.target.split('/').at(-1), entry.transform(text))) }));

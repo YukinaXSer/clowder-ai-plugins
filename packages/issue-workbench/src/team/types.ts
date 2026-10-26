@@ -1,3 +1,4 @@
+import type { RoutingInput } from '../classification/routing-context.js';
 import type { FeatureContext, PluginActionContext } from '@clowder-ai/plugin-sdk';
 import type { IssueSourceComment } from '../model/issue-source.js';
 
@@ -70,7 +71,7 @@ export interface TeamProvider {
 }
 export type TeamContext = Pick<FeatureContext, 'pluginInstanceId' | 'config' | 'storage' | 'threads' | 'messaging' | 'log'>;
 export type TeamCaller = PluginActionContext;
-export interface TeamAnalysis {
+export interface TeamAnalysis extends RoutingInput {
   category: string;
   score: number | null;
   reason: string;

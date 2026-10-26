@@ -31,5 +31,5 @@ export function TeamWorkbench({ host, team, showClassifications }: {
   const projectSnapshot = useCallback((snapshot: CoordinationSnapshot) => withTeamClaims(withTeamClassifications(snapshot, classifications), currentIssues), [classifications, currentIssues]);
   return <CoordinationWorkbench host={integratedHost} showClassifications={showClassifications} projectSnapshot={projectSnapshot}
     tools={<TeamDrawer host={team} />}
-    issueTools={(profile, fact, category) => <TeamIssuePanel key={`${profile.id}:${fact.id}`} host={team} profile={profile} fact={fact} category={category} onRead={onRead} />} />;
+    issueTools={(profile, fact, category, workRevision, dirty) => <TeamIssuePanel key={`${profile.id}:${fact.id}`} host={team} profile={profile} fact={fact} category={category} workRevision={workRevision} dirty={dirty} onRead={onRead} />} />;
 }

@@ -24,7 +24,7 @@ export function withTeamClassifications(snapshot: CoordinationSnapshot, results:
         source: { provider: profile.provider, instance: profile.instance, repositoryId: profile.repositoryId,
           issueId: match.issue.id, number: fact.number, updatedAt: fact.updatedAt, bodySha256: match.bodySha256 },
         labels: { area: [match.analysis.category], kind: [], symptom: [], environment: [] }, evidence: match.analysis.evidence,
-        context: classifyIssueContext(match.issue) });
+        context: { ...classifyIssueContext(match.issue), ...(match.analysis.affectedSystems !== undefined ? { systems: match.analysis.affectedSystems, systemsSource: 'cat' as const, systemEvidence: [match.analysis.evidence] } : {}) } });
     }
     if (!proposals.length) return source;
     return { ...source, classifications: [...proposals,

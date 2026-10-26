@@ -33,7 +33,8 @@ export interface Job {
   analysis?: TeamAnalysis;
   provenance?: { catId: string; invocationId: string; sourceMessageId: string; recordedAt: number };
   assignment?: { status: 'pending' | 'assigned' | 'invited' | 'needs-decision'; delivery?: 'invitation' | 'assignment'; login?: string; reason?: string; commentAttempted?: boolean; commentId?: string; rulesHash?: string;
-    basis?: 'reporter' | 'feature' | 'category' | 'manual'; groupName?: string; acceptanceSuggestedFor?: string };
+    allocation?: { poolKey: string; committed: boolean };
+    basis?: 'reporter' | 'feature' | 'category' | 'role' | 'weighted' | 'manual'; groupName?: string; acceptanceSuggestedFor?: string };
   feedback?: TeamFeedback;
   feedbackHistory?: TeamFeedback[];
 }

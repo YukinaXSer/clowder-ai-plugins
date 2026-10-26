@@ -7,7 +7,7 @@
       "source": "packages/shared/src/issue-coordination.ts",
       "target": "src/model/issue-coordination.ts",
       "sourceHash": "fc52e6d793f40ab5d2c5a5a37f595e756cbd2c40f08721fe6a4948137fcb30ce",
-      "targetHash": "feee59f4e9afa10c8cc55a6f2fd8103ee53c285fda6369415b6aa86fa856447f"
+      "targetHash": "1f84b4e555081d55ef9114493abc214d3a9521930ad8c268b619e02696233afc"
     },
     {
       "source": "packages/api/src/domains/community/IssueCoordinationStore.ts",
@@ -19,7 +19,7 @@
       "source": "packages/api/src/domains/community/IssueCoordinationService.ts",
       "target": "src/source/IssueCoordinationService.ts",
       "sourceHash": "4693cf2fd3869433ebfed0af1c1f77d17ceb13271af5bb233ddb2ce60e571739",
-      "targetHash": "8a8cc5a38650be4eb888e393b97154697a6c42e80a39356e8694da5f82b6c42e"
+      "targetHash": "fc4812d01a483c107f368e41c634af8c49042efc26f0fd35590276496ffcef9f"
     },
     {
       "source": "packages/web/src/components/settings/issue-workbench/IssueSourceState.tsx",
@@ -37,7 +37,7 @@
       "source": "packages/web/src/components/settings/issue-workbench/IssueClassifications.tsx",
       "target": "src/ui/IssueClassifications.tsx",
       "sourceHash": "6885d3b30a47a4eae4909e95251ff4c658a452596a749c42d0a1874e6712df42",
-      "targetHash": "90b4fc468d679b7bd98a0d4e3e265ab9bae5b77c0752199c18d71300dffa430c"
+      "targetHash": "7b5d8063974957f1a7bfd0ab9868a07b65efd061da22e5dc81de0ab7bd755b01"
     },
     {
       "source": "packages/web/src/components/settings/issue-workbench/classifications.module.css",
@@ -49,7 +49,7 @@
       "source": "packages/web/src/components/settings/issue-workbench/CoordinationWorkbench.tsx",
       "target": "src/ui/CoordinationWorkbench.tsx",
       "sourceHash": "0c636f7e0290cac61105d66e4a228843f28ffea4903b37ca2700940dc7a3cc89",
-      "targetHash": "10b5fddd120937cf04f1843aba867462e850ffd154408a874a7c1769ca7ca932"
+      "targetHash": "e439e4ee43c757b0d38a4e30692c452072707953b16f336f4dda7b8627204e1e"
     },
     {
       "source": "packages/web/src/components/settings/issue-workbench/CoordinationSources.tsx",
@@ -61,7 +61,7 @@
       "source": "packages/web/src/components/settings/issue-workbench/CoordinationEditor.tsx",
       "target": "src/ui/CoordinationEditor.tsx",
       "sourceHash": "dceb7d324a9a6f2ef393ccddfe4162006e5bfb727242be3b09ea1ba437b9ab25",
-      "targetHash": "049fcc546c829b5ff51ecb4e6a0dfe54c299f69b120808c7ed8f408147f9d759"
+      "targetHash": "b2c1cf845e605cc29b034843e68eddce457f2da6ad405f000bc2f616020ffd10"
     },
     {
       "source": "packages/web/src/components/settings/issue-workbench/CoordinationLinks.tsx",

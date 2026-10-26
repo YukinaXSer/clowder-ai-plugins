@@ -1,3 +1,4 @@
+import { memberDescription } from '../classification/member-profile';
 import type { TeamSummary } from '../ports/team.js';
 import styles from './team.module.css';
 
@@ -11,7 +12,7 @@ export function TeamOrganization({ group, showMembers = false }: { group: TeamSu
     </a></p>
     {!group.members.length && <p>组织成员名单为空，请核对组织成员与读取权限后刷新。</p>}
     {showMembers && <ul className={styles.members}>{group.members.map(member => <li key={member}>
-      <a href={`https://github.com/${member}`} target="_blank" rel="noreferrer">@{member}</a>
+      <a href={`https://github.com/${member}`} target="_blank" rel="noreferrer">@{member}</a> · {memberDescription(group.profiles?.find(profile => profile.login === member))}
     </li>)}</ul>}
   </section>;
 }

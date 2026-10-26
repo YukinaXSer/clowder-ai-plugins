@@ -18,7 +18,7 @@ export interface TeamSummary {
   settings: { repositories?: string; analysisCatId?: string; analysisThreadId?: string;
     initialClassification?: boolean; automaticAssignment?: boolean; receiveAssignments?: boolean; shareProgress?: boolean;
     teamOrganization?: string; dispatchMode?: 'assignment' | 'invitation' };
-  group?: { organization?: string; members: string[]; error?: string };
+  group?: Pick<AssignmentOptions, 'organization' | 'members' | 'profiles' | 'error'>;
   configurationError?: string;
   issueContext?: TeamIssueContext;
   analysisCats?: Array<{ catId: string; displayName: string; available?: boolean }>;

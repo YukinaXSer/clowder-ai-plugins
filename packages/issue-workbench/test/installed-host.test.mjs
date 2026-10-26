@@ -96,7 +96,7 @@ test('packed Issue plugin on real isolated Host composition', async t => {
   assert.ok(catId, 'Host test registry must contain a cat');
   const github = join(root, 'github.json');
   await writeFile(github, JSON.stringify({ login: 'bob', calls: [], comments: [], issues: [{
-    node_id: 'I_test_1', number: 1, title: 'Cannot start', body: 'The café cannot start. No workaround.',
+    node_id: 'I_test_1', number: 1, title: 'Cannot start', body: 'The café cannot start. No workaround.\n## Environment\nmacOS',
     updated_at: '2026-10-14T10:00:00Z', state: 'open', user: { login: 'alice' }, labels: [], assignees: [],
     html_url: 'https://github.com/fixture/repo/issues/1',
   }] }));
@@ -173,7 +173,8 @@ test('packed Issue plugin on real isolated Host composition', async t => {
 
   let sender = await host('sender');
   await sender.manager.install({ source: { kind: 'local-archive', path: archive } });
-  await sender.configure({ repositories: repo, teamOrganization: 'fixture-org', analysisCatId: catId,
+  await sender.configure({ repositories: repo, teamOrganization: 'fixture-org',
+    memberProfiles: JSON.stringify(['alice', 'bob'].map(login => ({ login, system: 'macos', role: 'member', weight: 1 }))), analysisCatId: catId,
     analysisThreadId: sender.thread.id, automaticAssignment: false, dispatchMode: 'invitation',
     receiveAssignments: false, shareProgress: true });
   await sender.enable(true);
@@ -243,7 +244,8 @@ test('packed Issue plugin on real isolated Host composition', async t => {
   await changeGithub(state => { state.login = 'alice'; });
   let receiver = await host('receiver');
   await receiver.manager.install({ source: { kind: 'local-archive', path: archive } });
-  await receiver.configure({ repositories: repo, teamOrganization: 'fixture-org', inboxCatId: catId,
+  await receiver.configure({ repositories: repo, teamOrganization: 'fixture-org',
+    memberProfiles: JSON.stringify(['alice', 'bob'].map(login => ({ login, system: 'macos', role: 'member', weight: 1 }))), inboxCatId: catId,
     inboxThreadId: receiver.thread.id, receiveAssignments: true, shareProgress: true });
   await receiver.enable(true);
   const inbox = (await receiver.action('summary', { kind: 'inbox' })).rows;
@@ -296,7 +298,8 @@ test('packed Issue plugin on real isolated Host composition', async t => {
   });
   const flows = await host('two-flows');
   await flows.manager.install({ source: { kind: 'local-archive', path: archive } });
-  await flows.configure({ repositories: repo, teamOrganization: 'fixture-org', analysisCatId: catId,
+  await flows.configure({ repositories: repo, teamOrganization: 'fixture-org',
+    memberProfiles: JSON.stringify(['alice', 'bob'].map(login => ({ login, system: 'macos', role: 'member', weight: 1 }))), analysisCatId: catId,
     analysisThreadId: flows.thread.id, initialClassification: true, automaticAssignment: false,
     receiveAssignments: false, dispatchMode: 'invitation', routingRules: JSON.stringify([{ login: 'alice', categories: ['代码与交付'], features: [] }]) });
   await flows.enable(true);
