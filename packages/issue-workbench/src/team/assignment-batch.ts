@@ -46,6 +46,9 @@ function encode(batch: AssignmentBatch): StoredBatch {
   }) };
 }
 function decode(value: unknown): AssignmentBatch {
+  // Early preview archives stored each row's full options. Keep those durable
+  // drafts readable across upgrades; the next owner write normalizes them.
+  if (!Object.hasOwn(value as object, 'options')) return structuredClone(value as AssignmentBatch);
   const { options, ...batch } = value as StoredBatch;
   return { ...batch, items: batch.items.map(item => {
     if (!options[item.options]) throw new Error('Invalid assignment batch snapshot');

@@ -128,3 +128,15 @@ test('permission preflight checks all selected recipients before any GitHub writ
   await assert.rejects(s.call('confirmAssignmentBatch', { id: b.id, expectedRevision: b.revision }), /bob/);
   assert.deepEqual(s.writes, []);
 });
+
+test('upgrade retains an earlier unnormalized preview and rewrites it only on a new owner action', async () => {
+  const s = await fixture(2); const batch = await s.prepare();
+  const { revision: _revision, ...legacy } = batch;
+  await s.context.storage.set('issue-workbench.assignment-batch.v1.' + batch.id, legacy);
+  await s.restart(); const restored = await s.call('getAssignmentBatch', { id: batch.id });
+  assert.deepEqual(restored.items, batch.items); assert.deepEqual(s.writes, []);
+  const refreshed = await s.call('refreshAssignmentBatch', { id: batch.id, expectedRevision: restored.revision });
+  assert.equal(refreshed.id, batch.id); assert.equal(refreshed.status, 'draft');
+  const stored = await s.context.storage.get('issue-workbench.assignment-batch.v1.' + batch.id);
+  assert.ok(Array.isArray((stored!.value as any).options));
+});
