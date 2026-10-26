@@ -61,6 +61,23 @@ MCP, the skill and schedules are directly used features. Other contributions con
 
 These contributions belong to one plugin, with one manifest, ID, version and capability declaration. They are not extra plugins or setup steps. This package declares no limb. The Host controls their presentation; removing real wiring is not a display fix.
 
+## GitHub claims and Host notifications
+
+Native GitHub Issue Assignees own the current claim; the event timeline retains claim and release history.
+Adding or removing your Assignee directly on GitHub works without an Issue Workbench comment or installation.
+
+Configure `认领收件仓库` (repositories), `认领通知对话` (Host thread), and
+`认领通知协调猫` (coordinator), then enable `接收我的 GitHub 认领`.
+The connection polls roughly once a minute and catches up existing assignments on first enable.
+Release, closure, and reclaim are separate observations. `GitHub 认领收件状态` exposes
+`查看认领同步状态` and `重试认领同步`; a failed source read never becomes a false withdrawal.
+
+Ordinary Host messaging delivers the notification and wakes the coordinator. The cat notifies its
+co-creator and uses that person's applicable authorization and normal Host work flow to begin development.
+An external assignment alone does not authorize code execution. Release preserves work and asks the
+original Host owner to handle a pause or handoff. A new configured destination catches up current claims;
+old notifications retain their original destination and deduplication identity.
+
 ## Authority and recovery
 
 The Host owns installation, grants, thread access, storage mechanics and generic message/wake delivery. The plugin owns GitHub reads, filtering, tracking and Community business. Installation does not imply consent to every grant.
