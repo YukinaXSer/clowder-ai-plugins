@@ -16,10 +16,12 @@ it('shows environment and role, disables incompatible members and refuses to con
   try {
     await render(false);
     const select = node.querySelector<HTMLSelectElement>('[aria-label="指派给组员"]')!;
-    expect(select.value).toBe('bob');
+    expect(select.value).toBe('');
     expect(select.querySelector<HTMLOptionElement>('option[value="alice"]')!.disabled).toBe(true);
     expect(select.querySelector('option[value="bob"]')!.textContent).toContain('Windows · 核心方案');
     expect(node.textContent).toContain('系统不兼容');
+    await act(async () => [...node.querySelectorAll('button')].find(button => button.textContent === '采用推荐人选')!.click());
+    expect(select.value).toBe('bob');
     await render(true);
     const button = [...node.querySelectorAll('button')].find(button => button.textContent === '指派任务')!;
     expect(button.disabled).toBe(true); expect(host.assignIssue).not.toHaveBeenCalled();

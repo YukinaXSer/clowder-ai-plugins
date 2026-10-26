@@ -93,3 +93,7 @@ GitHub 组织仍是成员资格来源；配置不会增加组织成员。环境�
 关键证据：插件目录 `gate.log`、`package-test.log`、`team-final.log`、`ui-green.log`、`browser.log`、`host/host-verification.json`、`sandbox.log`；实验宿主目录 `installation.json`、`browser.json`、`assignment-view.json`、`windows-routing.png`、`ready-for-owner-routing.png`、`final-plugins.json`、`github-final.json`。
 
 此前独立 Host 公开认领/撤销与真实猫回复的证据继续有效，通用接收器本轮未改。本轮不声称实际开发已经启动，也未向其他成员发测试通知。下一步由原 reviewer 对本次 OS/职责/权重与完整操作动线增量复审；远端 CI 与 review 需核对新 HEAD。
+
+## 2026-10-26 用户派工试用反馈
+
+用户反馈未明确选人仍能派工、邀请后无法补负责人，以及需要退回改派入口。本轮修复与证据见 [派工恢复验收](../evidence/issue-workbench-owner-recovery-2026-10-26.md)。新派工先明确选人；历史邀请保留且可新建认领；接收人通过 GitHub 说明原因并移除自己，协调人刷新后重新派工。旧记录的状态不再覆盖实时 GitHub 认领。此时测试 Issue 已由本人主动认领，旧“未认领”快照只属于前轮验收；本轮不撤销用户的现有认领。

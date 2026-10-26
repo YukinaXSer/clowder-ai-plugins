@@ -31,7 +31,7 @@ export function TeamRecordView({ row }: { row: TeamRecordDetail }) {
       <p role="status">{row.status === 'delivered' ? '已发送，等待研判' : '待发送'}</p>}
     {row.kind !== 'assignment' && row.error && <p role="alert">{row.error}</p>}
     {row.kind !== 'inbox' && row.assignment && <p>
-      {row.assignment.status === 'invited' ? '任务邀请已发布，等待成员接手' : row.assignment.status === 'assigned' ? '分配与公开记录已写入 GitHub'
+      {row.assignment.status === 'invited' ? '历史邀请已发布；当前认领以上方 GitHub 负责人为准' : row.assignment.status === 'assigned' ? '历史派工与公开记录已写入 GitHub；当前认领以上方负责人为准'
         : row.assignment.status === 'needs-decision' ? '分配需要确认' : '分配待核对'}
       {row.assignment.reason ? ` · ${row.assignment.reason}` : ''}
     </p>}

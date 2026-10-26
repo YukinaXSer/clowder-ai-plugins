@@ -57,6 +57,9 @@ test('packed workbench: owner click, cat result, feedback, stale source and deni
   await page.getByRole('region', { name: '团队研判' }).getByText('GitHub 组织：fixture-org · 2 位成员', { exact: true }).waitFor();
   const initialMember = page.getByLabel('指派给组员', { exact: true });
   await initialMember.waitFor();
+  assert.equal(await initialMember.inputValue(), '');
+  assert.ok(await page.getByRole('button', { name: '指派任务', exact: true }).isDisabled());
+  await page.getByRole('button', { name: '采用推荐人选', exact: true }).click();
   assert.equal(await initialMember.inputValue(), 'alice');
   assert.equal(s.sends.size, 0, 'opening an issue loads choices without waking a cat');
   await mkdir('artifacts/assignment-flow-2026-10-21', { recursive: true });
@@ -66,14 +69,14 @@ test('packed workbench: owner click, cat result, feedback, stale source and deni
   await page.getByRole('button', { name: '指派任务', exact: true }).click();
   assert.deepEqual(s.writes, [], 'opening confirmation alone cannot assign');
   await page.getByRole('button', { name: '确认指派', exact: true }).click();
-  await page.getByText('分配与公开记录已写入 GitHub', { exact: true }).waitFor();
+  await page.getByText('历史派工与公开记录已写入 GitHub；当前认领以上方负责人为准', { exact: true }).waitFor();
   assert.deepEqual(s.writes, ['alice'], 'direct assignment works before any cat request');
   await page.locator('aside [data-claim-state="claimed"]').filter({ hasText: '@alice' }).waitFor();
   assert.equal(await page.locator('aside [data-claim-state="unclaimed"]').count(), 0);
   assert.equal(s.sends.size, 0);
   assert.equal(s.dispatches[0].score, null);
   await page.reload();
-  await page.getByText('分配与公开记录已写入 GitHub', { exact: true }).waitFor();
+  await page.getByText('历史派工与公开记录已写入 GitHub；当前认领以上方负责人为准', { exact: true }).waitFor();
   await page.locator('aside [data-claim-state="claimed"]').filter({ hasText: '@alice' }).waitFor();
   assert.deepEqual(s.writes, ['alice']);
   await modes.getByRole('button', { name: '猫猫研判', exact: true }).click();
@@ -121,7 +124,7 @@ test('packed workbench: owner click, cat result, feedback, stale source and deni
   await page.getByLabel('问题类别', { exact: true }).selectOption('area:Agent 运行');
   assert.equal(await page.locator('aside').getByText('Agent 运行', { exact: true }).count(), 1);
   const member = page.getByLabel('指派给组员', { exact: true });
-  assert.equal(await member.inputValue(), 'alice', 'member reporter is the first choice');
+  assert.equal(await member.inputValue(), '', 'a recommended reporter still requires explicit selection');
   assert.deepEqual(await member.locator('option').evaluateAll(options => options.map(option => option.value).filter(Boolean)), ['alice', 'bob']);
   const readMembers = s.provider.organizationMembers;
   s.provider.organizationMembers = async () => { throw new Error('Organization access unavailable'); };
@@ -135,6 +138,7 @@ test('packed workbench: owner click, cat result, feedback, stale source and deni
   await page.getByText('建议合入前邀请 @alice 参与验收', { exact: true }).waitFor();
   assert.deepEqual(s.writes, ['alice'], 'reading classification cannot assign again');
   await page.getByLabel('派工方式', { exact: true }).selectOption('assignment');
+  await page.getByRole('button', { name: '采用推荐人选', exact: true }).click();
   await page.getByRole('button', { name: '指派任务', exact: true }).click();
   assert.deepEqual(s.writes, ['alice'], 'opening confirmation cannot assign again');
   await mkdir('artifacts/assignment-flow-2026-10-21', { recursive: true });
@@ -147,11 +151,11 @@ test('packed workbench: owner click, cat result, feedback, stale source and deni
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.getByRole('button', { name: '确认指派', exact: true }).click();
-  await page.getByText('分配与公开记录已写入 GitHub', { exact: true }).waitFor();
+  await page.getByText('历史派工与公开记录已写入 GitHub；当前认领以上方负责人为准', { exact: true }).waitFor();
   assert.deepEqual(s.writes, ['alice']);
   assert.equal(s.dispatches[0].acceptanceSuggestedFor, 'alice');
   await page.reload();
-  await page.getByText('分配与公开记录已写入 GitHub', { exact: true }).waitFor();
+  await page.getByText('历史派工与公开记录已写入 GitHub；当前认领以上方负责人为准', { exact: true }).waitFor();
   await modes.getByRole('button', { name: '猫猫研判', exact: true }).click();
   assert.deepEqual(s.writes, ['alice'], 'reloading the persisted result cannot assign twice');
   await page.getByRole('region', { name: '自动分类结果', exact: true }).waitFor();
@@ -283,8 +287,9 @@ test('packed invitation: READ sender confirms, recipient cold-starts independent
   const catalog = await binding.catalog();
   const fact = { ...catalog.issues[0], id: 'issue-1', number: 1, title: s.issues[0].title,
     body: s.issues[0].body, updatedAt: s.issues[0].updatedAt, state: 'OPEN' };
-  binding.catalog = async () => ({ ...catalog, issues: [fact] });
-  binding.detail = async () => ({ fact: { ...fact, comments: [] } });
+  const currentFact = () => ({ ...fact, assignees: [...s.issues[0].assignees] });
+  binding.catalog = async () => ({ ...catalog, issues: [currentFact()] });
+  binding.detail = async () => ({ fact: { ...currentFact(), comments: [] } });
   const server = coordinationPreview({ dataRoot: join(directory, 'data'), dist: join(directory, 'package/dist'), bindings: [binding],
     teamAction: async (method, payload, confirmed) => {
       if (['assign', 'assignIssue', 'republish'].includes(method)) assert.equal(confirmed, true);
@@ -303,6 +308,8 @@ test('packed invitation: READ sender confirms, recipient cold-starts independent
   await page.getByLabel('派工方式', { exact: true }).waitFor();
   assert.equal(await page.getByLabel('派工方式', { exact: true }).inputValue(), 'assignment');
   await page.getByLabel('派工方式', { exact: true }).selectOption('invitation');
+  assert.ok(await page.getByRole('button', { name: '通知成员接手', exact: true }).isDisabled());
+  await page.getByRole('button', { name: '采用推荐人选', exact: true }).click();
   await page.getByRole('button', { name: '通知成员接手', exact: true }).click();
   await page.getByRole('button', { name: '确认发送邀请', exact: true }).waitFor();
   assert.equal(s.dispatches.length, 0);
@@ -314,12 +321,12 @@ test('packed invitation: READ sender confirms, recipient cold-starts independent
   await page.screenshot({ path: 'artifacts/github-delivery-2026-10-21/invitation-mobile.png', fullPage: true });
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
   await page.getByRole('button', { name: '确认发送邀请', exact: true }).click();
-  await page.getByText('任务邀请已发布，等待成员接手', { exact: true }).waitFor();
+  await page.getByText('历史邀请已发布；当前认领以上方 GitHub 负责人为准', { exact: true }).waitFor();
   await page.locator('aside [data-claim-state="unclaimed"]').waitFor({ state: 'attached' });
   assert.equal(await page.locator('aside [data-claim-state="claimed"]').count(), 0);
   assert.deepEqual(s.writes, []); assert.deepEqual(s.issues[0].assignees, []); assert.equal(s.dispatches.length, 1);
   await page.reload(); await page.setViewportSize({ width: 1440, height: 1000 });
-  await page.getByText('任务邀请已发布，等待成员接手', { exact: true }).waitFor();
+  await page.getByText('历史邀请已发布；当前认领以上方 GitHub 负责人为准', { exact: true }).waitFor();
   assert.equal(s.dispatches.length, 1); assert.equal(s.sends.size, 0);
   const receiver = setup(); receiver.login('alice'); receiver.config.automaticAssignment = false;
   receiver.provider.issue = s.provider.issue;
@@ -339,5 +346,43 @@ test('packed invitation: READ sender confirms, recipient cold-starts independent
   await restarted.actions['issue.team.report']({ id: inbox.id, status: 'accepted', summary: '已接手并准备复现', evidenceUrls: [] }, receiver.caller('receiver', 'inbox'));
   await page.getByRole('button', { name: '刷新团队结果', exact: true }).click();
   await page.getByText('alice · 已接手', { exact: true }).waitFor();
-  assert.deepEqual(s.writes, []); assert.deepEqual(errors, []);
+  assert.deepEqual(s.writes, []);
+  // The completed invitation remains immutable while the owner establishes a
+  // native GitHub assignment through a new, explicitly confirmed request.
+  const rows = async () => Object.values(await s.context.storage.list()).map(entry => entry.value).filter(row => row.kind === 'assignment');
+  const invitation = structuredClone((await rows())[0]);
+  s.login('maintainer');
+  await page.getByRole('button', { name: '刷新团队结果', exact: true }).click();
+  assert.equal(await page.getByLabel('指派给组员', { exact: true }).inputValue(), '');
+  assert.ok(await page.getByRole('button', { name: '指派任务', exact: true }).isDisabled());
+  await page.getByRole('button', { name: '采用推荐人选', exact: true }).click();
+  await page.getByRole('button', { name: '指派任务', exact: true }).click();
+  await page.getByRole('button', { name: '确认指派', exact: true }).click();
+  await page.getByRole('link', { name: '在 GitHub 退回或改派', exact: true }).waitFor();
+  assert.deepEqual(s.writes, ['alice']);
+  assert.deepEqual((await rows()).find(row => row.id === invitation.id), invitation);
+  assert.equal((await rows()).length, 2);
+  await page.reload();
+  await page.getByRole('link', { name: '在 GitHub 退回或改派', exact: true }).waitFor();
+  assert.deepEqual(s.writes, ['alice'], 'reload cannot replay a completed assignment');
+  // Model the recipient returning the issue using native GitHub. The Workbench
+  // refresh must then allow a compatible new recipient without rewriting history.
+  s.issues[0].assignees = [];
+  s.provider.assignable = async () => true;
+  await page.getByRole('button', { name: '刷新团队结果', exact: true }).click();
+  await page.getByLabel('指派给组员', { exact: true }).waitFor();
+  assert.equal(await page.getByLabel('指派给组员', { exact: true }).inputValue(), '');
+  await page.getByLabel('指派给组员', { exact: true }).selectOption('bob');
+  await page.getByRole('button', { name: '指派任务', exact: true }).click();
+  await page.getByRole('button', { name: '确认指派', exact: true }).click();
+  await page.getByText('GitHub 当前负责人：@bob。', { exact: true }).waitFor();
+  assert.deepEqual(s.writes, ['alice', 'bob']);
+  assert.deepEqual(s.issues[0].assignees, ['bob']);
+  assert.equal((await rows()).length, 3);
+  assert.deepEqual((await rows()).find(row => row.id === invitation.id), invitation);
+  await mkdir('artifacts/owner-recovery-2026-10-26', { recursive: true });
+  await page.screenshot({ path: 'artifacts/owner-recovery-2026-10-26/packed-reassigned.png', fullPage: true });
+  await page.reload();
+  await page.getByText('GitHub 当前负责人：@bob。', { exact: true }).waitFor();
+  assert.deepEqual(s.writes, ['alice', 'bob']); assert.deepEqual(errors, []);
 });

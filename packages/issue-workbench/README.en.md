@@ -139,6 +139,27 @@ Alternatively, **automaticAssignment** explicitly enables the saved routing poli
 Membership, repository permission and request authority are checked before writes
 and retries. A failed one-time assignment does not authorize a background retry.
 
+The recipient starts empty. Select a member or click `采用推荐人选` before confirming;
+a recommendation alone is not a selection. A completed invitation with no GitHub
+assignee keeps this form available. Choosing `设置 GitHub 负责人` creates a fresh
+assignment while preserving the original invitation and analysis history.
+
+For an existing owner, `在 GitHub 退回或改派` opens the Issue. The recipient should
+explain the mismatch in a comment and remove themselves from Assignees, asking a
+repository maintainer if permission is missing. Preserve other co-assignees.
+The coordinator then clicks `刷新团队结果`, selects a compatible member and confirms.
+Current GitHub assignees determine ownership; historical dispatch records do not.
+Native GitHub reassignment does not enforce the Workbench's membership/system policy,
+so the coordinator must check those constraints.
+
+Recipients do not need this Workbench: they can read native GitHub assignment/mention
+notifications. To receive assignments in their own Clowder AI conversation, configure
+the common GitHub Operations assignment inbox with their account, allowed repository,
+destination thread and cat, and enable intake. This inbox reads GitHub Assignees;
+`通知成员接手` only publishes an invitation comment and does not trigger claim intake.
+The Workbench's optional `receiveAssignments` is a separate legacy receiver; avoid
+enabling both intake paths for the same recipient.
+
 The receiving member uses their own GitHub CLI account and configures their own
 **inboxThreadId** / **inboxCatId**. Their plugin must enable **receiveAssignments**
 and connect the same organization; that account must be one of its active members. The sender does not guess a remote
