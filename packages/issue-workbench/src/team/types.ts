@@ -17,6 +17,7 @@ export interface TeamIssue {
   url: string;
 }
 export interface SharedDispatch {
+  initiator?: 'system';
   schema: 'issue-workbench.dispatch.v1';
   delivery?: 'invitation';
   id: string;

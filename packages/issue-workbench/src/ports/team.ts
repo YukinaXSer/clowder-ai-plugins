@@ -1,6 +1,7 @@
 import type { TeamClassification, TeamRecord, TeamRecordDetail, TeamStatistics } from '../team/records.js';
 import type { AssignmentOptions } from '../team/group.js';
 import type { TeamIssue, TeamAnalysis } from '../team/types.js';
+import type { AssignmentBatchView } from '../team/assignment-batch.js';
 import type { ClassificationQueueView } from '../team/classification-queue.js';
 import type { CoordinationHost } from '../model/issue-coordination.js';
 
@@ -40,8 +41,17 @@ export interface TeamHost {
   feedback(input: { id: string; expectedRevision: number; verdict: 'accepted' | 'corrected' | 'rejected'; reason: string }): Promise<TeamRecord>;
   planClassification(input: { repo: string; catId: string; requestId: string }): Promise<ClassificationQueueView>;
   controlClassification(input: { id: string; expectedRevision: number; status: 'running' | 'paused' | 'stopped' }): Promise<ClassificationQueueView>;
+  planAssignments(input: { requestId: string }): Promise<AssignmentBatchView>;
+  getAssignmentBatch(input?: { id?: string }): Promise<AssignmentBatchView | null>;
+  refreshAssignmentBatch(input: BatchRevision): Promise<AssignmentBatchView>;
+  editAssignmentBatch(input: BatchRevision & { repo: string; issueId: string; login: string; included: boolean }): Promise<AssignmentBatchView>;
+  analyzeAssignmentBatch(input: BatchRevision & { catId: string }): Promise<AssignmentBatchView>;
+  confirmAssignmentBatch(input: BatchRevision): Promise<AssignmentBatchView>;
+  retryAssignmentBatch(input: BatchRevision): Promise<AssignmentBatchView>;
+  cancelAssignmentBatch(input: BatchRevision): Promise<AssignmentBatchView>;
   settingsUrl?: string;
 }
+export interface BatchRevision { id: string; expectedRevision: number }
 export class TeamAccessError extends Error { constructor(message: string, readonly status: number) { super(message); } }
 /** Uses the existing owner-authenticated Host Settings route. The embedding Host
  * supplies its authenticated request function; this client never supplies identity. */
@@ -82,6 +92,14 @@ export function createTeamClient(request: (path: string, options?: RequestInit) 
     feedback: input => call('feedback', input),
     planClassification: input => call('planClassification', input),
     controlClassification: input => call('controlClassification', input),
+    planAssignments: input => call('planAssignments', input),
+    getAssignmentBatch: input => call('getAssignmentBatch', input ?? {}),
+    refreshAssignmentBatch: input => call('refreshAssignmentBatch', input),
+    editAssignmentBatch: input => call('editAssignmentBatch', input),
+    analyzeAssignmentBatch: input => call('analyzeAssignmentBatch', input),
+    confirmAssignmentBatch: input => call('confirmAssignmentBatch', input, true),
+    retryAssignmentBatch: input => call('retryAssignmentBatch', input, true),
+    cancelAssignmentBatch: input => call('cancelAssignmentBatch', input),
     settingsUrl,
   };
 }

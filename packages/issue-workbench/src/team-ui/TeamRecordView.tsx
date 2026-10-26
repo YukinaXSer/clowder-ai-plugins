@@ -3,18 +3,20 @@ import styles from './team.module.css';
 
 export function TeamRecordView({ row }: { row: TeamRecordDetail }) {
   const analysis = row.kind === 'analysis' ? row.analysis : undefined;
-  const score = row.kind === 'inbox' ? row.score : row.analysis?.score;
+  const score = row.kind === 'inbox' ? row.score : row.kind === 'assignment' && row.batch ? row.batch.score : row.analysis?.score;
+  const bulk = row.kind === 'assignment' && row.batch || row.kind === 'analysis' && row.assignmentBatchId || row.kind === 'inbox' && row.initiator === 'system';
   const reports = { accepted: '已接手', working: '处理中', blocked: '受阻', ready: '待验证' };
   return <div className={styles.result}>
     {row.sourceStale && <p className={styles.notice}>原文已更新，请重新研判</p>}
     <dl>
       <div><dt>优先级</dt><dd>{score == null ? '待研判' : `${score} / 10`}</dd></div>
       <div><dt>当前负责人</dt><dd>{row.currentIssue.assignees.map(login => `@${login}`).join('、') || '未认领'}</dd></div>
-      <div><dt>提交者</dt><dd>{row.currentIssue.author ? `@${row.currentIssue.author}` : '无法确认'}</dd></div>
+      {bulk && <div><dt>派工提交人</dt><dd>system</dd></div>}
+      <div><dt>Issue 提交者</dt><dd>{row.currentIssue.author ? `@${row.currentIssue.author}` : '无法确认'}</dd></div>
       <div><dt>工作人员组</dt><dd>{row.assignmentOptions.groupName || '尚未配置'}</dd></div>
       <div><dt>来源状态</dt><dd>{row.currentIssue.state === 'open' ? 'Open · 开放' : 'Closed · 已关闭'}</dd></div>
     </dl>
-    {row.assignmentOptions.acceptanceSuggestedFor && <div className={styles.notice}>
+    {!bulk && row.assignmentOptions.acceptanceSuggestedFor && <div className={styles.notice}>
       <p>建议合入前邀请 @{row.assignmentOptions.acceptanceSuggestedFor} 参与验收</p>
       <p className={styles.muted}>这是一项建议，尚不表示已验收；研判反馈和成员接手回执也不等于修复验收。</p>
     </div>}

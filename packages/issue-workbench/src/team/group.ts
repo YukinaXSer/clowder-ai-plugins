@@ -59,8 +59,8 @@ export async function readProfiles(context: TeamContext) {
 }
 
 export async function assignmentPlan(context: TeamContext, provider: TeamProvider, signal: AbortSignal, issue: TeamIssue,
-  analysis?: Partial<Pick<TeamAnalysis, 'category'> & RoutingInput> & { systemsSource?: 'human' | 'cat' | 'source' }, records: TeamRecord[] = []) {
-  const group = await readGroup(context, provider, signal);
+  analysis?: Partial<Pick<TeamAnalysis, 'category'> & RoutingInput> & { systemsSource?: 'human' | 'cat' | 'source' }, records: TeamRecord[] = [], snapshotGroup?: Awaited<ReturnType<typeof readGroup>>) {
+  const group = snapshotGroup ?? await readGroup(context, provider, signal);
   const rawRules = await context.config.get('routingRules');
   const routing = routingContext(issue, analysis);
   const options: AssignmentOptions = { ...group, eligibleMembers: [], profiles: [], excluded: [],

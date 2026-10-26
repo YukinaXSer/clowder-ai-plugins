@@ -23,7 +23,7 @@ const commentSchema = z.object({
 const marker = (id: string) => `<!-- issue-workbench.dispatch.v1:${id} -->`;
 const escapeMention = (text: string) => text.replaceAll('@', '＠');
 export const dispatchBody = (dispatch: SharedDispatch) =>
-  `Issue Workbench · @${dispatch.assignee}${dispatch.delivery === 'invitation' ? ' · 任务邀请（待接手，未设置 GitHub 负责人）' : ''}\n\n优先级：${dispatch.score ?? '待研判'}${dispatch.score === null ? '' : '/10'}\n${escapeMention(dispatch.reason)}\n${dispatch.acceptanceSuggestedFor ? `\n建议合入前邀请 Issue 提交者 @${dispatch.acceptanceSuggestedFor} 参与验收；此建议不表示已验收，也不替代独立审查。\n` : ''}\n${marker(dispatch.id)}\n\`\`\`json\n${JSON.stringify(dispatch)}\n\`\`\``;
+  `Issue Workbench${dispatch.initiator === 'system' ? ' · 提交人：system' : ''} · @${dispatch.assignee}${dispatch.delivery === 'invitation' ? ' · 任务邀请（待接手，未设置 GitHub 负责人）' : ''}\n\n优先级：${dispatch.score ?? '待研判'}${dispatch.score === null ? '' : '/10'}\n${escapeMention(dispatch.reason)}\n${dispatch.acceptanceSuggestedFor ? `\n建议合入前邀请 Issue 提交者 @${dispatch.acceptanceSuggestedFor} 参与验收；此建议不表示已验收，也不替代独立审查。\n` : ''}\n${marker(dispatch.id)}\n\`\`\`json\n${JSON.stringify(dispatch)}\n\`\`\``;
 
 function invitationDispatch(comment: z.infer<typeof commentSchema>, target: string, trustedSenders: string[]) {
   if (comment.created_at !== comment.updated_at || (!comment.user || !trustedSenders.includes(comment.user.login))) return null;

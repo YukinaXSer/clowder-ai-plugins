@@ -3,6 +3,7 @@ import type { CoordinationHost, CoordinationSnapshot } from '../model/issue-coor
 import type { TeamHost, TeamSummary } from '../ports/team.js';
 import type { TeamClassification } from '../team/records.js';
 import { CoordinationWorkbench } from '../ui/CoordinationWorkbench';
+import { AssignmentBatchEntry } from './AssignmentBatchBoard';
 import { TeamDrawer } from './TeamDrawer';
 import { TeamIssuePanel } from './TeamIssuePanel';
 import { withTeamClassifications } from './classification-overlay';
@@ -30,6 +31,6 @@ export function TeamWorkbench({ host, team, showClassifications }: {
   }, []);
   const projectSnapshot = useCallback((snapshot: CoordinationSnapshot) => withTeamClaims(withTeamClassifications(snapshot, classifications), currentIssues), [classifications, currentIssues]);
   return <CoordinationWorkbench host={integratedHost} showClassifications={showClassifications} projectSnapshot={projectSnapshot}
-    tools={<TeamDrawer host={team} />}
+    tools={<><AssignmentBatchEntry host={team} /><TeamDrawer host={team} /></>}
     issueTools={(profile, fact, category, workRevision, dirty) => <TeamIssuePanel key={`${profile.id}:${fact.id}`} host={team} profile={profile} fact={fact} category={category} workRevision={workRevision} dirty={dirty} onRead={onRead} />} />;
 }

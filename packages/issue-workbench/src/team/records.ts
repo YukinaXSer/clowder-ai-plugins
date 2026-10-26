@@ -14,6 +14,7 @@ export interface TeamFeedback {
 export interface Job {
   kind: 'analysis';
   classificationQueueId?: string;
+  assignmentBatchId?: string;
   id: string;
   issue: TeamIssue;
   sourceVersion: string;
@@ -41,6 +42,7 @@ export interface Job {
 export interface Inbox {
   kind: 'inbox'; id: string; issue: TeamIssue; assignmentId: string; login: string;
   delivery?: 'invitation';
+  initiator?: 'system';
   receivedAt: number;
   threadId: string; catId: string; score: number | null; reason: string;
   status: 'pending' | 'delivered' | 'inactive'; messageId?: string; error?: string;
@@ -58,6 +60,7 @@ export interface OwnerAssignment extends Pick<Job, 'id' | 'issue' | 'sourceVersi
   kind: 'assignment'; ownerUserId?: string; ownerOperationId?: string;
   requestedLogin?: string;
   automatic?: boolean;
+  batch?: { id: string; initiator: 'system'; score: number | null; reason: string };
   category?: string;
   analysis?: never;
 }

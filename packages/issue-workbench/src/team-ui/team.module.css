@@ -83,3 +83,13 @@
   .panel { padding: 12px; }
   .dialog { padding: 14px; }
 }
+.batchDialog { width: min(1120px, calc(100vw - 32px)); }
+.batch { margin-top: 16px; }
+.batchRows { margin-block: 16px; border-top: 1px solid var(--cafe-border); }
+.batchRow { display: grid; grid-template-columns: 1.1fr 1fr minmax(220px, .9fr); gap: 16px; padding: 14px 0; border-bottom: 1px solid var(--cafe-border); }
+.batchRow > div { min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+.batchRow span { color: var(--cafe-text-muted); font-size: 12px; }
+.batchRow label { display: flex; align-items: center; }
+.batchRow input { width: auto; }
+.dialog .primary { background: var(--cafe-accent); color: var(--cafe-accent-foreground); }
+@media (max-width: 700px) { .batchRow { grid-template-columns: 1fr; gap: 8px; } }

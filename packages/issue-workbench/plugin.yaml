@@ -194,6 +194,40 @@ configuration:
         label: 开始、暂停或停止研判队列
         render: status
         action: { method: issue.workbench.controlClassification }
+      - id: planAssignments
+        label: 准备统一派工看板
+        render: status
+        action: { method: issue.workbench.planAssignments }
+      - id: getAssignmentBatch
+        label: 读取批次
+        render: status
+        action: { method: issue.workbench.getAssignmentBatch }
+      - id: refreshAssignmentBatch
+        label: 刷新批次计划
+        render: status
+        action: { method: issue.workbench.refreshAssignmentBatch }
+      - id: editAssignmentBatch
+        label: 调整批次成员
+        render: status
+        action: { method: issue.workbench.editAssignmentBatch }
+      - id: analyzeAssignmentBatch
+        label: 补齐批次分类
+        render: status
+        action: { method: issue.workbench.analyzeAssignmentBatch }
+      - id: confirmAssignmentBatch
+        label: 确认批量派工
+        render: status
+        confirm: 按看板中已确认的人选设置 GitHub 负责人并公开派工说明，批量提交人标识为 system。只处理本批选中条目；不自动修代码或合入。
+        action: { method: issue.workbench.confirmAssignmentBatch }
+      - id: retryAssignmentBatch
+        label: 确认重试未完成派工
+        render: status
+        confirm: 按看板中已确认的人选设置 GitHub 负责人并公开派工说明，批量提交人标识为 system。只处理本批选中条目；不自动修代码或合入。
+        action: { method: issue.workbench.retryAssignmentBatch }
+      - id: cancelAssignmentBatch
+        label: 停止本批
+        render: status
+        action: { method: issue.workbench.cancelAssignmentBatch }
 contributions:
   - type: mcp
     id: issue-team-native
