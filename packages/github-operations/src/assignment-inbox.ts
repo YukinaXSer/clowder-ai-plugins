@@ -2,6 +2,7 @@ import type { FeatureContext } from '@clowder-ai/plugin-sdk';
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import { formatUntrustedProviderText } from './provider-briefing.js';
+import { githubLoginSchema } from './github-login.js';
 
 export interface AssignedIssue {
   repo: string;
@@ -19,7 +20,7 @@ export interface AssignmentProvider {
 }
 export type AssignmentContext = Pick<FeatureContext, 'config' | 'storage' | 'threads' | 'messaging'>;
 
-const loginSchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9-]{0,38}$/).transform(s => s.toLowerCase());
+const loginSchema = githubLoginSchema.transform(s => s.toLowerCase());
 const repoSchema = z.string().regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/)
   .refine(s => s.split('/').every(p => p !== '.' && p !== '..')).transform(s => s.toLowerCase());
 export const assignedIssueSchema = z.object({

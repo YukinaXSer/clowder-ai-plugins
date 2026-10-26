@@ -63,3 +63,11 @@ Architecture ownership：既有 GitHub Signals cell 内扩展采集和事实通�
 - 工作台已恢复启用，其旧 `receiveAssignments` 关闭；通用 GitHub `receiveAssignedIssues` 继续开启，避免重复接收。原工作区不受影响。
 
 本地完整证据位于独立宿主 `.cat-cafe/lab-evidence/public-claims-2026-10-26/`（最终消息、启停与包摘要、浏览器截图）；不把整段实验对话或账号配置提交到公共仓库。
+
+## 独立审查后的修正
+
+水兵月对 `03de7a7` 提出两项阻断：managed-user 登录名中的下划线被收件器拒绝，以及双语安装说明仍要求核对 alpha.27。现将 Settings 探针与认领收件统一到 `github-login.ts`，保留显示大小写、身份比较时规范化；两份 README 均核对 alpha.28。
+
+新增四个行为用例在原实现均失败：managed-user 本人读取、普通账号遇到其他 managed-user 负责人、这两种情形的收件持久化/重启/撤销/重认领。修复后相关 24 项和 typecheck 通过，完整 GitHub 包 747 通过、1 项既有跳过、0 失败。未新增 fallback；本插件仓没有 `check-fallback-layers.mjs`，人工检查此次 diff 无新后备分支。
+
+新制品仍为未发布的 alpha.28（重新打包前 registry 精确版本返回 404），打包记录为 `packages/issue-workbench/artifacts/public-claims-2026-10-26/review-r1/pack.json`；integrity 为 `sha512-27f4P9lkKfAgtav6oMHUuIIe5vmnFha0HuwGEfYnah04/HSnl8pmVKIkr4qP8DYhgm39xwqM+1rQ9SU3OANIWQ==`。前文旧摘要及三轮通知属于修正前的历史证据，不能作为新制品安装或最终门禁回执。

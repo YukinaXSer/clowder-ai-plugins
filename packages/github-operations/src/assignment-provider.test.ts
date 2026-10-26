@@ -4,13 +4,13 @@ import { GitHubAssignmentProvider } from './assignment-provider.js';
 
 function fixture() {
   const args: string[][] = [];
-  const state = { assigned: true, failPage: false, pages: 1, login: 'Owner', changed: false, issueReads: 0 };
-  const issue = () => ({ id: 1, node_id: 'I_1', number: 1, title: 'original issue', state: 'open', updated_at: state.changed && state.issueReads > 1 ? 'later' : 'original', assignees: state.assigned ? [{ login: 'Owner' }] : [] });
+  const state = { assigned: true, failPage: false, pages: 1, login: 'Owner', otherAssignees: [] as string[], changed: false, issueReads: 0 };
+  const issue = () => ({ id: 1, node_id: 'I_1', number: 1, title: 'original issue', state: 'open', updated_at: state.changed && state.issueReads > 1 ? 'later' : 'original', assignees: [...(state.assigned ? [state.login] : []), ...state.otherAssignees].map(login => ({ login })) });
   const provider = new GitHubAssignmentProvider({ token: async () => undefined, execFileAsync: async (_file, input) => {
     args.push(input);
     const path = input[1]; let result: unknown;
     if (path === 'user' || path === '/user') result = { login: state.login };
-    else if (path.includes('/timeline')) result = [{ id: 98, event: 'assigned', assignee: { login: 'Owner' } }, { id: 99, event: 'unassigned', assignee: { login: 'Owner' } }, { id: 100, event: 'assigned', assignee: { login: 'Owner' } }];
+    else if (path.includes('/timeline')) result = [{ id: 98, event: 'assigned', assignee: { login: state.login } }, { id: 99, event: 'unassigned', assignee: { login: state.login } }, { id: 100, event: 'assigned', assignee: { login: state.login } }, ...state.otherAssignees.map((login, i) => ({ id: 101 + i, event: 'assigned', assignee: { login } }))];
     else if (/\/issues\/1$/.test(path)) { state.issueReads++; result = issue(); }
     else if (path.includes('/issues?')) {
       const page = Number(new URL(path).searchParams.get('page'));
@@ -36,6 +36,22 @@ test('complete assigned listing rejects failed later pages instead of returning 
   const f = fixture(); f.state.pages = 2; f.state.failPage = true;
   await assert.rejects(f.provider.assigned('owner/project', 'owner', new AbortController().signal), /second page failed/);
 });
+
+for (const account of ['Alice_Acme', 'Owner']) {
+  test(`assignment reads accept ${account} alongside another managed-user assignee`, async () => {
+    const f = fixture(), signal = new AbortController().signal;
+    f.state.login = account; f.state.otherAssignees = ['Octo_Admin'];
+    const login = await f.provider.identity(signal);
+    assert.equal(login, account.toLowerCase());
+    const assigned = await f.provider.assigned('owner/project', login, signal);
+    assert.deepEqual(assigned.map(issue => issue.assignees), [[login, 'octo_admin']]);
+    const current = await f.provider.current('owner/project', 1, login, signal);
+    assert.equal(current.assignmentId, '100');
+    assert.deepEqual(current.assignees, [login, 'octo_admin']);
+    f.state.assigned = false;
+    assert.equal((await f.provider.current('owner/project', 1, login, signal)).assignmentId, null);
+  });
+}
 
 test('changed issue during timeline read fails closed; unclaimed issues need no timeline', async () => {
   const f = fixture(), signal = new AbortController().signal; f.state.changed = true;

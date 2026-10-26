@@ -44,6 +44,23 @@ test('repeat, concurrent ticks and a fresh runtime preserve one notification', a
   assert.equal(f.delivered.size, 1); assert.equal(f.attempts.length, 1);
 });
 
+for (const login of ['alice_acme', 'owner']) {
+  test(`inbox preserves claim and cancellation across restart for ${login} with a managed-user co-assignee`, async () => {
+    const f = fixture(); f.state.login = login;
+    f.state.issue.assignees = [login, 'octo_admin'];
+    const first = f.runtime(); await first.poll(); await first.stop();
+    const resumed = f.runtime(); await resumed.poll();
+    assert.equal(f.delivered.size, 1); assert.equal(f.attempts.length, 1);
+    assert.match(textOf(f), new RegExp(`@${login}`));
+    f.state.issue.assignees = ['octo_admin']; f.state.issue.assignmentId = null;
+    await resumed.poll(); await resumed.poll();
+    assert.equal(f.delivered.size, 2); assert.match(textOf(f), /取消认领/);
+    f.state.issue.assignees = [login, 'octo_admin']; f.state.issue.assignmentId = '102';
+    await resumed.poll(); assert.equal(f.delivered.size, 3);
+    await resumed.stop();
+  });
+}
+
 test('lost response retries the same Host idempotency key after restart', async () => {
   const f = fixture(); f.state.uncertainSend = true;
   await assert.rejects(f.runtime().poll(), /response lost/); await f.runtime().poll();
