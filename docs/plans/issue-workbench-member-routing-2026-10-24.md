@@ -47,7 +47,7 @@ GitHub 组织仍是成员资格来源；配置不会增加组织成员。环境�
 
 ## 手工验证推荐与拦截（不向其他成员通知）
 
-打开测试 Issue #1，在右侧“分类分析”修改下面两项并点“保存分析”。每次只查看推荐、下拉框和排除说明，**不点“确认指派”给其他成员**。
+打开测试 Issue #1，在右侧“分类分析”修改下面两项并点“保存分析”。先将测试问题类别选为“代码与交付”并保存，作为本轮明确的分类；类别仍待判断时，普通加权推荐会等待分类。每次只查看推荐、下拉框和排除说明，**不点“确认指派”给其他成员**。
 
 | 人工系统 / 派工职责 | 预期结果 |
 | --- | --- |
@@ -76,4 +76,20 @@ GitHub 组织仍是成员资格来源；配置不会增加组织成员。环境�
 
 ## 验证记录
 
-本轮实现前的失败证据、包测试与独立宿主证据分别保存在插件 `packages/issue-workbench/artifacts/member-routing-2026-10-26/` 与实验宿主 `.cat-cafe/lab-evidence/member-routing-2026-10-26/`。本段在完成实际检查后补入精确结果；当前仍由原 Task 持责，未合入、未发布。
+本轮实现前的失败证据、包测试与独立宿主证据分别保存在插件 `packages/issue-workbench/artifacts/member-routing-2026-10-26/` 与实验宿主 `.cat-cafe/lab-evidence/member-routing-2026-10-26/`。当前仍由原 Task 持责，未合入、未发布。
+
+实现提交为 `7b8dabef230fce23db402cee30fad833dcf854a5` 与 `d9acb36ab5e239828c8eaf01e3084e2d72a48865`；下列结果均覆盖最终代码 `d9acb36`，随后仅补本文证据。
+
+- RED：六个初始反例确认旧实现跨系统指派、丢弃人工待判断、缺少职责及权重。修正测试调用入口后保留完整 `red.log`。另一个实际使用反例 `manual-weight-red.log` 证明主人确认推荐也需要推进计数；修后通过。
+- `pnpm gate:ci`：全仓 **36/36，通过，507 秒**。沿用仓库精确 Node 24.18.0 / npm 11.16.0，不改门禁、测试阈值或依赖锁文件。
+- Issue 包：5 个导出同步、29 个来源/接口、23 个 UI、1 个数据检查、94 个团队行为测试均通过；类型与私有依赖边界检查通过。13 个新增路由行为用例覆盖自动/人工、身份格式、职责、人工优先、系统未知、配置变化、重新发布、持久配额及默认人工确认。
+- 打包浏览器 **7/7** 通过；真实隔离 Host composition **13 个检查点** 通过；双模拟成员/独立进程与 Redis 重启 **2/2** 通过。后两者显式模拟 GitHub/猫身份，不冒充真实多人联调。
+- 完整实验宿主实装制品：`sha512-tZWZ1AbMjNmDYywEma7+0yNZiPwfGPHdRWv/LNBVhL8jLYjaUe0kjXHLx9wC/5UH1HlRXCVeN/pw4vm068H98A==`。原插件实例和本地持久记录保留，运行状态 `running`，生命周期 revision 33。通用 GitHub 接收器保持原已审 alpha.28 制品、revision 19、`running`。
+- 真实页面七种系统/职责场景、保存后刷新、未保存拦截均通过，无 pageerror。补走“代码与交付 → Windows 普通分配”：三位指定 Windows 成员按 1:1:1 推荐；Mac 作者被排除。已回到 **macOS / 普通问题 / 推荐本人**，派工按钮可用。
+- 当前组织实读为 10 位成员；只配置用户指定的七位，另三位显示环境/职责未配置并排除。原 `ts212653` 拼写差异、可调整的 2:1 默认比重及单实例计数范围均在上文公开。
+- 本轮 GitHub 写入 **0**。最终 `gh issue view` 回读测试 #1 为 `OPEN`、`assignees: []`、`updatedAt=2026-10-26T02:57:37Z`。原工作实例 3003/3004/6399 与实验 5142/3142/6358 分属独立进程，未修改或重启原工作实例。
+- 验收脚本最初缺少 Origin、随后未等实验会话 Cookie，分别被 Host 403 拒绝；原失败记录保留。修正脚本为页面同源请求并等待正常会话建立后通过，未绕过 Host 授权。
+
+关键证据：插件目录 `gate.log`、`package-test.log`、`team-final.log`、`ui-green.log`、`browser.log`、`host/host-verification.json`、`sandbox.log`；实验宿主目录 `installation.json`、`browser.json`、`assignment-view.json`、`windows-routing.png`、`ready-for-owner-routing.png`、`final-plugins.json`、`github-final.json`。
+
+此前独立 Host 公开认领/撤销与真实猫回复的证据继续有效，通用接收器本轮未改。本轮不声称实际开发已经启动，也未向其他成员发测试通知。下一步由原 reviewer 对本次 OS/职责/权重与完整操作动线增量复审；远端 CI 与 review 需核对新 HEAD。
