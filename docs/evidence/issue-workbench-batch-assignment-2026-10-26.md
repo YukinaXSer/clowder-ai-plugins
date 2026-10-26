@@ -40,4 +40,4 @@ Architecture cell：Issue Workbench team；新增持久批次协调对象，复�
 - 独立 reviewer 小多子（cat-gpy5qnmg / gemini-4-argon-high）对运行时代码终点 `41ea6bf91ebbe3e84fb223e80edfc610965690a9` approved，0 findings。回执 `local-review:0001793032459532-000035-4dc61033:approved`；主范围回执 `local-review:0001793032314907-000031-2613cd14:approved`。均绑定本次原始消息。审查范围为源码、测试与作者实页产物核验，非 reviewer 本人 DOM 操作。
 - 最终收尾提交仅文档与上述测试入口位置调整；`src/`、manifest、对外 owner actions 与 reviewed runtime 完全一致，以 git diff 检查 continuity。PR 保持未合入；远端 CI 状态以实时 GitHub 回读为准。
 
-最终 `pnpm test:browser` 8/8 通过（`browser-all-final.log`）；测试入口修正后归档与 reviewed runtime 的所有 dist 文件逐一 SHA-256 相同（`runtime-continuity.json`）。最终归档的重新安装保留实例、配置与草稿。
+最终 `pnpm test:browser` 8/8 通过（`browser-all-final.log`）；测试入口修正后归档的 JS/CSS、模块及其他 dist 文件与已验归档逐字节相同；只有两份 HTML 的构建 SHA 从提交前的旧值更新为 reviewed runtime 41ea6bf（`runtime-continuity.json`）。最终归档的重新安装保留实例、配置与草稿。
