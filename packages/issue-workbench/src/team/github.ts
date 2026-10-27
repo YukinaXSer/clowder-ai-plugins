@@ -16,6 +16,33 @@ const issueSchema = z.object({
   labels: z.array(z.object({ name: z.string() })),
   assignees: z.array(z.object({ login })), html_url: z.string(), pull_request: z.unknown().optional(),
 });
+// The REST repository /issues collection also downloads every PR. Read the
+// Issue-only connection so full history fits the Host's bounded read operation.
+const catalogQuery = `query($owner:String!,$name:String!,$endCursor:String){
+  repository(owner:$owner,name:$name){
+    issues(first:100,after:$endCursor,states:[OPEN,CLOSED],orderBy:{field:CREATED_AT,direction:ASC}){
+      totalCount
+      nodes{id number title body state updatedAt url author{login}
+        labels(first:100){nodes{name} pageInfo{hasNextPage}}
+        assignees(first:100){nodes{login} pageInfo{hasNextPage}}}
+      pageInfo{hasNextPage endCursor}
+    }
+  }
+}`;
+const nestedPageInfo = z.object({ hasNextPage: z.boolean() });
+const catalogPages = z.array(z.object({
+  errors: z.array(z.unknown()).max(0).optional(),
+  data: z.object({ repository: z.object({ issues: z.object({
+    totalCount: z.number().int().nonnegative(),
+    nodes: z.array(z.object({
+      id: issueSchema.shape.node_id, number: issueSchema.shape.number, title: z.string(), body: z.string().nullable(),
+      state: z.enum(['OPEN', 'CLOSED']), updatedAt: z.string(), url: z.string(), author: issueSchema.shape.user,
+      labels: z.object({ nodes: issueSchema.shape.labels, pageInfo: nestedPageInfo }),
+      assignees: z.object({ nodes: issueSchema.shape.assignees, pageInfo: nestedPageInfo }),
+    })),
+    pageInfo: z.object({ hasNextPage: z.boolean(), endCursor: z.string().min(1).nullable() }),
+  }) }) }),
+})).min(1);
 const commentSchema = z.object({
   id: z.number().int().positive(), body: z.string(), user: z.object({ login: authorLogin }).nullable(),
   created_at: z.string(), updated_at: z.string(),
@@ -110,8 +137,38 @@ export class GhTeamProvider implements TeamProvider {
   }
   async allIssues(repo: string, signal: AbortSignal) {
     repo = repository.parse(repo);
-    const rows = z.array(issueSchema).parse(await this.api(`${this.path(repo)}/issues?state=all&per_page=100`, signal, undefined, true));
-    return rows.filter(row => row.pull_request === undefined).map(row => this.decode(repo, row));
+    const [owner, name] = repo.split('/');
+    const raw = await this.call(['api', '--hostname', 'github.com', 'graphql', '-f', `query=${catalogQuery}`,
+      '-f', `owner=${owner}`, '-f', `name=${name}`, '--paginate', '--slurp'], signal);
+    signal.throwIfAborted();
+    const parsed = catalogPages.safeParse(JSON.parse(raw));
+    if (!parsed.success) throw new Error('Incomplete GitHub issue catalog');
+    const pages = parsed.data.map(page => page.data.repository.issues);
+    const cursors = new Set<string>();
+    for (const [index, page] of pages.entries()) {
+      const { hasNextPage, endCursor } = page.pageInfo;
+      if (hasNextPage !== (index < pages.length - 1) || hasNextPage && (!endCursor || !page.nodes.length) ||
+          endCursor && cursors.has(endCursor)) throw new Error('Incomplete GitHub issue catalog');
+      if (endCursor) cursors.add(endCursor);
+    }
+    const nodes = pages.flatMap(page => page.nodes);
+    if (nodes.length !== pages.at(-1)!.totalCount || new Set(nodes.map(node => node.id)).size !== nodes.length ||
+        new Set(nodes.map(node => node.number)).size !== nodes.length) throw new Error('Incomplete GitHub issue catalog');
+    const issues: TeamIssue[] = [];
+    for (const node of nodes) {
+      let issue = this.decode(repo, { node_id: node.id, number: node.number, title: node.title, body: node.body,
+        state: node.state.toLowerCase(), updated_at: node.updatedAt, html_url: node.url, user: node.author,
+        labels: node.labels.nodes, assignees: node.assignees.nodes });
+      if (node.labels.pageInfo.hasNextPage || node.assignees.pageInfo.hasNextPage) {
+        // REST's single-Issue resource contains the complete arrays. Never
+        // silently present the GraphQL first 100 labels/assignees as complete.
+        issue = await this.issue(repo, node.number, signal);
+        if (issue.id !== node.id || issue.number !== node.number) throw new Error('GitHub issue identity mismatch');
+      }
+      issues.push(issue);
+    }
+    signal.throwIfAborted();
+    return issues;
   }
   async assignable(repo: string, target: string, signal: AbortSignal) {
     const normalized = login.parse(target);

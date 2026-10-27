@@ -39,15 +39,62 @@ test('assignment eligibility fails closed when the GitHub roster cannot be read 
 });
 const raw = { node_id: 'I_1', number: 1, title: 'Fails to start', body: 'startup blocked', state: 'open',
   user: { login: 'Alice' }, labels: [], assignees: [{ login: 'alice' }], html_url: 'https://github.com/fixture/repo/issues/1' };
-test('initial classification reads complete Open and Closed history while excluding pull requests', async () => {
+const catalogNode = (number = 1) => ({ id: `I_${number}`, number, title: raw.title, body: raw.body,
+  state: number === 1 ? 'OPEN' : 'CLOSED', author: { login: 'Alice' }, updatedAt: '2026-10-27T10:00:00Z',
+  url: `https://github.com/fixture/repo/issues/${number}`,
+  labels: { nodes: [{ name: 'bug' }], pageInfo: { hasNextPage: false } },
+  assignees: { nodes: [{ login: 'Alice' }], pageInfo: { hasNextPage: false } } });
+const catalogPage = (nodes = [catalogNode()], totalCount = nodes.length, hasNextPage = false, endCursor: string | null = 'cursor-1') =>
+  ({ data: { repository: { issues: { nodes, totalCount, pageInfo: { hasNextPage, endCursor } } } } });
+test('complete history reads only Issues and preserves every source field across GraphQL pages', async () => {
   const provider = new GhTeamProvider(async args => {
-    assert.equal(args[3], 'repos/fixture/repo/issues?state=all&per_page=100');
+    assert.equal(args[3], 'graphql');
     assert.ok(args.includes('--paginate')); assert.ok(args.includes('--slurp'));
-    return JSON.stringify([[raw], [{ ...raw, node_id: 'I_2', number: 2, state: 'closed', html_url: 'https://github.com/fixture/repo/issues/2' },
-      { ...raw, pull_request: {} }]]);
+    assert.ok(args.includes('owner=fixture')); assert.ok(args.includes('name=repo'));
+    const query = args.find(arg => arg.startsWith('query='))!;
+    assert.match(query, /\$endCursor\s*:\s*String/); assert.match(query, /issues\(/);
+    assert.match(query, /states:\s*\[OPEN,\s*CLOSED\]/); assert.doesNotMatch(query, /pullRequests/);
+    return JSON.stringify([catalogPage([catalogNode()], 2, true), catalogPage([{ ...catalogNode(2), author: null }], 2, false, 'cursor-2')]);
   });
-  assert.deepEqual((await provider.allIssues('fixture/repo', signal)).map(issue => issue.state), ['open', 'closed']);
-  await assert.rejects(new GhTeamProvider(async () => JSON.stringify([[raw], { message: 'failed page' }])).allIssues('fixture/repo', signal), /Incomplete/);
+  const issues = await provider.allIssues('fixture/repo', signal);
+  assert.deepEqual(issues[0], { repo: 'fixture/repo', id: 'I_1', number: 1, title: raw.title, body: raw.body,
+    state: 'open', author: 'alice', labels: ['bug'], assignees: ['alice'], url: raw.html_url, updatedAt: '2026-10-27T10:00:00Z' });
+  assert.equal(issues[1].state, 'closed'); assert.equal(issues[1].author, null);
+  assert.deepEqual(await new GhTeamProvider(async () => JSON.stringify([catalogPage([], 0, false, null)])).allIssues('fixture/repo', signal), []);
+});
+test('history rejects partial GraphQL success, missing pages, duplicate identities and foreign issues', async () => {
+  const page = catalogPage();
+  const invalid = [[], page, [page, { errors: [{ message: 'secret provider details' }] }],
+    [{ ...page, errors: [{ message: 'secret provider details' }] }], [{ data: { repository: null } }],
+    [catalogPage([catalogNode()], 2, true)], [catalogPage([catalogNode()], 2)],
+    [page, page], [catalogPage([catalogNode()], 2, true), catalogPage([catalogNode()], 2, false, 'cursor-2')],
+    [catalogPage([catalogNode()], 2, true, null), catalogPage([catalogNode(2)], 2, false, 'cursor-2')],
+    [catalogPage([catalogNode()], 2, true), catalogPage([catalogNode(2)], 2, false)],
+    [catalogPage([{ ...catalogNode(), url: 'https://github.com/foreign/repo/issues/1' }])]];
+  for (const result of invalid) {
+    await assert.rejects(new GhTeamProvider(async () => JSON.stringify(result)).allIssues('fixture/repo', signal),
+      error => error instanceof Error && /Incomplete|mismatch/.test(error.message) && !error.message.includes('secret'));
+  }
+});
+test('history completes overflowing label or assignee connections from the exact REST Issue', async () => {
+  for (const field of ['labels', 'assignees'] as const) {
+    const node = catalogNode(); node[field].pageInfo.hasNextPage = true;
+    const full = { ...raw, labels: Array.from({ length: 101 }, (_, i) => ({ name: `label-${i}` })) };
+    const paths: string[] = [];
+    const provider = new GhTeamProvider(async args => {
+      paths.push(args[3]);
+      return JSON.stringify(args[3] === 'graphql' ? [catalogPage([node])] : full);
+    });
+    assert.equal((await provider.allIssues('fixture/repo', signal))[0].labels.length, 101);
+    assert.deepEqual(paths, ['graphql', 'repos/fixture/repo/issues/1']);
+    await assert.rejects(new GhTeamProvider(async args => JSON.stringify(args[3] === 'graphql'
+      ? [catalogPage([node])] : { ...full, node_id: 'wrong-id' })).allIssues('fixture/repo', signal), /mismatch/);
+  }
+});
+test('history honors abort before returning a complete catalog', async () => {
+  const abort = new AbortController();
+  const provider = new GhTeamProvider(async () => { abort.abort(); return JSON.stringify([catalogPage()]); });
+  await assert.rejects(provider.allIssues('fixture/repo', abort.signal), { name: 'AbortError' });
 });
 test('automatic classification reads every Open issue page and never queues a pull request or partial catalog', async () => {
   const provider = new GhTeamProvider(async args => {
