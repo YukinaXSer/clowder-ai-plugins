@@ -137,6 +137,7 @@ for (const delivery of ['assignment', 'invitation']) test(`packed bulk board (${
   await active.actions['issue.team.poll']({});
   await board.getByRole('button', { name: '刷新进度', exact: true }).click();
   await board.getByText('本批派工完成', { exact: true }).waitFor();
+  assert.equal(await board.getByRole('progressbar', { name: '批量派工进度' }).getAttribute('value'), '2');
   assert.deepEqual(s.writes, delivery === 'invitation' ? [] : ['alice', 'alice']); assert.equal(s.dispatches.length, 2);
   if (delivery === 'invitation') {
     assert.ok(s.dispatches.every(d => d.delivery === 'invitation'));

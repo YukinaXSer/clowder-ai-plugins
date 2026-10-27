@@ -81,9 +81,9 @@ export function AssignmentBatchBoard({ host }: { host: TeamHost }) {
         <button aria-pressed={filter === 'all'} onClick={() => setFilter('all')}>全部 {items.length}</button>
         {Object.entries(labels).map(([key, label]) => <button key={key} aria-pressed={filter === key} onClick={() => setFilter(key)}>{label} {items.filter(i => i.status === key).length}</button>)}
       </div>
-      <p>本次参与 {selected.length} · 跳过 {items.filter(i => !i.included && i.status !== 'retained').length} · 已派工 {selected.filter(i => i.status === 'assigned').length}</p>
+      <p>本次参与 {selected.length} · 跳过 {items.filter(i => !i.included && i.status !== 'retained').length} · 已派工 {selected.filter(i => i.status === 'assigned').length} · 已邀请 {selected.filter(i => i.status === 'invited').length}</p>
       <p>成员分布：{distribution.map(([login, count]) => `@${login} ${count} 条`).join(' · ') || '暂无可派工人选'}</p>
-      {['running', 'partial', 'completed'].includes(batch.status) && <progress aria-label="批量派工进度" max={selected.length || 1} value={selected.filter(i => i.status === 'assigned').length} />}
+      {['running', 'partial', 'completed'].includes(batch.status) && <progress aria-label="批量派工进度" max={selected.length || 1} value={selected.length - remaining.length} />}
       <div className={styles.batchRows}>
         {items.filter(i => filter === 'all' || i.status === filter).map(item => {
           const ref = `${item.issue.repo}#${item.issue.number}`, options = item.options;
