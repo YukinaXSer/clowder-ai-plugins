@@ -80,15 +80,15 @@ test('policy/source changes reject the entire confirmation, and partial catalogs
   assert.equal(await s.call('getAssignmentBatch', {}), null);
 });
 
-test('uncertain publication is not duplicated, and a partial batch resumes only on explicit confirmation', async () => {
-  const s = await fixture(2); let b = await s.prepare(); const publish = s.provider.publishDispatch; let attempts = 0;
+for (const delivery of ['assignment', 'invitation']) test(`uncertain ${delivery} publication is not duplicated, and a partial batch resumes only on explicit confirmation`, async () => {
+  const s = await fixture(2); s.config.dispatchMode = delivery; if (delivery === 'invitation') s.login('bob'); let b = await s.prepare(); const publish = s.provider.publishDispatch; let attempts = 0;
   s.provider.publishDispatch = async (...args) => { attempts++; const result = await publish(...args); if (attempts === 1) throw new Error('lost response'); return result; };
   await s.call('confirmAssignmentBatch', { id: b.id, expectedRevision: b.revision }); await s.recover();
   b = await s.call('getAssignmentBatch', { id: b.id }); assert.equal(b.status, 'partial');
   const writes = [...s.writes]; await s.restart(); await s.recover(); assert.deepEqual(s.writes, writes);
   await s.call('retryAssignmentBatch', { id: b.id, expectedRevision: b.revision }); await s.recover();
   b = await s.call('getAssignmentBatch', { id: b.id }); assert.equal(b.status, 'completed');
-  assert.equal(s.writes.length, 2); assert.equal(s.dispatches.length, 2);
+  assert.equal(s.writes.length, delivery === 'invitation' ? 0 : 2); assert.equal(s.dispatches.length, 2);
 });
 
 test('stopping a reviewed snapshot cannot release skipped issues to the background dispatcher', async () => {
@@ -112,11 +112,13 @@ test('batch details and receiver notifications suppress reporter acceptance sugg
 });
 
 test('large previews share one fresh roster read; preflight uses complete catalogs instead of per-issue network reads', async () => {
-  const s = await fixture(120); let rosters = 0, reads = 0;
+  const s = await fixture(280); let rosters = 0, reads = 0, lists = 0;
+  const list = s.context.storage.list; s.context.storage.list = async () => { lists++; return list(); };
   const group = s.provider.organizationMembers, issue = s.provider.issue;
   s.provider.organizationMembers = async (...args) => { rosters++; return group(...args); };
   s.provider.issue = async (...args) => { reads++; return issue(...args); };
-  let b = await s.prepare(); assert.equal(rosters, 1); assert.equal(b.items.length, 120);
+  let b = await s.prepare(); assert.equal(rosters, 1); assert.equal(b.items.length, 280);
+  assert.ok(lists <= 3, `complete persisted state must not be transferred per issue: ${lists}`);
   b = await s.call('refreshAssignmentBatch', { id: b.id, expectedRevision: b.revision });
   assert.equal(reads, 0, 'refresh also reads a complete catalog rather than one subprocess per issue');
   await s.call('confirmAssignmentBatch', { id: b.id, expectedRevision: b.revision });
@@ -131,12 +133,37 @@ test('permission preflight checks all selected recipients before any GitHub writ
 
 test('upgrade retains an earlier unnormalized preview and rewrites it only on a new owner action', async () => {
   const s = await fixture(2); const batch = await s.prepare();
-  const { revision: _revision, ...legacy } = batch;
+  const { revision: _revision, delivery: _delivery, ...legacy } = batch;
   await s.context.storage.set('issue-workbench.assignment-batch.v1.' + batch.id, legacy);
   await s.restart(); const restored = await s.call('getAssignmentBatch', { id: batch.id });
-  assert.deepEqual(restored.items, batch.items); assert.deepEqual(s.writes, []);
+  assert.deepEqual(restored.items, batch.items); assert.equal(restored.delivery, undefined); assert.deepEqual(s.writes, []);
   const refreshed = await s.call('refreshAssignmentBatch', { id: batch.id, expectedRevision: restored.revision });
   assert.equal(refreshed.id, batch.id); assert.equal(refreshed.status, 'draft');
   const stored = await s.context.storage.get('issue-workbench.assignment-batch.v1.' + batch.id);
   assert.ok(Array.isArray((stored!.value as any).options));
+});
+
+test('an invitation batch uses member authority, sends system invitations and restores without assigning or duplicating', async () => {
+  const s = await fixture(2); s.config.dispatchMode = 'invitation'; s.login('bob');
+  s.provider.assignable = async () => { throw new Error('Invitations do not require assignee permission'); };
+  const b = await s.prepare(); assert.equal(b.delivery, 'invitation');
+  await s.call('confirmAssignmentBatch', { id: b.id, expectedRevision: b.revision });
+  await s.recover(); await s.restart(); await s.recover();
+  const done = await s.call('getAssignmentBatch', { id: b.id });
+  assert.equal(done.status, 'completed'); assert.deepEqual(done.items.map((i: any) => i.status), ['invited', 'invited']);
+  assert.deepEqual(s.writes, []); assert.equal(s.dispatches.length, 2);
+  assert.ok(s.dispatches.every(d => d.delivery === 'invitation' && d.initiator === 'system' && !d.acceptanceSuggestedFor));
+  await s.call('confirmAssignmentBatch', { id: b.id, expectedRevision: b.revision });
+  await s.recover(); assert.equal(s.dispatches.length, 2);
+});
+
+test('invitation batches reject sender revocation and delivery changes before confirmation or execution', async () => {
+  for (const change of ['sender', 'before-confirm', 'after-confirm']) {
+    const s = await fixture(2); s.config.dispatchMode = 'invitation'; s.login('bob'); const b = await s.prepare();
+    if (change === 'after-confirm') await s.call('confirmAssignmentBatch', { id: b.id, expectedRevision: b.revision });
+    if (change === 'sender') s.login('outsider'); else s.config.dispatchMode = 'assignment';
+    if (change !== 'after-confirm') await assert.rejects(s.call('confirmAssignmentBatch', { id: b.id, expectedRevision: b.revision }));
+    else { await s.recover(); assert.equal((await s.call('getAssignmentBatch', { id: b.id })).status, 'partial'); }
+    assert.deepEqual(s.writes, []); assert.deepEqual(s.dispatches, []);
+  }
 });

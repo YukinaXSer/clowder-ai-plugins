@@ -26,6 +26,7 @@ const revisionInput = idInput.extend({ expectedRevision: z.number().int().positi
 export const WORKBENCH_METHODS = ['summary', 'get', 'analyze', 'assign', 'assignIssue', 'retry', 'republish', 'feedback', 'planClassification', 'controlClassification', 'coordination', 'acceptInbox', 'planAssignments', 'getAssignmentBatch', 'refreshAssignmentBatch', 'editAssignmentBatch', 'analyzeAssignmentBatch', 'confirmAssignmentBatch', 'retryAssignmentBatch', 'cancelAssignmentBatch'] as const;
 type InboxCatchup = Array<{ repository: string; nextPage: number; state: 'catching-up' | 'current' }>;
 type RequestAuthority = { assertCurrent(): void | Promise<void>; signal?: AbortSignal };
+type PlanningState = { records: RecordValue[]; store: PluginCoordinationStore; group: Awaited<ReturnType<typeof readGroup>> };
 
 /** One Host instance owns the scheduler and storage. The queue serializes local
  * actions; storage CAS fences overlapping/restarted instances. No TTL or shadow Tasks. */
@@ -41,15 +42,28 @@ export class IssueTeamRuntime {
     this.localWork = new PluginCoordinationStore(context, () => this.authorized());
     this.assignmentBatches = new AssignmentBatches(context, assignmentBatchDriver(context, provider, this.abort.signal, {
       authorized: () => this.authorized(),
+      delivery: () => this.dispatchMode(),
       repositories: async () => { const repos = await this.repositories(); const active: string[] = [];
         for (const repo of repos) if ((await this.localWork.read<SourcePreference>('preferences', sourceId(repo)))?.value.enabled !== false) active.push(repo);
         return active; },
-      activeSource: repo => this.activeSource(repo), issue: (repo, number) => this.issue(repo, number), rows: () => this.rows(),
-      plan: (issue, records, group) => this.planAssignment(issue, undefined, records, group), effective: issue => this.effective(issue),
+      activeSource: repo => this.activeSource(repo), issue: (repo, number) => this.issue(repo, number),
+      plan: (issue, records) => this.planAssignment(issue, undefined, records),
+      snapshot: async () => {
+        // One scoped read for the whole preview/preflight. Never reused by the
+        // dispatch writer, which still rereads policy before every external effect.
+        const entries = await context.storage.list(), repos = await this.repositories();
+        const state: PlanningState = {
+          records: Object.entries(entries).filter(([key]) => key.startsWith(prefix)).map(([, e]) => e.value as RecordValue).filter(row => repos.includes(row.issue.repo)),
+          store: new PluginCoordinationStore({ ...context, storage: { ...context.storage, get: async key => entries[key] } }, () => this.authorized()),
+          group: await readGroup(context, provider, this.abort.signal),
+        };
+        return { rows: async () => state.records, effective: issue => this.effective(issue, undefined, state),
+          plan: (issue, records) => this.planAssignment(issue, undefined, records, state) };
+      },
       routable: (thread, cat) => this.routable(thread, cat),
       read: async id => await context.storage.get(prefix + id) ? this.row(id) : undefined,
       save: (row, revision) => this.save(row, revision), deliver: (job, revision) => this.deliver(job, revision),
-      assign: (row, revision, login) => this.assign(row, revision, login, 'assignment'),
+      assign: (row, revision, login, delivery) => this.assign(row, revision, login, delivery),
     }));
     this.classificationQueues = new ClassificationQueues(context, {
       authorized: () => this.authorized(), allowed: repo => this.activeSource(repo),
@@ -66,9 +80,9 @@ export class IssueTeamRuntime {
     if (issues.some(issue => issue.repo !== repo || !issue.id)) throw new Error('Source catalog identity mismatch');
     return issues;
   }
-  private async effective(issue: import('./types.js').TeamIssue, analysis?: import('./types.js').TeamAnalysis) {
-    const work = await readLocalWork(this.localWork, issue);
-    const latest = (await this.rows()).filter((row): row is Job => row.kind === 'analysis' && !!row.analysis
+  private async effective(issue: import('./types.js').TeamIssue, analysis?: import('./types.js').TeamAnalysis, state?: PlanningState) {
+    const work = await readLocalWork(state?.store ?? this.localWork, issue);
+    const latest = (state?.records ?? await this.rows()).filter((row): row is Job => row.kind === 'analysis' && !!row.analysis
         && row.issue.id === issue.id && row.issue.repo === issue.repo && row.sourceVersion === issueVersion(issue))
         .sort((a, b) => (b.provenance?.recordedAt ?? 0) - (a.provenance?.recordedAt ?? 0) || b.id.localeCompare(a.id))[0];
     analysis = latest?.analysis ?? analysis;
@@ -78,10 +92,10 @@ export class IssueTeamRuntime {
       && work.value.sourceVersion !== issueVersion(issue);
     return { category, analysis, work, stale, routing: routingContext(issue, work?.value, analysis) };
   }
-  private async planAssignment(issue: import('./types.js').TeamIssue, analysis?: import('./types.js').TeamAnalysis, reservations: RecordValue[] = [], snapshotGroup?: Awaited<ReturnType<typeof readGroup>>) {
-    const effective = await this.effective(issue, analysis);
+  private async planAssignment(issue: import('./types.js').TeamIssue, analysis?: import('./types.js').TeamAnalysis, reservations: RecordValue[] = [], state?: PlanningState) {
+    const effective = await this.effective(issue, analysis, state);
     const plan = await assignmentPlan(this.context, this.provider, this.abort.signal, issue,
-      { category: effective.category, ...effective.routing }, [...await this.rows(), ...reservations], snapshotGroup);
+      { category: effective.category, ...effective.routing }, [...(state?.records ?? await this.rows()), ...reservations], state?.group);
     if (effective.stale) { delete plan.options.preferredLogin; plan.options.blockedReason = plan.options.error = '人工分析对应的原文已变化，请重新核对后保存'; }
     return { ...plan, policyHash: hash([plan.policyHash, effective.work?.revision ?? null, effective.stale]) };
   }
@@ -403,7 +417,7 @@ export class IssueTeamRuntime {
           if (await this.provider.identity(this.abort.signal) !== actor) throw new Error('GitHub identity changed');
           await requireMember(this.context, this.provider, this.abort.signal, actor);
         }
-        if (!selectedDelivery && !selectedLogin &&
+        if ((job.kind === 'assignment' && job.batch || !selectedDelivery && !selectedLogin) &&
             await this.dispatchMode() !== delivery) throw new Error('Delivery mode changed; intent retained');
         await this.authorized();
       };

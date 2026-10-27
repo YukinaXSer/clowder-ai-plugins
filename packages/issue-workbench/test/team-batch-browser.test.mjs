@@ -11,14 +11,16 @@ import { newInvestigation } from '../src/model/issue-coordination.ts';
 import { issueVersion } from '../src/team/schema.ts';
 import { sourceId } from '../src/team/coordination.ts';
 const repo = fileURLToPath(new URL('../../../', import.meta.url));
+execFileSync('pnpm', ['build'], { cwd: fileURLToPath(new URL('../', import.meta.url)), stdio: 'pipe' });
 
-test('packed bulk board: complete Open snapshot, edits, skips, confirmation, system dispatch and durable restart', { timeout: 90000 }, async t => {
+for (const delivery of ['assignment', 'invitation']) test(`packed bulk board (${delivery}): complete Open snapshot, edits, skips, confirmation, system dispatch and durable restart`, { timeout: 90000 }, async t => {
   const directory = await mkdtemp(join(tmpdir(), 'issue-batch-browser-')); t.after(() => rm(directory, { recursive: true, force: true }));
   const [pack] = JSON.parse(execFileSync(process.execPath, ['scripts/pack-publish-artifact.mjs', 'packages/issue-workbench', directory], { cwd: repo, encoding: 'utf8' }));
   execFileSync('tar', ['-xzf', join(directory, pack.filename), '-C', directory]);
   const { createIssueTeamModule, GhTeamProvider } = await import(pathToFileURL(join(directory, 'package/dist/team-plugin.js')).href);
   const { coordinationPreview, fixtureBindings } = await import(pathToFileURL(join(directory, 'package/dist/coordination-host.mjs')).href);
   const s = setup(); s.config.automaticAssignment = false; s.config.analysisThreadId = 'analysis'; s.config.routingRules = '[]';
+  s.config.dispatchMode = delivery; if (delivery === 'invitation') s.login('bob');
   const eligibility = new GhTeamProvider(async args => {
     if (args[3] === 'repos/fixture/repo/assignees?per_page=100') return JSON.stringify([[{ login: 'Alice' }], [{ login: 'Bob' }]]);
     throw new Error('GitHub request failed (HTTP 404)');
@@ -110,7 +112,8 @@ test('packed bulk board: complete Open snapshot, edits, skips, confirmation, sys
     await review.evaluate(el => el.scrollIntoView({ block: 'end' }));
     await review.click();
     const confirmation = board.getByRole('alertdialog', { name: '确认批量派工' });
-    await confirmation.getByText('即将设置 2 个 Issue 的 GitHub 负责人，并以 system 为提交人标识发布说明。', { exact: true }).waitFor();
+    await confirmation.getByText(delivery === 'invitation' ? '即将发送 2 条任务邀请，不设置 GitHub 负责人，并以 system 为提交人标识发布说明。'
+      : '即将设置 2 个 Issue 的 GitHub 负责人，并以 system 为提交人标识发布说明。', { exact: true }).waitFor();
     await assertRevealed(confirmation);
     assert.deepEqual(s.writes, []);
     await page.screenshot({ path: `artifacts/batch-confirm-2026-10-27/confirmation-${viewport.width}.png` });
@@ -134,14 +137,21 @@ test('packed bulk board: complete Open snapshot, edits, skips, confirmation, sys
   await active.actions['issue.team.poll']({});
   await board.getByRole('button', { name: '刷新进度', exact: true }).click();
   await board.getByText('本批派工完成', { exact: true }).waitFor();
-  assert.deepEqual(s.writes, ['alice', 'alice']); assert.equal(s.dispatches.length, 2);
+  assert.deepEqual(s.writes, delivery === 'invitation' ? [] : ['alice', 'alice']); assert.equal(s.dispatches.length, 2);
+  if (delivery === 'invitation') {
+    assert.ok(s.dispatches.every(d => d.delivery === 'invitation'));
+    assert.equal(await board.getByText('已邀请 / 待接手', { exact: true }).count(), 2);
+    assert.deepEqual(s.issues[0].assignees, []);
+  }
   assert.ok(s.dispatches.every(d => d.initiator === 'system' && !d.acceptanceSuggestedFor));
   assert.deepEqual(s.issues[4].assignees, ['bob']); assert.deepEqual(s.issues[3].assignees, []);
   await active.stop(); active = await start(); await page.reload();
   await page.getByRole('button', { name: '批量派工', exact: true }).click();
   await board.getByText('本批派工完成', { exact: true }).waitFor();
-  await active.actions['issue.team.poll']({}); assert.equal(s.writes.length, 2);
+  await active.actions['issue.team.poll']({}); assert.equal(s.writes.length, delivery === 'invitation' ? 0 : 2); assert.equal(s.dispatches.length, 2);
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.screenshot({ path: 'artifacts/batch-assignment-2026-10-26/completed.png', fullPage: true });
+  await mkdir('artifacts/official-dispatch-2026-10-27', { recursive: true });
+  await page.screenshot({ path: `artifacts/official-dispatch-2026-10-27/completed-${delivery}.png`, fullPage: true });
   assert.deepEqual(errors, []);
 });

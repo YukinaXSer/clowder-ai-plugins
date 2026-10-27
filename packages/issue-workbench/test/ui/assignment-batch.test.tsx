@@ -6,12 +6,12 @@ import { AssignmentBatchBoard } from '../../src/team-ui/AssignmentBatchBoard';
 // jsdom has no layout; the packed browser journey checks actual scroll visibility.
 HTMLElement.prototype.scrollIntoView = vi.fn();
 
-async function mount() {
+async function mount(delivery = 'assignment') {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
   const node = document.createElement('div'); document.body.append(node); const root = createRoot(node);
   const item = (number: number, status = 'ready'): any => ({ issue: { id: String(number), repo: 'fixture/repo', number, title: '问题 ' + number, assignees: status === 'retained' ? ['bob'] : [], url: 'https://github.com/fixture/repo/issues/' + number },
     status, included: status !== 'retained', category: 'Agent 运行', score: 7, login: 'alice', options: { members: ['alice', 'bob', 'windows'], eligibleMembers: ['alice', 'bob'], preferredLogin: 'alice', affectedSystems: ['macos'], recommendationReason: 'macOS 普通成员加权分配', excluded: [{ login: 'windows', reason: '系统不兼容' }] } });
-  let batch: any = { id: 'batch', revision: 1, status: 'draft', initiator: 'system', createdAt: 1, items: [item(1), item(2, 'needs-analysis'), item(3, 'retained')] };
+  let batch: any = { id: 'batch', revision: 1, status: 'draft', initiator: 'system', delivery, createdAt: 1, items: [item(1), item(2, 'needs-analysis'), item(3, 'retained')] };
   const host: any = {
     getAssignmentBatch: vi.fn(async () => structuredClone(batch)), summary: vi.fn(async () => ({ settings: {}, analysisCats: [] })),
     editAssignmentBatch: vi.fn(async (args: any) => { const row = batch.items.find((i: any) => i.issue.id === args.issueId); Object.assign(row, { login: args.login, included: args.included }); batch.revision++; return structuredClone(batch); }),
@@ -50,6 +50,16 @@ it('refreshing or closing the board does not itself dispatch', async () => {
   const v = await mount();
   try { await act(async () => v.button('刷新进度').click()); expect(v.host.confirmAssignmentBatch).not.toHaveBeenCalled(); }
   finally { await v.close(); }
+});
+it('shows the frozen invitation delivery in confirmation instead of promising GitHub assignees', async () => {
+  const v = await mount('invitation');
+  try {
+    await act(async () => v.node.querySelector<HTMLInputElement>('[aria-label="本次参与 fixture/repo#2"]')!.click());
+    await act(async () => v.button('核对并派工').click());
+    expect(v.node.querySelector('[role="alertdialog"]')?.textContent).toContain('即将发送 1 条任务邀请');
+    expect(v.node.querySelector('[role="alertdialog"]')?.textContent).toContain('不设置 GitHub 负责人');
+    expect(v.host.confirmAssignmentBatch).not.toHaveBeenCalled();
+  } finally { await v.close(); }
 });
 it('shows only the clicked participation change while saving and retains it on success', async () => {
   const v = await mount();

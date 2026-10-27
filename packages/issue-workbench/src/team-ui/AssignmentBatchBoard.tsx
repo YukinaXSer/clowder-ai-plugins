@@ -5,7 +5,7 @@ import { memberDescription } from '../classification/member-profile.js';
 import { systemLabels } from '../classification/issue-context.js';
 import styles from './team.module.css';
 
-const labels = { ready: '可派工', 'needs-analysis': '待分析', blocked: '待处理', retained: '已有负责人 / 保留', assigned: '已派工', failed: '未完成' };
+const labels = { ready: '可派工', 'needs-analysis': '待分析', blocked: '待处理', retained: '已有负责人 / 保留', assigned: '已派工', invited: '已邀请 / 待接手', failed: '未完成' };
 type PendingEdit = { item: AssignmentBatchItem; login: string; included: boolean };
 function revealFeedback(element: HTMLElement | null) {
   element?.focus({ preventScroll: true });
@@ -43,7 +43,7 @@ export function AssignmentBatchBoard({ host }: { host: TeamHost }) {
   }, [host]);
   const items = (batch?.items ?? []).map(item => pendingEdit && item.issue.repo === pendingEdit.item.issue.repo && item.issue.id === pendingEdit.item.issue.id
     ? { ...item, login: pendingEdit.login, included: pendingEdit.included } : item);
-  const selected = items.filter(i => i.included), remaining = selected.filter(i => i.status !== 'assigned');
+  const selected = items.filter(i => i.included), remaining = selected.filter(i => !['assigned', 'invited'].includes(i.status));
   const blocked = remaining.some(i => !i.login || !['ready', 'failed'].includes(i.status));
   const draft = batch?.status === 'draft', stopped = batch?.status === 'cancelled' || batch?.status === 'completed';
   const revision = () => ({ id: batch!.id, expectedRevision: batch!.revision });
@@ -56,7 +56,7 @@ export function AssignmentBatchBoard({ host }: { host: TeamHost }) {
     const result = await host.planAssignments({ requestId: requestId.current }); requestId.current = undefined; return result;
   }
   const distribution = Object.entries(selected.reduce<Record<string, number>>((counts, item) => {
-    if (item.login && ['ready', 'assigned', 'failed'].includes(item.status)) counts[item.login] = (counts[item.login] ?? 0) + 1;
+    if (item.login && ['ready', 'assigned', 'invited', 'failed'].includes(item.status)) counts[item.login] = (counts[item.login] ?? 0) + 1;
     return counts;
   }, {}));
   return <section aria-label="批量派工看板" className={styles.batch}>
@@ -73,6 +73,7 @@ export function AssignmentBatchBoard({ host }: { host: TeamHost }) {
     </div>
     {!batch && <p>{busy ? '正在读取…' : '尚无批次。准备看板只读取 GitHub，不会发出指派。'}</p>}
     {batch && <>
+      <p>本批方式：{batch.delivery === 'invitation' ? '通知成员接手（不设置 GitHub 负责人）' : '设置 GitHub 负责人'}。</p>
       <p><strong>{({ draft: '待确认', analyzing: '分类分析中', running: '执行中', partial: '部分完成，等待处理', completed: '本批派工完成', cancelled: '本批已停止' })[batch.status]}</strong>
         {' · '}{new Date(batch.createdAt).toLocaleString()} 的 Open 快照 · 共 {items.length} 条</p>
       <p className={styles.muted}>之后新增的问题不进入本批。已有负责人保持原状。修改分类或系统时，请先回到问题详情保存，再点击“重新核对计划”。</p>
@@ -123,7 +124,8 @@ export function AssignmentBatchBoard({ host }: { host: TeamHost }) {
         {batch.status === 'partial' && <p>已完成项不会重复派工。来源或分工变化时，可停止本批后重新准备；评论结果待核对时，到“团队记录 → 派工记录”处理。</p>}
       </div>}
       {confirmation === batch.revision && <section ref={confirmationPanel} role="alertdialog" aria-label="确认批量派工" tabIndex={-1} className={styles.notice}>
-        <p>即将设置 {remaining.length} 个 Issue 的 GitHub 负责人，并以 system 为提交人标识发布说明。</p>
+        <p>{batch.delivery === 'invitation' ? `即将发送 ${remaining.length} 条任务邀请，不设置 GitHub 负责人，并以 system 为提交人标识发布说明。`
+          : `即将设置 ${remaining.length} 个 Issue 的 GitHub 负责人，并以 system 为提交人标识发布说明。`}</p>
         <p>{distribution.map(([login, count]) => `@${login}：${count} 条`).join('；')}。不会自动修代码或合入。</p>
         <button disabled={busy} onClick={() => void action(() => (draft ? host.confirmAssignmentBatch : host.retryAssignmentBatch)(revision()))}>确认批量派工</button>
         <button disabled={busy} onClick={() => { setConfirmation(undefined); reviewButton.current?.focus(); }}>返回调整</button>

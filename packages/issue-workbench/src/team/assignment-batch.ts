@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import type { PluginOwnerOperationContext } from '@clowder-ai/plugin-sdk';
-import type { AssignmentOptions, readGroup } from './group.js';
+import type { AssignmentOptions } from './group.js';
 import type { DispatchRecord, TeamRecord } from './records.js';
 import type { TeamContext, TeamIssue } from './types.js';
 import { hash, idInput, login, repository } from './schema.js';
@@ -10,12 +10,14 @@ const revisionInput = idInput.extend({ expectedRevision: z.number().int().positi
 export interface AssignmentBatchItem {
   issue: TeamIssue; sourceVersion: string; policyHash: string; category: string; score: number | null;
   options: AssignmentOptions; included: boolean; login: string; manual?: boolean;
-  status: 'ready' | 'needs-analysis' | 'blocked' | 'retained' | 'assigned' | 'failed';
+  status: 'ready' | 'needs-analysis' | 'blocked' | 'retained' | 'assigned' | 'invited' | 'failed';
   reason?: string; lockedReason?: string; analysisJobId?: string; recordId?: string;
 }
 export interface AssignmentBatch {
   id: string; requestId: string; ownerUserId: string; initiator: 'system'; createdAt: number;
   status: 'draft' | 'analyzing' | 'running' | 'partial' | 'completed' | 'cancelled';
+  /** Older batches always meant assignment; a refresh explicitly adopts the configured mode. */
+  delivery?: 'assignment' | 'invitation';
   items: AssignmentBatchItem[]; catId?: string; threadId?: string;
   confirmation?: { operationId: string; revision: number; at: number };
   error?: string;
@@ -23,16 +25,17 @@ export interface AssignmentBatch {
 export type AssignmentBatchView = AssignmentBatch & { revision: number };
 export interface AssignmentBatchDriver {
   authorized(): Promise<void>;
+  delivery(): Promise<'assignment' | 'invitation'>;
   catalog(): Promise<TeamIssue[]>;
   issue(repo: string, number: number): Promise<TeamIssue>;
-  snapshotGroup(): Promise<Awaited<ReturnType<typeof readGroup>>>;
-  preview(issue: TeamIssue, reservations: TeamRecord[], group?: Awaited<ReturnType<typeof readGroup>>): Promise<Omit<AssignmentBatchItem, 'included' | 'login'>>;
-  validateAccess(items: AssignmentBatchItem[]): Promise<void>;
+  snapshotPreview(): Promise<(issue: TeamIssue, reservations: TeamRecord[]) => Promise<Omit<AssignmentBatchItem, 'included' | 'login'>>>;
+  validateAccess(items: AssignmentBatchItem[], delivery: 'assignment' | 'invitation'): Promise<void>;
   target(catId: string): Promise<string>;
   analyze(batch: AssignmentBatch, item: AssignmentBatchItem): Promise<{ done: boolean; error?: string }>;
   dispatch(batch: AssignmentBatch, item: AssignmentBatchItem): Promise<DispatchRecord>;
   record(id: string): Promise<DispatchRecord | undefined>;
 }
+export const batchItemCompleted = (item: AssignmentBatchItem) => item.status === 'assigned' || item.status === 'invited';
 // Share repeated roster/options inside the durable snapshot. A few hundred
 // Open issues must not duplicate the seven-member roster into Host's 1 MiB value.
 type StoredBatch = Omit<AssignmentBatch, 'items'> & { options: AssignmentOptions[];
@@ -88,9 +91,9 @@ export class AssignmentBatches {
   }
   private async preview(issues: TeamIssue[], previous: AssignmentBatchItem[] = []) {
     const reservations: TeamRecord[] = [], items: AssignmentBatchItem[] = [];
-    const group = await this.driver.snapshotGroup();
+    const previewIssue = await this.driver.snapshotPreview();
     for (const issue of issues) {
-      const preview = await this.driver.preview(issue, reservations, group);
+      const preview = await previewIssue(issue, reservations);
       // Do not duplicate issue bodies in the aggregate board journal.
       preview.issue = { ...preview.issue, body: '' };
       delete preview.options.acceptanceSuggestedFor;
@@ -118,7 +121,7 @@ export class AssignmentBatches {
     const unique = [...new Map(issues.map(i => [i.repo + ':' + i.id, i])).values()]
       .sort((a, b) => a.repo.localeCompare(b.repo) || a.number - b.number);
     const items = await this.preview(unique);
-    return this.write({ id, requestId: args.requestId, ownerUserId: owner.userId, initiator: 'system', createdAt: Date.now(), status: 'draft', items }, null);
+    return this.write({ id, requestId: args.requestId, ownerUserId: owner.userId, initiator: 'system', createdAt: Date.now(), status: 'draft', delivery: await this.driver.delivery(), items }, null);
   }
   private async currentIssues(batch: AssignmentBatch) {
     const catalog = new Map((await this.driver.catalog()).map(issue => [issue.repo + ':' + issue.id, issue]));
@@ -134,6 +137,7 @@ export class AssignmentBatches {
     const { batch, revision } = await this.owned(input, owner);
     if (batch.status !== 'draft') throw new Error('只有待确认批次可以刷新计划');
     batch.items = await this.preview(await this.currentIssues(batch), batch.items);
+    batch.delivery = await this.driver.delivery();
     delete batch.error; return this.write(batch, revision);
   }
   async edit(input: unknown, owner: PluginOwnerOperationContext) {
@@ -160,15 +164,15 @@ export class AssignmentBatches {
     return this.write(batch, revision);
   }
   private async validate(batch: AssignmentBatch) {
-    const selected = batch.items.filter(i => i.included && i.status !== 'assigned');
+    const selected = batch.items.filter(i => i.included && !batchItemCompleted(i));
     if (!selected.length) throw new Error('没有待派工条目');
-    await this.driver.validateAccess(selected);
-    const catalog = await this.driver.catalog(), group = await this.driver.snapshotGroup();
+    await this.driver.validateAccess(selected, batch.delivery ?? 'assignment');
+    const catalog = await this.driver.catalog(), previewIssue = await this.driver.snapshotPreview();
     for (const item of selected) {
       if (!item.login || !['ready', 'failed'].includes(item.status)) throw new Error('请先处理待分析/待判断条目，或取消本次参与');
       const current = catalog.find(i => i.repo === item.issue.repo && i.id === item.issue.id);
       if (!current) throw new Error(`${item.issue.repo}#${item.issue.number} 来源已关闭或不可读，请刷新计划`);
-      const plan = await this.driver.preview(current, [], group);
+      const plan = await previewIssue(current, []);
       const own = item.recordId ? await this.driver.record(item.recordId) : undefined;
       const ownClaim = own?.assignment?.login === item.login && current.assignees.every(login => login === item.login);
       if (current.id !== item.issue.id || current.state !== 'open' || plan.sourceVersion !== item.sourceVersion || plan.policyHash !== item.policyHash
@@ -212,16 +216,16 @@ export class AssignmentBatches {
         if (!batch.confirmation) throw new Error('缺少批次确认，不能执行');
         let remaining = 10;
         for (const item of batch.items) {
-          if (!item.included || item.status === 'assigned') continue;
+          if (!item.included || batchItemCompleted(item)) continue;
           if (!remaining--) break;
           item.recordId ??= hash(['assignment-batch-dispatch', batch.id, item.issue.repo, item.issue.id]);
           revision = (await this.write(batch, revision)).revision;
           const row = await this.driver.dispatch(batch, item);
-          item.status = row.assignment?.status === 'assigned' ? 'assigned' : 'failed';
+          item.status = row.assignment?.status === 'assigned' || row.assignment?.status === 'invited' ? row.assignment.status : 'failed';
           item.reason = row.assignment?.reason;
           if (item.status === 'failed') { batch.status = 'partial'; break; }
         }
-        if (batch.items.every(i => !i.included || i.status === 'assigned')) batch.status = 'completed';
+        if (batch.items.every(i => !i.included || batchItemCompleted(i))) batch.status = 'completed';
       }
     } catch (error) {
       await this.driver.authorized(); batch.error = error instanceof Error ? error.message.slice(0, 300) : '批次处理失败';
