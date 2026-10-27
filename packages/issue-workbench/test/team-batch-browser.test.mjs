@@ -16,10 +16,14 @@ test('packed bulk board: complete Open snapshot, edits, skips, confirmation, sys
   const directory = await mkdtemp(join(tmpdir(), 'issue-batch-browser-')); t.after(() => rm(directory, { recursive: true, force: true }));
   const [pack] = JSON.parse(execFileSync(process.execPath, ['scripts/pack-publish-artifact.mjs', 'packages/issue-workbench', directory], { cwd: repo, encoding: 'utf8' }));
   execFileSync('tar', ['-xzf', join(directory, pack.filename), '-C', directory]);
-  const { createIssueTeamModule } = await import(pathToFileURL(join(directory, 'package/dist/team-plugin.js')).href);
+  const { createIssueTeamModule, GhTeamProvider } = await import(pathToFileURL(join(directory, 'package/dist/team-plugin.js')).href);
   const { coordinationPreview, fixtureBindings } = await import(pathToFileURL(join(directory, 'package/dist/coordination-host.mjs')).href);
   const s = setup(); s.config.automaticAssignment = false; s.config.analysisThreadId = 'analysis'; s.config.routingRules = '[]';
-  s.provider.assignable = async () => true;
+  const eligibility = new GhTeamProvider(async args => {
+    if (args[3] === 'repos/fixture/repo/assignees?per_page=100') return JSON.stringify([[{ login: 'Alice' }], [{ login: 'Bob' }]]);
+    throw new Error('GitHub request failed (HTTP 404)');
+  });
+  s.provider.assignable = (...args) => eligibility.assignable(...args);
   const original = structuredClone(s.issues[0]);
   s.issues.splice(0, 1, ...Array.from({ length: 7 }, (_, index) => ({ ...structuredClone(original), id: `issue-${index + 1}`, number: index + 1,
     title: ['启动时会话初始化失败', 'Windows 工具路径解析失败', 'macOS 配置同步问题', '历史消息显示异常', '已经认领的问题', '尚未分析的新问题', '跨平台环境差异'][index],

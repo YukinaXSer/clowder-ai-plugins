@@ -114,8 +114,12 @@ export class GhTeamProvider implements TeamProvider {
     return rows.filter(row => row.pull_request === undefined).map(row => this.decode(repo, row));
   }
   async assignable(repo: string, target: string, signal: AbortSignal) {
-    try { await this.api(`${this.path(repo)}/assignees/${login.parse(target)}`, signal); return true; }
-    catch (error) { if (String(error).includes('HTTP 404')) return false; throw error; }
+    const normalized = login.parse(target);
+    // The single-user endpoint can reject lowercased identities that GitHub
+    // lists as assignable. Match our normalized identity against the full roster.
+    const members = z.array(z.object({ login })).parse(
+      await this.api(`${this.path(repo)}/assignees?per_page=100`, signal, undefined, true));
+    return members.some(member => member.login === normalized);
   }
   async canWrite(repo: string, target: string, signal: AbortSignal) {
     const result = z.object({ permission: z.string() }).parse(await this.api(`${this.path(repo)}/collaborators/${login.parse(target)}/permission`, signal));

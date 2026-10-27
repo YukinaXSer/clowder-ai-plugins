@@ -17,6 +17,26 @@ test('discussion reads complete comment pages and preserves edited and deleted a
 import { issueVersion } from '../src/team/schema.js';
 
 const signal = new AbortController().signal;
+test('assignment eligibility matches normalized identities across every GitHub assignee page', async () => {
+  const provider = new GhTeamProvider(async args => {
+    // GitHub can list Alice while its single-user endpoint returns 404 for alice.
+    if (args[3] !== 'repos/fixture/repo/assignees?per_page=100') throw new Error('GitHub request failed (HTTP 404)');
+    assert.ok(args.includes('--paginate')); assert.ok(args.includes('--slurp'));
+    return JSON.stringify([[{ login: 'Bob' }], [{ login: 'Alice' }]]);
+  });
+  assert.equal(await provider.assignable('fixture/repo', 'alice', signal), true);
+  assert.equal(await provider.assignable('fixture/repo', 'Alice', signal), true);
+  assert.equal(await provider.assignable('fixture/repo', 'mallory', signal), false);
+  assert.equal(await new GhTeamProvider(async () => '[[]]').assignable('fixture/repo', 'alice', signal), false);
+});
+test('assignment eligibility fails closed when the GitHub roster cannot be read completely', async () => {
+  for (const status of [403, 404, 429]) {
+    const provider = new GhTeamProvider(async () => { throw new Error(`GitHub request failed (HTTP ${status})`); });
+    await assert.rejects(provider.assignable('fixture/repo', 'alice', signal), new RegExp(`HTTP ${status}`));
+  }
+  const partial = new GhTeamProvider(async () => JSON.stringify([[{ login: 'Alice' }], { message: 'failed page' }]));
+  await assert.rejects(partial.assignable('fixture/repo', 'alice', signal), /Incomplete/);
+});
 const raw = { node_id: 'I_1', number: 1, title: 'Fails to start', body: 'startup blocked', state: 'open',
   user: { login: 'Alice' }, labels: [], assignees: [{ login: 'alice' }], html_url: 'https://github.com/fixture/repo/issues/1' };
 test('initial classification reads complete Open and Closed history while excluding pull requests', async () => {
