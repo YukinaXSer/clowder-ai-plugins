@@ -43,3 +43,44 @@ it('refreshing or closing the board does not itself dispatch', async () => {
   try { await act(async () => v.button('刷新进度').click()); expect(v.host.confirmAssignmentBatch).not.toHaveBeenCalled(); }
   finally { await v.close(); }
 });
+it('shows only the clicked participation change while saving and retains it on success', async () => {
+  const v = await mount();
+  try {
+    let complete!: () => void;
+    const pending = new Promise<void>(resolve => { complete = resolve; });
+    const save = v.host.editAssignmentBatch.getMockImplementation()!;
+    v.host.editAssignmentBatch.mockImplementation(async (args: any) => { await pending; return save(args); });
+    const first = v.node.querySelector<HTMLInputElement>('[aria-label="本次参与 fixture/repo#1"]')!;
+    const second = v.node.querySelector<HTMLInputElement>('[aria-label="本次参与 fixture/repo#2"]')!;
+    await act(async () => second.click());
+    expect(second.checked).toBe(false);
+    expect(first.checked).toBe(true);
+    expect(v.node.textContent).toContain('正在保存 #2 的调整');
+    expect(v.button('核对并派工').disabled).toBe(true);
+    await act(async () => complete());
+    expect(second.checked).toBe(false);
+    expect(first.checked).toBe(true);
+    expect(v.button('核对并派工').disabled).toBe(false);
+    expect(v.node.textContent).not.toContain('正在保存');
+    expect(v.host.confirmAssignmentBatch).not.toHaveBeenCalled();
+  } finally { await v.close(); }
+});
+it('restores the edited participation after a failed save without changing other rows', async () => {
+  const v = await mount();
+  try {
+    let fail!: (error: Error) => void;
+    v.host.editAssignmentBatch.mockImplementation(() => new Promise((_resolve, reject) => { fail = reject; }));
+    const first = v.node.querySelector<HTMLInputElement>('[aria-label="本次参与 fixture/repo#1"]')!;
+    const second = v.node.querySelector<HTMLInputElement>('[aria-label="本次参与 fixture/repo#2"]')!;
+    await act(async () => second.click());
+    expect(second.checked).toBe(false);
+    expect(first.checked).toBe(true);
+    await act(async () => fail(new Error('保存失败，请刷新后重试')));
+    expect(second.checked).toBe(true);
+    expect(first.checked).toBe(true);
+    expect(second.disabled).toBe(false);
+    expect(v.node.querySelector('[role="alert"]')?.textContent).toContain('保存失败');
+    expect(v.node.textContent).not.toContain('正在保存');
+    expect(v.host.confirmAssignmentBatch).not.toHaveBeenCalled();
+  } finally { await v.close(); }
+});

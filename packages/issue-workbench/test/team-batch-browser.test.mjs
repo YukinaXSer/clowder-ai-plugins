@@ -57,10 +57,33 @@ test('packed bulk board: complete Open snapshot, edits, skips, confirmation, sys
   assert.ok(await board.getByRole('button', { name: '核对并派工', exact: true }).isDisabled());
   await board.getByLabel('调整 fixture/repo#3 指派成员', { exact: true }).selectOption('alice');
   for (const number of [2, 4, 6, 7]) {
+    const target = board.getByLabel(`本次参与 fixture/repo#${number}`, { exact: true });
+    let release;
+    if (number === 2) {
+      const pending = new Promise(resolve => { release = resolve; });
+      await page.route('**/editAssignmentBatch', async route => { await pending; await route.continue(); });
+    }
     const saved = page.waitForResponse(r => r.url().endsWith('/editAssignmentBatch'));
-    await board.getByLabel(`本次参与 fixture/repo#${number}`, { exact: true }).click();
+    await target.click();
+    if (number === 2) {
+      try {
+        assert.equal(await target.isChecked(), false, 'clicked selection responds while the request is pending');
+        const other = board.getByLabel('本次参与 fixture/repo#1', { exact: true });
+        assert.equal(await other.isChecked(), true, 'unrelated selection stays checked');
+        await board.getByText('正在保存 #2 的调整…', { exact: true }).waitFor();
+        assert.notEqual(await other.evaluate(el => getComputedStyle(el).backgroundColor),
+          await target.evaluate(el => getComputedStyle(el).backgroundColor), 'checked and unchecked boxes remain visibly distinct during save');
+        assert.ok(await board.getByRole('button', { name: '核对并派工', exact: true }).isDisabled());
+        await mkdir('artifacts/batch-checkbox-2026-10-27', { recursive: true });
+        await page.screenshot({ path: 'artifacts/batch-checkbox-2026-10-27/saving.png', fullPage: true });
+      } finally { release(); }
+    }
     assert.ok((await saved).ok());
-    await page.waitForFunction(label => !document.querySelector(`[aria-label="${label}"]`).checked, `本次参与 fixture/repo#${number}`);
+    await page.waitForFunction(label => {
+      const input = document.querySelector(`[aria-label="${label}"]`); return !input.checked && !input.disabled;
+    }, `本次参与 fixture/repo#${number}`);
+    if (number === 2) await page.unroute('**/editAssignmentBatch');
+    assert.equal(await board.getByLabel('本次参与 fixture/repo#1', { exact: true }).isChecked(), true);
   }
   await mkdir('artifacts/batch-assignment-2026-10-26', { recursive: true });
   await board.evaluate(node => { node.scrollTop = 0; });

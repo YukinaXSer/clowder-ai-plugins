@@ -6,20 +6,23 @@ import { systemLabels } from '../classification/issue-context.js';
 import styles from './team.module.css';
 
 const labels = { ready: '可派工', 'needs-analysis': '待分析', blocked: '待处理', retained: '已有负责人 / 保留', assigned: '已派工', failed: '未完成' };
+type PendingEdit = { item: AssignmentBatchItem; login: string; included: boolean };
 export function AssignmentBatchBoard({ host }: { host: TeamHost }) {
   const [batch, setBatch] = useState<AssignmentBatchView | null>();
   const [summary, setSummary] = useState<TeamSummary>();
   const [catId, setCatId] = useState(''), [filter, setFilter] = useState('all');
   const [busy, setBusy] = useState(false), [error, setError] = useState('');
+  const [pendingEdit, setPendingEdit] = useState<PendingEdit>();
   const [confirmation, setConfirmation] = useState<number>();
   const working = useRef(false), generation = useRef(0), requestId = useRef<string>();
   const latest = useRef(batch); latest.current = batch;
-  async function action(work: () => Promise<AssignmentBatchView | null>) {
+  async function action(work: () => Promise<AssignmentBatchView | null>, edit?: PendingEdit) {
     if (working.current) return;
     const current = generation.current; working.current = true; setBusy(true); setError(''); setConfirmation(undefined);
+    setPendingEdit(edit);
     try { const value = await work(); if (generation.current === current) setBatch(value); }
     catch (e) { if (generation.current === current) setError((e as Error).message); }
-    finally { working.current = false; if (generation.current === current) setBusy(false); }
+    finally { working.current = false; if (generation.current === current) { setBusy(false); setPendingEdit(undefined); } }
   }
   useEffect(() => {
     const current = ++generation.current;
@@ -31,13 +34,15 @@ export function AssignmentBatchBoard({ host }: { host: TeamHost }) {
     }, 3000);
     return () => { generation.current++; clearInterval(timer); };
   }, [host]);
-  const items = batch?.items ?? [], selected = items.filter(i => i.included), remaining = selected.filter(i => i.status !== 'assigned');
+  const items = (batch?.items ?? []).map(item => pendingEdit && item.issue.repo === pendingEdit.item.issue.repo && item.issue.id === pendingEdit.item.issue.id
+    ? { ...item, login: pendingEdit.login, included: pendingEdit.included } : item);
+  const selected = items.filter(i => i.included), remaining = selected.filter(i => i.status !== 'assigned');
   const blocked = remaining.some(i => !i.login || !['ready', 'failed'].includes(i.status));
   const draft = batch?.status === 'draft', stopped = batch?.status === 'cancelled' || batch?.status === 'completed';
   const revision = () => ({ id: batch!.id, expectedRevision: batch!.revision });
   const cats = summary?.analysisCats ?? [];
   function edit(item: AssignmentBatchItem, login: string, included: boolean) {
-    return action(() => host.editAssignmentBatch({ ...revision(), repo: item.issue.repo, issueId: item.issue.id, login, included }));
+    return action(() => host.editAssignmentBatch({ ...revision(), repo: item.issue.repo, issueId: item.issue.id, login, included }), { item, login, included });
   }
   async function prepare() {
     requestId.current ??= crypto.randomUUID();
@@ -52,6 +57,7 @@ export function AssignmentBatchBoard({ host }: { host: TeamHost }) {
     <p className={styles.notice}>批量派工提交人：<strong>system</strong>。GitHub 原 Issue 作者及实际发评论账号保留真实身份；本批不附带邀请提交者验收的建议。</p>
     {error && <p role="alert">{error}</p>}
     {batch?.error && <p role="alert">{batch.error}</p>}
+    {pendingEdit && <p role="status">正在保存 #{pendingEdit.item.issue.number} 的调整…</p>}
     <div className={styles.actions}>
       {(!batch || stopped) && <button disabled={busy || batch === undefined} onClick={() => void action(prepare)}>读取当前 Open 问题看板</button>}
       <button disabled={busy} onClick={() => void action(() => host.getAssignmentBatch(batch ? { id: batch.id } : {}))}>刷新进度</button>
