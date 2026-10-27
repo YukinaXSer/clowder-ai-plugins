@@ -3,6 +3,21 @@ import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
 import { TeamAssignment } from '../../src/team-ui/TeamAssignment';
 import { TeamRecordView } from '../../src/team-ui/TeamRecordView';
+import { TeamRecovery } from '../../src/team-ui/TeamRecovery';
+
+it('offers revision-bound recovery for delivered analysis with no saved result', async () => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+  const node = document.createElement('div'); document.body.append(node); const root = createRoot(node);
+  const host = { retry: vi.fn().mockResolvedValue({}) } as any;
+  const row: any = { kind: 'analysis', id: 'unfinished', revision: 12, status: 'delivered' };
+  try {
+    await act(async () => root.render(<TeamRecovery host={host} row={row} busy={false} act={async work => { await work(); }} />));
+    const button = [...node.querySelectorAll('button')].find(b => b.textContent === '重试此记录');
+    expect(button).toBeTruthy();
+    await act(async () => button!.click());
+    expect(host.retry).toHaveBeenCalledWith('unfinished', 12);
+  } finally { await act(async () => root.unmount()); node.remove(); vi.unstubAllGlobals(); }
+});
 
 function fixture(assignees: string[] = []) {
   const issue = { repo: 'fixture/repo', number: 1, state: 'open', assignees, author: 'reporter', url: 'https://github.com/fixture/repo/issues/1' };

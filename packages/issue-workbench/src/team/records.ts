@@ -30,6 +30,8 @@ export interface Job {
   createdAt?: number;
   status: 'pending' | 'delivered' | 'analyzed';
   messageId?: string;
+  deliveryEpoch?: number;
+  previousMessageIds?: string[];
   error?: string;
   analysis?: TeamAnalysis;
   provenance?: { catId: string; invocationId: string; sourceMessageId: string; recordedAt: number };

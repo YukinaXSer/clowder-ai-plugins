@@ -295,7 +295,8 @@ contributions:
     id: team-submit
     name: issue_team_submit
     description: "Submit the requested semantic analysis. Use as the assigned analysis cat in the
-      original thread. Not for stale sources, invented quotes or editing member rules. Output:
+      original thread. Evidence must be one continuous verbatim excerpt from the current title or body;
+      keep explanations in reason. Not for stale sources, paraphrased quotes or editing member rules. Output:
       persisted analysis; if owner-enabled, invites or assigns only current group members according to the saved delivery mode, preferring a member
       reporter before Feature/category rules, suggests reporter acceptance before merge, and
       publishes score/reason. Existing Feature classifications and different assignees are preserved."

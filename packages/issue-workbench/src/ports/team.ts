@@ -34,7 +34,7 @@ export interface TeamHost {
   get(id: string): Promise<TeamRecordDetail>;
   acceptInbox(input: { id: string; expectedRevision: number }): Promise<TeamRecord>;
   analyze(input: { repo: string; number: number; requestId: string; catId?: string }): Promise<TeamRecord>;
-  retry(id: string): Promise<TeamRecord>;
+  retry(id: string, expectedRevision?: number): Promise<TeamRecord>;
   assign(input: { id: string; expectedRevision: number; login: string; delivery?: 'assignment' | 'invitation' }): Promise<TeamRecord>;
   assignIssue(input: { repo: string; number: number; sourceVersion: string; requestId: string; login: string; delivery?: 'assignment' | 'invitation' }): Promise<TeamRecord>;
   republish(id: string, expectedRevision: number): Promise<TeamRecord>;
@@ -85,7 +85,7 @@ export function createTeamClient(request: (path: string, options?: RequestInit) 
     get: id => call('get', { id }),
     acceptInbox: input => call('acceptInbox', input),
     analyze: input => call('analyze', input),
-    retry: id => call('retry', { id }),
+    retry: (id, expectedRevision) => call('retry', { id, expectedRevision }),
     assign: input => call('assign', input, true),
     assignIssue: input => call('assignIssue', input, true),
     republish: (id, expectedRevision) => call('republish', { id, expectedRevision }, true),

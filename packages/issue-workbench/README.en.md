@@ -578,6 +578,8 @@ Within the compatible pool, architectural duties precede the eligible reporter, 
 
 ### One-time bulk assignment board
 
+Analysis `evidence` must be one continuous verbatim excerpt from the current Issue title or body; explanations belong in `reason`. A mismatch returns actionable tool feedback and remains visible on the record. If the cat has finished without saving a result, use **Retry this record** (`重试此记录`) in its detail to redeliver the same record. Earlier messages remain available, and retries check the record revision. Resume a paused classification queue before retrying its analysis.
+
 Open **Bulk assignment** (`批量派工`) in the top toolbar, then **Read current Open issues** (`读取当前 Open 问题看板`). The board snapshots every Open Issue in enabled repositories without writing GitHub. It shows effective classifications, systems, duties, scores, candidates and routing reasons. Saved human classifications take precedence. Ordinary weighted recommendations include virtual reservations within this batch.
 
 Fill missing classifications using **Complete classification** (`补齐分类分析`), or save corrections in the existing issue detail and refresh the plan. Cat results return to this board without auto-dispatch. Adjust compatible recipients per row or uncheck participation. Existing GitHub owners are retained. Unknown/multiple systems, missing eligible members, stale human analysis and unresolved publications require attention or exclusion.

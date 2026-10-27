@@ -49,6 +49,29 @@ test('classification queue plans without sending, runs serially and resumes the 
   await runtime.stop();
 });
 
+test('unfinished queue analysis can be retried in place, respecting pause and advancing only after a real submission', async () => {
+  const s = fixture(), runtime = s.runtime();
+  let queue = await s.control(runtime, await s.plan(runtime), 'running');
+  const id = queue.items[0].jobId;
+  let row = await s.call(runtime, 'get', { id });
+  queue = await s.control(runtime, queue, 'paused');
+  await assert.rejects(s.call(runtime, 'retry', { id, expectedRevision: row.revision }), /paused|stopped/);
+  assert.equal(s.sends.size, 1);
+  await s.control(runtime, queue, 'running');
+  row = await s.call(runtime, 'get', { id });
+  await s.call(runtime, 'retry', { id, expectedRevision: row.revision });
+  const retry = await s.call(runtime, 'get', { id });
+  assert.equal(retry.classificationQueueId, queue.id); assert.equal(s.sends.size, 2);
+  await runtime.invoke('submit', { id, analysis: s.analysis }, { ...s.caller('receiver'), source: undefined,
+    originTriggerMessageId: retry.messageId });
+  await runtime.recover();
+  queue = (await s.call(runtime, 'summary')).classificationQueues[0];
+  assert.equal(queue.items[0].jobId, id); assert.equal(queue.items[0].status, 'analyzed');
+  assert.equal(queue.items[1].status, 'waiting'); assert.equal(s.sends.size, 3);
+  assert.deepEqual(s.writes, []); assert.deepEqual(s.dispatches, []);
+  await runtime.stop();
+});
+
 test('pause stops automatic dispatch and new analyses; resuming requires the current queue revision', async () => {
   const s = fixture(); const runtime = s.runtime();
   s.config.automaticAssignment = true;

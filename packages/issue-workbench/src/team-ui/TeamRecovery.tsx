@@ -10,12 +10,12 @@ export function TeamRecovery({ host, row, busy, act }: {
   const uncertain = row.kind !== 'inbox'
     ? !!row.assignment?.commentAttempted && !row.assignment.commentId
     : !!row.receipt?.commentAttempted && !row.receipt.commentId;
-  const retryable = (row.kind !== 'assignment' || row.automatic) && ((row.kind !== 'assignment' && row.error) || uncertain || (row.kind !== 'inbox'
+  const retryable = (row.kind === 'analysis' && !row.analysis && row.status === 'delivered') || (row.kind !== 'assignment' || row.automatic) && ((row.kind !== 'assignment' && row.error) || uncertain || (row.kind !== 'inbox'
     ? row.assignment && !['assigned', 'invited'].includes(row.assignment.status)
     : row.status === 'pending' || row.withdrawal?.status === 'pending'));
   return <>
     {retryable && <button type="button" disabled={busy}
-      onClick={() => void act(() => host.retry(row.id))}>重试此记录</button>}
+      onClick={() => void act(() => host.retry(row.id, row.revision))}>重试此记录</button>}
     {uncertain && <div>
       <button type="button" disabled={busy} onClick={() => setConfirm(true)}>核对并重新发布</button>
       {confirm && <div role="group" aria-label="确认重新发布">

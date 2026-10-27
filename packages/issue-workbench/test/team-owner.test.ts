@@ -30,6 +30,50 @@ async function fixture() {
   return { ...s, active, call };
 }
 
+test('invalid evidence returns actionable feedback without accepting analysis or exposing provider errors', async () => {
+  const s = await fixture();
+  const job = (await s.call('analyze', { repo: 'fixture/repo', number: 1, requestId: 'bad-quote' })).data;
+  const submit = (evidence: string, caller = s.caller()) => s.active.actions['issue.team.submit']!({ id: job.id,
+    analysis: { ...s.analysis, evidence } }, caller) as Promise<any>;
+  const denied = await submit('Report says: ' + s.analysis.evidence);
+  assert.equal(denied.data.error.code, 'analysis_evidence_mismatch');
+  assert.match(denied.data.error.message, /continuous|连续/);
+  const pending = (await s.call('get', { id: job.id })).data;
+  assert.equal(pending.analysis, undefined);
+  assert.equal(pending.error, denied.data.error.message);
+  await assert.rejects(submit('invented', s.caller('receiver')), /target/);
+  const result = await submit(s.analysis.evidence);
+  assert.equal(result.data.status, 'analyzed'); assert.equal(result.data.error, undefined);
+  assert.deepEqual(s.writes, []); assert.deepEqual(s.dispatches, []);
+  await s.active.stop();
+});
+
+test('owner retry redelivers an unfinished analysis once and binds submission to its new delivery', async () => {
+  const s = await fixture();
+  const job = (await s.call('analyze', { repo: 'fixture/repo', number: 1, requestId: 'unfinished' })).data;
+  const detail = (await s.call('get', { id: job.id })).data;
+  await assert.rejects(s.call('retry', { id: job.id }), /revision/i);
+  await assert.rejects(s.call('retry', { id: job.id, expectedRevision: detail.revision }, owner('retry', { userId: 'other' })), /owner/i);
+  s.failSend(true);
+  const retry = (await s.call('retry', { id: job.id, expectedRevision: detail.revision })).data;
+  assert.equal(retry.status, 'pending'); assert.equal(retry.messageId, undefined);
+  assert.deepEqual(retry.previousMessageIds, [job.messageId]);
+  await assert.rejects(s.call('retry', { id: job.id, expectedRevision: detail.revision }), /revision|changed/i);
+  s.failSend(false);
+  await s.call('retry', { id: job.id });
+  const redelivered = (await s.call('get', { id: job.id })).data;
+  assert.equal(s.sends.size, 2); assert.notEqual(redelivered.messageId, job.messageId);
+  await s.active.actions['issue.team.poll']!({});
+  assert.equal(s.sends.size, 2, 'background recovery must not redeliver an already sent retry');
+  const submit = (originTriggerMessageId: string) => s.active.actions['issue.team.submit']!({ id: job.id, analysis: s.analysis },
+    { ...s.caller(), source: undefined, originTriggerMessageId }) as Promise<any>;
+  await assert.rejects(submit(job.messageId), /source|origin/i);
+  const done = (await submit(redelivered.messageId)).data;
+  assert.equal(done.provenance.sourceMessageId, redelivered.messageId);
+  assert.equal(done.status, 'analyzed'); assert.deepEqual(s.writes, []); assert.deepEqual(s.dispatches, []);
+  await s.active.stop();
+});
+
 test('owner workbench sends a real module request, reads the submitted result and records explicit feedback', async () => {
   const s = await fixture();
   const summary = await s.call('summary');
