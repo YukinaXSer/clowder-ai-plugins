@@ -1,7 +1,7 @@
 import { routingContext } from '../classification/routing-context.js';
 import { categoryInstructions } from '../classification/taxonomy.js';
 import { z } from 'zod';
-import { AnalysisEvidenceError } from './analysis-feedback.js';
+import { AnalysisValidationError } from './analysis-feedback.js';
 import { createHash } from 'node:crypto';
 import type { PluginOwnerOperationContext } from '@clowder-ai/plugin-sdk';
 import type { TeamIssueContext } from '../ports/team.js';
@@ -449,7 +449,9 @@ export class IssueTeamRuntime {
     await this.save(job, revision); return job;
   }
   private async submit(input: unknown, caller: TeamCaller) {
-    const args = idInput.extend({ analysis: analysisSchema }).parse(input);
+    const parsed = idInput.extend({ analysis: analysisSchema }).safeParse(input);
+    if (!parsed.success) throw new AnalysisValidationError('analysis_input_invalid');
+    const args = parsed.data;
     const entry = await this.row(args.id), job = entry.value;
     if (job.kind !== 'analysis' || job.catId !== caller.catId || job.threadId !== caller.threadId) throw new Error('Analysis target does not match Host caller');
     // Host wait-source projection is optional for a plugin-delivered turn.
@@ -461,7 +463,7 @@ export class IssueTeamRuntime {
     const issue = await this.issue(job.issue.repo, job.issue.number);
     if (issueVersion(issue) !== job.sourceVersion) throw new Error('Source changed; stale analysis cannot be applied');
     if (![issue.title, issue.body].some(text => text.includes(args.analysis.evidence))) {
-      const error = new AnalysisEvidenceError();
+      const error = new AnalysisValidationError('analysis_evidence_mismatch');
       if (!job.analysis) { job.error = error.message; await this.save(job, entry.revision); }
       throw error;
     }

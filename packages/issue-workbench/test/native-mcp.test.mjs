@@ -25,7 +25,7 @@ test('packaged stdio entry uses fresh invocation credentials and only declared H
   const credentials = join(directory, 'turn.json');
   const calls = [];
   let refuse = false;
-  let validation = false;
+  let validation;
   const http = createServer(async (request, response) => {
     assert.equal(request.url, '/api/plugin-runtime/action');
     assert.equal(request.headers['x-clowder-plugin-action-token'], 'fixture-activation');
@@ -34,7 +34,7 @@ test('packaged stdio entry uses fresh invocation credentials and only declared H
     response.setHeader('content-type', 'application/json');
     response.statusCode = refuse ? 403 : 200;
     response.end(JSON.stringify(refuse ? { error: 'private-fixture-provider-error' } : { result: { data: validation
-      ? { error: { code: 'analysis_evidence_mismatch', message: 'private-fixture-provider-error' } } : { received: true } } }));
+      ? { error: { code: validation, message: 'private-fixture-provider-error' } } : { received: true } } }));
   });
   await new Promise(resolve => http.listen(0, '127.0.0.1', resolve));
   const client = new Client({ name: 'issue-native-acceptance', version: '1' });
@@ -67,11 +67,17 @@ test('packaged stdio entry uses fresh invocation credentials and only declared H
     const denied = await client.callTool({ name: 'issue_team_get', arguments: {} });
     assert.equal(denied.isError, true);
     assert.doesNotMatch(JSON.stringify(denied), /private-fixture-provider-error|fresh-token|fixture-activation/);
-    refuse = false; validation = true;
+    refuse = false; validation = 'analysis_evidence_mismatch';
     const invalid = await client.callTool({ name: 'issue_team_submit', arguments: {} });
     assert.equal(invalid.isError, true);
     assert.match(invalid.content[0].text, /continuous|连续/);
     assert.doesNotMatch(JSON.stringify(invalid), /private-fixture-provider-error|fresh-token|fixture-activation/);
+    validation = 'analysis_input_invalid';
+    const malformed = await client.callTool({ name: 'issue_team_submit', arguments: {} });
+    assert.equal(malformed.isError, true);
+    assert.match(malformed.content[0].text, /reason.*1000/);
+    assert.match(malformed.content[0].text, /evidence.*1200/);
+    assert.doesNotMatch(JSON.stringify(malformed), /private-fixture-provider-error|fresh-token|fixture-activation/);
   } finally {
     await client.close();
     await new Promise(resolve => http.close(resolve));

@@ -30,6 +30,35 @@ async function fixture() {
   return { ...s, active, call };
 }
 
+test('invalid analysis input returns safe corrective feedback and remains retryable', async () => {
+  const s = await fixture();
+  const job = (await s.call('analyze', { repo: 'fixture/repo', number: 1, requestId: 'invalid-input' })).data;
+  const submit = (analysis: unknown) => s.active.actions['issue.team.submit']!({ id: job.id, analysis }, s.caller()) as Promise<any>;
+  const invalid = [
+    { ...s.analysis, reason: 'x'.repeat(1030) },
+    { ...s.analysis, evidence: 'x'.repeat(1201) },
+    { ...s.analysis, workaround: 'x'.repeat(1001) },
+    { ...s.analysis, score: 11 },
+    { ...s.analysis, affectedSystems: ['secret-provider-value'] },
+    { ...s.analysis, 'private-fixture-token': 'secret-provider-value' },
+  ];
+  for (const analysis of invalid) {
+    const result = await submit(analysis);
+    assert.equal(result.data.error.code, 'analysis_input_invalid');
+    assert.match(result.data.error.message, /reason.*1000/);
+    assert.match(result.data.error.message, /evidence.*1200/);
+    assert.match(result.data.error.message, /workaround.*1000/);
+    assert.doesNotMatch(JSON.stringify(result), /private-fixture-token|secret-provider-value|xxxxxxxxxx/);
+    const pending = (await s.call('get', { id: job.id })).data;
+    assert.equal(pending.analysis, undefined);
+    assert.equal(pending.status, 'delivered');
+  }
+  const done = (await submit(s.analysis)).data;
+  assert.equal(done.status, 'analyzed');
+  assert.deepEqual(s.writes, []); assert.deepEqual(s.dispatches, []);
+  await s.active.stop();
+});
+
 test('invalid evidence returns actionable feedback without accepting analysis or exposing provider errors', async () => {
   const s = await fixture();
   const job = (await s.call('analyze', { repo: 'fixture/repo', number: 1, requestId: 'bad-quote' })).data;

@@ -3,7 +3,7 @@ import { GhTeamProvider } from './github.js';
 import { IssueTeamRuntime, WORKBENCH_METHODS } from './runtime.js';
 import type { TeamContext, TeamProvider } from './types.js';
 import { readFile } from 'node:fs/promises';
-import { AnalysisEvidenceError } from './analysis-feedback.js';
+import { AnalysisValidationError } from './analysis-feedback.js';
 export { GhTeamProvider } from './github.js';
 
 export const TEAM_METHODS = ['inspect', 'analyze', 'submit', 'get', 'list', 'receive', 'report', 'feedback', 'statistics'] as const;
@@ -50,7 +50,7 @@ export function createIssueTeamModule(provider?: TeamProvider): PluginModuleEntr
               current();
               try { return { data: await runtime.invoke(method, input, caller) }; }
               catch (error) {
-                if (error instanceof AnalysisEvidenceError) return { data: { error: { code: error.code, message: error.message } } };
+                if (method === 'submit' && error instanceof AnalysisValidationError) return { data: { error: { code: error.code, message: error.message } } };
                 throw error;
               }
             },

@@ -2,7 +2,7 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { CallToolRequestSchema, ListToolsRequestSchema, type Tool } from '@modelcontextprotocol/sdk/types.js';
 import { createModuleActionClient } from '@clowder-ai/plugin-sdk';
-import { evidenceMismatchMessage } from './analysis-feedback.js';
+import { analysisFeedbackMessage } from './analysis-feedback.js';
 
 // Embedded from the admitted manifest at build time: one schema/description source.
 declare const ISSUE_TEAM_NATIVE_TOOLS: readonly (Tool & { method: string })[];
@@ -18,8 +18,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request, call) => {
   try {
     const result = await client.invoke(tool.method, request.params.arguments ?? {}, call);
     const feedback = (result as { data?: { error?: { code?: unknown } } } | null)?.data?.error;
-    if (tool.method === 'issue.team.submit' && feedback?.code === 'analysis_evidence_mismatch') {
-      return { isError: true, content: [{ type: 'text', text: evidenceMismatchMessage }] };
+    const message = tool.method === 'issue.team.submit' && analysisFeedbackMessage(feedback?.code);
+    if (message) {
+      return { isError: true, content: [{ type: 'text', text: message }] };
     }
     return { content: [{ type: 'text', text: JSON.stringify(result) }] };
   } catch {
