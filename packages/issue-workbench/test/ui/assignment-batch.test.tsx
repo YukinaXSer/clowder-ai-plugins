@@ -3,6 +3,9 @@ import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
 import { AssignmentBatchBoard } from '../../src/team-ui/AssignmentBatchBoard';
 
+// jsdom has no layout; the packed browser journey checks actual scroll visibility.
+HTMLElement.prototype.scrollIntoView = vi.fn();
+
 async function mount() {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
   const node = document.createElement('div'); document.body.append(node); const root = createRoot(node);
@@ -33,6 +36,11 @@ it('restores the complete board, allows compatible adjustments, and never confir
     await act(async () => v.button('核对并派工').click());
     expect(v.host.confirmAssignmentBatch).not.toHaveBeenCalled();
     expect(v.node.textContent).toContain('即将设置 1 个 Issue 的 GitHub 负责人');
+    expect(document.activeElement).toBe(v.node.querySelector('[role="alertdialog"]'));
+    await act(async () => v.button('返回调整').click());
+    expect(document.activeElement).toBe(v.button('核对并派工'));
+    expect(v.node.querySelector('[role="alertdialog"]')).toBeNull();
+    await act(async () => v.button('核对并派工').click());
     await act(async () => v.button('确认批量派工').click());
     expect(v.host.confirmAssignmentBatch).toHaveBeenCalledWith({ id: 'batch', expectedRevision: 3 });
     expect(v.node.textContent).toContain('执行中');
@@ -80,6 +88,7 @@ it('restores the edited participation after a failed save without changing other
     expect(first.checked).toBe(true);
     expect(second.disabled).toBe(false);
     expect(v.node.querySelector('[role="alert"]')?.textContent).toContain('保存失败');
+    expect(document.activeElement).toBe(v.node.querySelector('[role="alert"]'));
     expect(v.node.textContent).not.toContain('正在保存');
     expect(v.host.confirmAssignmentBatch).not.toHaveBeenCalled();
   } finally { await v.close(); }

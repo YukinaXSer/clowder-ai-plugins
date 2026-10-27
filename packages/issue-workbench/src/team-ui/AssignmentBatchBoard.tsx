@@ -7,6 +7,10 @@ import styles from './team.module.css';
 
 const labels = { ready: '可派工', 'needs-analysis': '待分析', blocked: '待处理', retained: '已有负责人 / 保留', assigned: '已派工', failed: '未完成' };
 type PendingEdit = { item: AssignmentBatchItem; login: string; included: boolean };
+function revealFeedback(element: HTMLElement | null) {
+  element?.focus({ preventScroll: true });
+  element?.scrollIntoView({ block: 'nearest' });
+}
 export function AssignmentBatchBoard({ host }: { host: TeamHost }) {
   const [batch, setBatch] = useState<AssignmentBatchView | null>();
   const [summary, setSummary] = useState<TeamSummary>();
@@ -14,8 +18,11 @@ export function AssignmentBatchBoard({ host }: { host: TeamHost }) {
   const [busy, setBusy] = useState(false), [error, setError] = useState('');
   const [pendingEdit, setPendingEdit] = useState<PendingEdit>();
   const [confirmation, setConfirmation] = useState<number>();
+  const confirmationPanel = useRef<HTMLElement>(null), errorPanel = useRef<HTMLDivElement>(null), reviewButton = useRef<HTMLButtonElement>(null);
   const working = useRef(false), generation = useRef(0), requestId = useRef<string>();
   const latest = useRef(batch); latest.current = batch;
+  useEffect(() => { if (confirmation !== undefined) revealFeedback(confirmationPanel.current); }, [confirmation]);
+  useEffect(() => { if (error || batch?.error) revealFeedback(errorPanel.current); }, [error, batch?.error]);
   async function action(work: () => Promise<AssignmentBatchView | null>, edit?: PendingEdit) {
     if (working.current) return;
     const current = generation.current; working.current = true; setBusy(true); setError(''); setConfirmation(undefined);
@@ -55,8 +62,9 @@ export function AssignmentBatchBoard({ host }: { host: TeamHost }) {
   return <section aria-label="批量派工看板" className={styles.batch}>
     <p>读取所有已启用仓库的 Open 问题，按分类和成员分工准备本次计划。确认前可逐条改人或跳过。</p>
     <p className={styles.notice}>批量派工提交人：<strong>system</strong>。GitHub 原 Issue 作者及实际发评论账号保留真实身份；本批不附带邀请提交者验收的建议。</p>
-    {error && <p role="alert">{error}</p>}
-    {batch?.error && <p role="alert">{batch.error}</p>}
+    {(error || batch?.error) && <div ref={errorPanel} role="alert" tabIndex={-1}>
+      {error && <p>{error}</p>}{batch?.error && <p>{batch.error}</p>}
+    </div>}
     {pendingEdit && <p role="status">正在保存 #{pendingEdit.item.issue.number} 的调整…</p>}
     <div className={styles.actions}>
       {(!batch || stopped) && <button disabled={busy || batch === undefined} onClick={() => void action(prepare)}>读取当前 Open 问题看板</button>}
@@ -111,14 +119,14 @@ export function AssignmentBatchBoard({ host }: { host: TeamHost }) {
       </div>}
       {(draft || batch.status === 'partial') && <div className={styles.report}>
         {blocked && <p>本次参与的条目中还有待分析或待处理问题；请解决或取消勾选后再派工。</p>}
-        <button className={styles.primary} disabled={busy || blocked || !remaining.length} onClick={() => setConfirmation(batch.revision)}>{draft ? '核对并派工' : '核对并重试未完成项'}</button>
+        <button ref={reviewButton} className={styles.primary} disabled={busy || blocked || !remaining.length} onClick={() => setConfirmation(batch.revision)}>{draft ? '核对并派工' : '核对并重试未完成项'}</button>
         {batch.status === 'partial' && <p>已完成项不会重复派工。来源或分工变化时，可停止本批后重新准备；评论结果待核对时，到“团队记录 → 派工记录”处理。</p>}
       </div>}
-      {confirmation === batch.revision && <section role="alertdialog" aria-label="确认批量派工" className={styles.notice}>
+      {confirmation === batch.revision && <section ref={confirmationPanel} role="alertdialog" aria-label="确认批量派工" tabIndex={-1} className={styles.notice}>
         <p>即将设置 {remaining.length} 个 Issue 的 GitHub 负责人，并以 system 为提交人标识发布说明。</p>
         <p>{distribution.map(([login, count]) => `@${login}：${count} 条`).join('；')}。不会自动修代码或合入。</p>
         <button disabled={busy} onClick={() => void action(() => (draft ? host.confirmAssignmentBatch : host.retryAssignmentBatch)(revision()))}>确认批量派工</button>
-        <button disabled={busy} onClick={() => setConfirmation(undefined)}>返回调整</button>
+        <button disabled={busy} onClick={() => { setConfirmation(undefined); reviewButton.current?.focus(); }}>返回调整</button>
       </section>}
       {!stopped && <button disabled={busy} onClick={() => void action(() => host.cancelAssignmentBatch(revision()))}>停止本批</button>}
       <p className={styles.muted}>关闭看板不会停止已确认批次；停止本批保留历史，已写入 GitHub 的负责人和说明不会撤销。本批问题不会转交后台自动派工；后续可重新准备批次。</p>

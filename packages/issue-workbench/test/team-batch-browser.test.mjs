@@ -88,11 +88,41 @@ test('packed bulk board: complete Open snapshot, edits, skips, confirmation, sys
   await mkdir('artifacts/batch-assignment-2026-10-26', { recursive: true });
   await board.evaluate(node => { node.scrollTop = 0; });
   await page.screenshot({ path: 'artifacts/batch-assignment-2026-10-26/board-desktop.png', fullPage: true });
-  await board.getByRole('button', { name: '核对并派工', exact: true }).click();
-  await board.getByText('即将设置 2 个 Issue 的 GitHub 负责人，并以 system 为提交人标识发布说明。', { exact: true }).waitFor();
-  assert.deepEqual(s.writes, []);
-  await page.setViewportSize({ width: 390, height: 844 });
-  await board.getByRole('button', { name: '确认批量派工', exact: true }).scrollIntoViewIfNeeded();
+  const review = board.getByRole('button', { name: '核对并派工', exact: true });
+  const assertRevealed = async target => {
+    const visible = await target.evaluate(el => {
+      const rect = el.getBoundingClientRect(), clip = el.closest('dialog').getBoundingClientRect();
+      return { inside: rect.top >= clip.top && rect.bottom <= clip.bottom,
+        focused: document.activeElement === el };
+    });
+    assert.equal(visible.inside, true, 'new feedback is inside the scrollable dialog without manual scrolling');
+    assert.equal(visible.focused, true, 'keyboard focus follows new feedback');
+  };
+  await mkdir('artifacts/batch-confirm-2026-10-27', { recursive: true });
+  for (const viewport of [{ width: 1440, height: 1000 }, { width: 390, height: 844 }]) {
+    await page.setViewportSize(viewport);
+    // A person can reach the review button at the bottom edge of a long list.
+    // Do not let Playwright scroll the newly inserted confirmation into view.
+    await review.evaluate(el => el.scrollIntoView({ block: 'end' }));
+    await review.click();
+    const confirmation = board.getByRole('alertdialog', { name: '确认批量派工' });
+    await confirmation.getByText('即将设置 2 个 Issue 的 GitHub 负责人，并以 system 为提交人标识发布说明。', { exact: true }).waitFor();
+    await assertRevealed(confirmation);
+    assert.deepEqual(s.writes, []);
+    await page.screenshot({ path: `artifacts/batch-confirm-2026-10-27/confirmation-${viewport.width}.png` });
+    if (viewport.width > 700) {
+      await confirmation.getByRole('button', { name: '返回调整' }).click();
+      assert.equal(await review.evaluate(el => document.activeElement === el), true);
+    }
+  }
+  // A rejected preflight must be visible too, even though its alert is above the long list.
+  await page.route('**/confirmAssignmentBatch', route => route.fulfill({ status: 422, contentType: 'application/json', body: JSON.stringify({ error: '成员不可指派，请调整后重试' }) }));
+  await board.getByRole('button', { name: '确认批量派工', exact: true }).click();
+  const alert = board.getByRole('alert').filter({ hasText: '成员不可指派' });
+  await alert.waitFor(); await assertRevealed(alert); assert.deepEqual(s.writes, []);
+  await page.screenshot({ path: 'artifacts/batch-confirm-2026-10-27/preflight-error.png' });
+  await page.unroute('**/confirmAssignmentBatch');
+  await review.click();
   await page.screenshot({ path: 'artifacts/batch-assignment-2026-10-26/board-mobile.png', fullPage: true });
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
   await board.getByRole('button', { name: '确认批量派工', exact: true }).click();
