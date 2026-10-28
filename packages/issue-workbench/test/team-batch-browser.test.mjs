@@ -172,7 +172,28 @@ for (const delivery of ['assignment', 'invitation']) test(`packed bulk board (${
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
   await board.getByRole('button', { name: '确认批量派工', exact: true }).click();
   await board.getByText('执行中', { exact: true }).waitFor();
-  await active.actions['issue.team.poll']({});
+  const publish = s.provider.publishDispatch;
+  let releaseDispatch, dispatchStarted;
+  const pendingDispatch = new Promise(resolve => { releaseDispatch = resolve; });
+  const startedDispatch = new Promise(resolve => { dispatchStarted = resolve; });
+  s.provider.publishDispatch = async (...args) => {
+    if (args[0].number === 3) { dispatchStarted(); await pendingDispatch; }
+    return publish(...args);
+  };
+  const running = active.actions['issue.team.poll']({});
+  await startedDispatch;
+  try {
+    const progress = page.waitForResponse(r => r.url().endsWith('/getAssignmentBatch'));
+    await board.getByRole('button', { name: '刷新进度', exact: true }).click();
+    const response = await progress; assert.ok(response.ok());
+    const current = (await response.json()).data;
+    assert.equal(current.status, 'running');
+    assert.equal(current.items.filter(i => i.status === (delivery === 'invitation' ? 'invited' : 'assigned')).length, 1);
+    await page.waitForFunction(() => document.querySelector('[aria-label="批量派工进度"]').value === 1);
+    await mkdir('artifacts/batch-progress-2026-10-28', { recursive: true });
+    await board.getByRole('progressbar', { name: '批量派工进度' }).scrollIntoViewIfNeeded();
+    await page.screenshot({ path: `artifacts/batch-progress-2026-10-28/in-flight-${delivery}.png` });
+  } finally { releaseDispatch(); await running; s.provider.publishDispatch = publish; }
   await board.getByRole('button', { name: '刷新进度', exact: true }).click();
   await board.getByText('本批派工完成', { exact: true }).waitFor();
   assert.equal(await board.getByRole('progressbar', { name: '批量派工进度' }).getAttribute('value'), '2');

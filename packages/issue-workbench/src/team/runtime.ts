@@ -681,11 +681,25 @@ export class IssueTeamRuntime {
   /** Settings authority is independent of cat invocation identity. Never synthesize
    * a native caller from browser input or treat pending config as saved policy. */
   async invokeOwner(method: string, input: unknown, owner: PluginOwnerOperationContext) {
-    return this.run(async () => {
+    const assertOwner = async () => {
       if (owner?.kind !== 'owner-operation' || owner.pluginInstanceId !== this.context.pluginInstanceId ||
           owner.operationKey !== 'teamWorkbench' || owner.actionId !== method || !owner.userId || !owner.requestId) {
         throw new Error('Matching authenticated owner action authority required');
       }
+      this.abort.signal.throwIfAborted(); owner.signal.throwIfAborted();
+      await owner.assertCurrent();
+      this.abort.signal.throwIfAborted(); owner.signal.throwIfAborted();
+    };
+    if (method === 'getAssignmentBatch') {
+      // This detached durable snapshot has no network calls or writes. Keep its
+      // authority local so progress can be read while the dispatch queue runs.
+      await assertOwner();
+      const snapshot = await this.assignmentBatches.get(input, owner);
+      await assertOwner();
+      return snapshot;
+    }
+    return this.run(async () => {
+      await assertOwner();
       await this.authorized();
       switch (method) {
         case 'acceptInbox': {
@@ -700,7 +714,6 @@ export class IssueTeamRuntime {
           await this.save(row, entry.revision); return row;
         }
         case 'planAssignments': return this.assignmentBatches.prepare(input, owner);
-        case 'getAssignmentBatch': return this.assignmentBatches.get(input, owner);
         case 'refreshAssignmentBatch': return this.assignmentBatches.refresh(input, owner);
         case 'editAssignmentBatch': return this.assignmentBatches.edit(input, owner);
         case 'analyzeAssignmentBatch': return this.assignmentBatches.analyze(input, owner);

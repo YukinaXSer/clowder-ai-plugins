@@ -14,7 +14,8 @@ async function fixture(count = 3, classified = true, reporter = false) {
   let runtime = s.runtime();
   const owner = (actionId: string, userId = 'owner') => ({ kind: 'owner-operation' as const, pluginInstanceId: s.context.pluginInstanceId,
     operationKey: 'teamWorkbench', actionId, userId, requestId: 'http-' + actionId, signal: new AbortController().signal, async assertCurrent() {} });
-  const call = (action: string, input: unknown = {}, userId?: string): Promise<any> => runtime.invokeOwner(action, input, owner(action, userId));
+  const call = (action: string, input: unknown = {}, userId?: string, authority: Partial<ReturnType<typeof owner>> = {}): Promise<any> =>
+    runtime.invokeOwner(action, input, { ...owner(action, userId), ...authority });
   if (classified) for (const issue of s.issues) {
     const work = { ...newInvestigation({ sourceId: sourceId(issue.repo), issueId: issue.id, number: issue.number }, issue.title, issueVersion(issue), { enabled: true, name: '', branch: '', base: '' }), module: 'Agent 运行' };
     await call('coordination', { action: 'saveWork', value: work, expectedRevision: 0 });
@@ -69,6 +70,44 @@ test('bulk participation is one durable edit, preserving recipients, hidden item
   assert.equal(b.status, 'draft'); assert.equal(b.confirmation, undefined);
   await s.restart(); assert.deepEqual((await s.call('getAssignmentBatch', { id: b.id })).items, b.items);
   await s.recover(); assert.deepEqual(s.writes, []); assert.deepEqual(s.dispatches, []);
+});
+
+test('batch progress remains readable during slow dispatch without changing writer authority', async () => {
+  const s = await fixture(2); const b = await s.prepare();
+  await s.call('confirmAssignmentBatch', { id: b.id, expectedRevision: b.revision });
+  const publish = s.provider.publishDispatch;
+  let release!: () => void, started!: () => void;
+  const pending = new Promise<void>(resolve => { release = resolve; });
+  const reached = new Promise<void>(resolve => { started = resolve; });
+  s.provider.publishDispatch = async (...args) => {
+    if (args[0].number === 2) { started(); await pending; }
+    return publish(...args);
+  };
+  const writing = s.recover(); await reached;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const progress = await Promise.race([s.call('getAssignmentBatch', { id: b.id }),
+      new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error('Progress is blocked behind dispatch')), 500); })]);
+    assert.equal(progress.status, 'running');
+    assert.deepEqual(progress.items.map((i: any) => i.status), ['assigned', 'ready']);
+    const aborted = new AbortController(); aborted.abort(new Error('read expired'));
+    await assert.rejects(s.call('getAssignmentBatch', { id: b.id }, undefined, { signal: aborted.signal }), /read expired/);
+    await assert.rejects(s.call('getAssignmentBatch', { id: b.id }, 'stranger'), /owner/);
+  } finally { clearTimeout(timer); release(); await writing; }
+  assert.equal((await s.call('getAssignmentBatch', { id: b.id })).status, 'completed');
+  assert.equal(s.dispatches.length, 2);
+});
+
+test('concurrent batch reads enforce matching owner authority before and after the snapshot', async () => {
+  const s = await fixture(1); const b = await s.prepare();
+  for (const authority of [{ actionId: 'summary' }, { operationKey: 'teamStatus' }, { pluginInstanceId: 'foreign' }, { userId: '' }]) {
+    await assert.rejects(s.call('getAssignmentBatch', { id: b.id }, undefined, authority), /authority/);
+  }
+  let current = true; const list = s.context.storage.list;
+  s.context.storage.list = async () => { const value = await list(); current = false; return value; };
+  await assert.rejects(s.call('getAssignmentBatch', { id: b.id }, undefined,
+    { assertCurrent: async () => { if (!current) throw new Error('read revoked'); } }), /read revoked/);
+  assert.deepEqual(s.writes, []); assert.deepEqual(s.dispatches, []);
 });
 
 test('invalid, stale or foreign bulk edits leave every participation flag unchanged', async () => {
