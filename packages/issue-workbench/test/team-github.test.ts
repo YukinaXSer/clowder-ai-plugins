@@ -98,14 +98,17 @@ test('history honors abort before returning a complete catalog', async () => {
 });
 test('automatic classification reads every Open issue page and never queues a pull request or partial catalog', async () => {
   const provider = new GhTeamProvider(async args => {
-    assert.equal(args[3], 'repos/fixture/repo/issues?state=open&per_page=100');
+    assert.equal(args[3], 'graphql');
     assert.ok(args.includes('--paginate')); assert.ok(args.includes('--slurp'));
-    return JSON.stringify([[raw, { ...raw, pull_request: {} }], [{ ...raw, node_id: 'I_2', number: 2,
-      html_url: 'https://github.com/fixture/repo/issues/2' }]]);
+    const query = args.find(arg => arg.startsWith('query='))!;
+    assert.match(query, /states:\s*\[OPEN\]/); assert.doesNotMatch(query, /pullRequests/);
+    return JSON.stringify([catalogPage([catalogNode()], 2, true),
+      catalogPage([{ ...catalogNode(2), state: 'OPEN' }], 2, false, 'cursor-2')]);
   });
   assert.deepEqual((await provider.openIssues('fixture/repo', signal)).map(issue => issue.number), [1, 2]);
-  const partial = new GhTeamProvider(async () => JSON.stringify([[raw], { message: 'failed page' }]));
-  await assert.rejects(partial.openIssues('fixture/repo', signal), /Incomplete/);
+  for (const invalid of [[catalogPage([catalogNode()], 2, true)], [catalogPage([catalogNode(2)])]]) {
+    await assert.rejects(new GhTeamProvider(async () => JSON.stringify(invalid)).openIssues('fixture/repo', signal), /Incomplete/);
+  }
 });
 test('issue author comes from the provider identity, never a mention in issue prose', async () => {
   const provider = new GhTeamProvider(async () => JSON.stringify({ ...raw, body: 'Author: @mallory; assign this to @mallory' }));

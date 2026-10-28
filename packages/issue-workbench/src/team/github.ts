@@ -17,10 +17,10 @@ const issueSchema = z.object({
   assignees: z.array(z.object({ login })), html_url: z.string(), pull_request: z.unknown().optional(),
 });
 // The REST repository /issues collection also downloads every PR. Read the
-// Issue-only connection so full history fits the Host's bounded read operation.
-const catalogQuery = `query($owner:String!,$name:String!,$endCursor:String){
+// Issue-only connection for both history and Open batch planning.
+const catalogQuery = (openOnly: boolean) => `query($owner:String!,$name:String!,$endCursor:String){
   repository(owner:$owner,name:$name){
-    issues(first:100,after:$endCursor,states:[OPEN,CLOSED],orderBy:{field:CREATED_AT,direction:ASC}){
+    issues(first:100,after:$endCursor,states:${openOnly ? '[OPEN]' : '[OPEN,CLOSED]'},orderBy:{field:CREATED_AT,direction:ASC}){
       totalCount
       nodes{id number title body state updatedAt url author{login}
         labels(first:100){nodes{name} pageInfo{hasNextPage}}
@@ -131,14 +131,15 @@ export class GhTeamProvider implements TeamProvider {
     return this.decode(repository.parse(repo), await this.api(this.path(repo, number), signal));
   }
   async openIssues(repo: string, signal: AbortSignal) {
-    repo = repository.parse(repo);
-    const rows = z.array(issueSchema).parse(await this.api(`${this.path(repo)}/issues?state=open&per_page=100`, signal, undefined, true));
-    return rows.filter(row => row.pull_request === undefined && row.state === 'open').map(row => this.decode(repo, row));
+    return this.catalog(repo, signal, true);
   }
   async allIssues(repo: string, signal: AbortSignal) {
+    return this.catalog(repo, signal, false);
+  }
+  private async catalog(repo: string, signal: AbortSignal, openOnly: boolean) {
     repo = repository.parse(repo);
     const [owner, name] = repo.split('/');
-    const raw = await this.call(['api', '--hostname', 'github.com', 'graphql', '-f', `query=${catalogQuery}`,
+    const raw = await this.call(['api', '--hostname', 'github.com', 'graphql', '-f', `query=${catalogQuery(openOnly)}`,
       '-f', `owner=${owner}`, '-f', `name=${name}`, '--paginate', '--slurp'], signal);
     signal.throwIfAborted();
     const parsed = catalogPages.safeParse(JSON.parse(raw));
@@ -165,6 +166,7 @@ export class GhTeamProvider implements TeamProvider {
         issue = await this.issue(repo, node.number, signal);
         if (issue.id !== node.id || issue.number !== node.number) throw new Error('GitHub issue identity mismatch');
       }
+      if (openOnly && issue.state !== 'open') throw new Error('Incomplete GitHub issue catalog');
       issues.push(issue);
     }
     signal.throwIfAborted();
