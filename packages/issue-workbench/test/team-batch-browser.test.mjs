@@ -61,6 +61,44 @@ for (const delivery of ['assignment', 'invitation']) test(`packed bulk board (${
   await board.getByText('全部 7', { exact: true }).waitFor();
   assert.deepEqual(s.writes, []); assert.equal(await board.locator('article').count(), 7);
   assert.ok(await board.getByRole('button', { name: '核对并派工', exact: true }).isDisabled());
+  const selectAll = board.getByRole('checkbox', { name: '全选当前列表', exact: true });
+  const bulkRequests = [];
+  const trackBulk = request => {
+    if (request.url().endsWith('/editAssignmentBatch')) {
+      const payload = JSON.parse(request.postDataJSON().payload);
+      if (payload.items) bulkRequests.push(payload);
+    }
+  };
+  page.on('request', trackBulk);
+  const toggleAll = async () => {
+    const saved = page.waitForResponse(r => r.url().endsWith('/editAssignmentBatch'));
+    await selectAll.click(); assert.ok((await saved).ok());
+    await page.waitForFunction(() => !document.querySelector('[aria-label="全选当前列表"]').disabled);
+  };
+  assert.equal(await selectAll.isChecked(), true);
+  await toggleAll();
+  assert.equal(bulkRequests.length, 1); assert.equal(bulkRequests[0].items.length, 6);
+  assert.equal(await board.getByRole('checkbox', { name: /^本次参与 /, checked: true }).count(), 0);
+  await board.getByRole('button', { name: /^可派工 / }).click();
+  const readyCount = await board.locator('article').count();
+  await toggleAll();
+  assert.equal(bulkRequests.length, 2); assert.equal(bulkRequests[1].items.length, readyCount);
+  assert.equal(await board.getByRole('checkbox', { name: /^本次参与 /, checked: true }).count(), readyCount);
+  await board.getByRole('button', { name: '全部 7', exact: true }).click();
+  assert.equal(await board.getByLabel('本次参与 fixture/repo#6', { exact: true }).isChecked(), false);
+  assert.equal(await selectAll.evaluate(el => el.indeterminate), true);
+  await mkdir('artifacts/batch-selection-2026-10-28', { recursive: true });
+  for (const viewport of [{ width: 1440, height: 1000 }, { width: 390, height: 844 }]) {
+    await page.setViewportSize(viewport); await selectAll.scrollIntoViewIfNeeded();
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+    await page.screenshot({ path: `artifacts/batch-selection-2026-10-28/selection-${delivery}-${viewport.width}.png` });
+  }
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await toggleAll();
+  assert.equal(bulkRequests.length, 3); assert.equal(bulkRequests[2].items.length, 6);
+  assert.equal(await board.getByRole('checkbox', { name: /^本次参与 /, checked: true }).count(), 6);
+  page.off('request', trackBulk);
+  assert.deepEqual(s.issues[4].assignees, ['bob']); assert.deepEqual(s.writes, []); assert.equal(s.dispatches.length, 0);
   await board.getByLabel('调整 fixture/repo#3 指派成员', { exact: true }).selectOption('alice');
   for (const number of [2, 4, 6, 7]) {
     const target = board.getByLabel(`本次参与 fixture/repo#${number}`, { exact: true });

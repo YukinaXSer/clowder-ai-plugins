@@ -44,7 +44,8 @@ export interface TeamHost {
   planAssignments(input: { requestId: string }): Promise<AssignmentBatchView>;
   getAssignmentBatch(input?: { id?: string }): Promise<AssignmentBatchView | null>;
   refreshAssignmentBatch(input: BatchRevision): Promise<AssignmentBatchView>;
-  editAssignmentBatch(input: BatchRevision & { repo: string; issueId: string; login: string; included: boolean }): Promise<AssignmentBatchView>;
+  editAssignmentBatch(input: BatchRevision & ({ repo: string; issueId: string; login: string; included: boolean }
+    | { items: Array<{ repo: string; issueId: string }>; included: boolean })): Promise<AssignmentBatchView>;
   analyzeAssignmentBatch(input: BatchRevision & { catId: string }): Promise<AssignmentBatchView>;
   confirmAssignmentBatch(input: BatchRevision): Promise<AssignmentBatchView>;
   retryAssignmentBatch(input: BatchRevision): Promise<AssignmentBatchView>;

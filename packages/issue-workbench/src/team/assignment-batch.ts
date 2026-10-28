@@ -7,6 +7,12 @@ import { hash, idInput, login, repository } from './schema.js';
 
 const prefix = 'issue-workbench.assignment-batch.v1.';
 const revisionInput = idInput.extend({ expectedRevision: z.number().int().positive() });
+const itemRef = z.object({ repo: repository, issueId: z.string().min(1) }).strict();
+const editInput = z.union([
+  revisionInput.extend({ repo: repository, issueId: z.string().min(1), login: z.union([login, z.literal('')]), included: z.boolean() }).strict(),
+  revisionInput.extend({ items: z.array(itemRef).min(1)
+    .refine(items => new Set(items.map(i => JSON.stringify([i.repo, i.issueId]))).size === items.length, '不能重复选择条目'), included: z.boolean() }).strict(),
+]);
 export interface AssignmentBatchItem {
   issue: TeamIssue; sourceVersion: string; policyHash: string; category: string; score: number | null;
   options: AssignmentOptions; included: boolean; login: string; manual?: boolean;
@@ -141,9 +147,20 @@ export class AssignmentBatches {
     delete batch.error; return this.write(batch, revision);
   }
   async edit(input: unknown, owner: PluginOwnerOperationContext) {
-    const args = revisionInput.extend({ repo: repository, issueId: z.string().min(1), login: z.union([login, z.literal('')]), included: z.boolean() }).strict().parse(input);
+    const args = editInput.parse(input);
     const { batch, revision } = await this.owned({ id: args.id, expectedRevision: args.expectedRevision }, owner);
     if (batch.status !== 'draft') throw new Error('批次已经确认或正在分析，不能修改人选');
+    if ('items' in args) {
+      // Validate the complete visible selection before changing any flags. Keep
+      // recipients and review state intact; confirmation still owns dispatch.
+      const selected = args.items.map(ref => {
+        const item = batch.items.find(i => i.issue.repo === ref.repo && i.issue.id === ref.issueId);
+        if (!item || item.status === 'retained') throw new Error('条目不存在或已有负责人，请刷新看板');
+        return item;
+      });
+      for (const item of selected) item.included = args.included;
+      return this.write(batch, revision);
+    }
     const item = batch.items.find(i => i.issue.repo === args.repo && i.issue.id === args.issueId);
     if (!item || item.status === 'retained') throw new Error('已有负责人或来源已关闭，本批保持原状');
     if (args.login && !item.options.eligibleMembers?.includes(args.login)) throw new Error('成员不符合当前系统与分工');

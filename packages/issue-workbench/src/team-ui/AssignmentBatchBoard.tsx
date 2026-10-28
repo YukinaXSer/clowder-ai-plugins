@@ -6,7 +6,9 @@ import { systemLabels } from '../classification/issue-context.js';
 import styles from './team.module.css';
 
 const labels = { ready: '可派工', 'needs-analysis': '待分析', blocked: '待处理', retained: '已有负责人 / 保留', assigned: '已派工', invited: '已邀请 / 待接手', failed: '未完成' };
-type PendingEdit = { item: AssignmentBatchItem; login: string; included: boolean };
+type PendingEdit = { item: AssignmentBatchItem; login: string; included: boolean }
+  | { items: AssignmentBatchItem[]; included: boolean };
+const itemKey = (item: AssignmentBatchItem) => JSON.stringify([item.issue.repo, item.issue.id]);
 function revealFeedback(element: HTMLElement | null) {
   element?.focus({ preventScroll: true });
   element?.scrollIntoView({ block: 'nearest' });
@@ -18,6 +20,7 @@ export function AssignmentBatchBoard({ host }: { host: TeamHost }) {
   const [busy, setBusy] = useState(false), [error, setError] = useState('');
   const [pendingEdit, setPendingEdit] = useState<PendingEdit>();
   const [confirmation, setConfirmation] = useState<number>();
+  const selectAll = useRef<HTMLInputElement>(null);
   const confirmationPanel = useRef<HTMLElement>(null), errorPanel = useRef<HTMLDivElement>(null), reviewButton = useRef<HTMLButtonElement>(null);
   const working = useRef(false), generation = useRef(0), requestId = useRef<string>();
   const latest = useRef(batch); latest.current = batch;
@@ -41,8 +44,18 @@ export function AssignmentBatchBoard({ host }: { host: TeamHost }) {
     }, 3000);
     return () => { generation.current++; clearInterval(timer); };
   }, [host]);
-  const items = (batch?.items ?? []).map(item => pendingEdit && item.issue.repo === pendingEdit.item.issue.repo && item.issue.id === pendingEdit.item.issue.id
-    ? { ...item, login: pendingEdit.login, included: pendingEdit.included } : item);
+  const pendingKeys = new Set(pendingEdit && 'items' in pendingEdit ? pendingEdit.items.map(itemKey) : []);
+  const items = (batch?.items ?? []).map(item => {
+    if (!pendingEdit) return item;
+    if ('items' in pendingEdit) return pendingKeys.has(itemKey(item)) ? { ...item, included: pendingEdit.included } : item;
+    return itemKey(item) === itemKey(pendingEdit.item) ? { ...item, login: pendingEdit.login, included: pendingEdit.included } : item;
+  });
+  const visible = items.filter(i => filter === 'all' || i.status === filter);
+  const selectable = visible.filter(i => i.status !== 'retained');
+  const selectedCount = selectable.filter(i => i.included).length;
+  const allSelected = selectable.length > 0 && selectedCount === selectable.length;
+  const partlySelected = selectedCount > 0 && !allSelected;
+  useEffect(() => { if (selectAll.current) selectAll.current.indeterminate = partlySelected; }, [partlySelected]);
   const selected = items.filter(i => i.included), remaining = selected.filter(i => !['assigned', 'invited'].includes(i.status));
   const blocked = remaining.some(i => !i.login || !['ready', 'failed'].includes(i.status));
   const draft = batch?.status === 'draft', stopped = batch?.status === 'cancelled' || batch?.status === 'completed';
@@ -50,6 +63,10 @@ export function AssignmentBatchBoard({ host }: { host: TeamHost }) {
   const cats = summary?.analysisCats ?? [];
   function edit(item: AssignmentBatchItem, login: string, included: boolean) {
     return action(() => host.editAssignmentBatch({ ...revision(), repo: item.issue.repo, issueId: item.issue.id, login, included }), { item, login, included });
+  }
+  function selectCurrent(included: boolean) {
+    return action(() => host.editAssignmentBatch({ ...revision(), included,
+      items: selectable.map(item => ({ repo: item.issue.repo, issueId: item.issue.id })) }), { items: selectable, included });
   }
   async function prepare() {
     requestId.current ??= crypto.randomUUID();
@@ -65,7 +82,7 @@ export function AssignmentBatchBoard({ host }: { host: TeamHost }) {
     {(error || batch?.error) && <div ref={errorPanel} role="alert" tabIndex={-1}>
       {error && <p>{error}</p>}{batch?.error && <p>{batch.error}</p>}
     </div>}
-    {pendingEdit && <p role="status">正在保存 #{pendingEdit.item.issue.number} 的调整…</p>}
+    {pendingEdit && <p role="status">{'items' in pendingEdit ? `正在保存当前列表 ${pendingEdit.items.length} 项的勾选…` : `正在保存 #${pendingEdit.item.issue.number} 的调整…`}</p>}
     <div className={styles.actions}>
       {(!batch || stopped) && <button disabled={busy || batch === undefined} onClick={() => void action(prepare)}>读取当前 Open 问题看板</button>}
       <button disabled={busy} onClick={() => void action(() => host.getAssignmentBatch(batch ? { id: batch.id } : {}))}>刷新进度</button>
@@ -83,9 +100,14 @@ export function AssignmentBatchBoard({ host }: { host: TeamHost }) {
       </div>
       <p>本次参与 {selected.length} · 跳过 {items.filter(i => !i.included && i.status !== 'retained').length} · 已派工 {selected.filter(i => i.status === 'assigned').length} · 已邀请 {selected.filter(i => i.status === 'invited').length}</p>
       <p>成员分布：{distribution.map(([login, count]) => `@${login} ${count} 条`).join(' · ') || '暂无可派工人选'}</p>
+      <div className={`${styles.actions} ${styles.batchSelection}`}>
+        <label><input ref={selectAll} type="checkbox" aria-label="全选当前列表" checked={allSelected}
+          disabled={busy || !draft || !selectable.length} onChange={e => void selectCurrent(e.target.checked)} />全选当前列表</label>
+        <span>当前列表已选 {selectedCount} / {selectable.length} · 仅调整当前筛选结果，已有负责人保持原状</span>
+      </div>
       {['running', 'partial', 'completed'].includes(batch.status) && <progress aria-label="批量派工进度" max={selected.length || 1} value={selected.length - remaining.length} />}
       <div className={styles.batchRows}>
-        {items.filter(i => filter === 'all' || i.status === filter).map(item => {
+        {visible.map(item => {
           const ref = `${item.issue.repo}#${item.issue.number}`, options = item.options;
           return <article key={item.issue.repo + ':' + item.issue.id} className={styles.batchRow} aria-label={ref}>
             <div><a href={item.issue.url} target="_blank" rel="noreferrer">{ref}</a><strong>{item.issue.title}</strong>

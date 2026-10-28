@@ -55,6 +55,38 @@ test('owner edits, preview revision and full preflight fence the one-off executi
   assert.deepEqual(s.writes, ['bob', 'alice']);
 });
 
+test('bulk participation is one durable edit, preserving recipients, hidden items and dispatch boundaries', async () => {
+  const s = await fixture(4); s.issues[3].assignees = ['bob'];
+  let b = await s.prepare(); const original = structuredClone(b.items);
+  let writes = 0; const cas = s.context.storage.compareAndSet;
+  s.context.storage.compareAndSet = async (...args) => { writes++; return cas(...args); };
+  b = await s.call('editAssignmentBatch', { id: b.id, expectedRevision: b.revision,
+    items: [{ repo: 'fixture/repo', issueId: 'issue-1' }, { repo: 'fixture/repo', issueId: 'issue-2' }], included: false });
+  assert.equal(writes, 1);
+  assert.deepEqual(b.items.map((i: any) => i.included), [false, false, true, false]);
+  assert.deepEqual(b.items.map((i: any) => i.login), original.map((i: any) => i.login));
+  assert.deepEqual(b.items.slice(2), original.slice(2));
+  assert.equal(b.status, 'draft'); assert.equal(b.confirmation, undefined);
+  await s.restart(); assert.deepEqual((await s.call('getAssignmentBatch', { id: b.id })).items, b.items);
+  await s.recover(); assert.deepEqual(s.writes, []); assert.deepEqual(s.dispatches, []);
+});
+
+test('invalid, stale or foreign bulk edits leave every participation flag unchanged', async () => {
+  const s = await fixture(3); s.issues[2].assignees = ['bob']; const b = await s.prepare();
+  const ref = { repo: 'fixture/repo', issueId: 'issue-1' };
+  const input = { id: b.id, expectedRevision: b.revision, items: [ref], included: false };
+  for (const items of [[], [ref, ref], [ref, { ...ref, issueId: 'missing' }], [ref, { ...ref, issueId: 'issue-3' }], [{ ...ref, repo: 'foreign/repo' }]]) {
+    await assert.rejects(s.call('editAssignmentBatch', { ...input, items }));
+    assert.deepEqual(await s.call('getAssignmentBatch', { id: b.id }), b);
+  }
+  await assert.rejects(s.call('editAssignmentBatch', { ...input, expectedRevision: b.revision + 1 }), /版本/);
+  await assert.rejects(s.call('editAssignmentBatch', input, 'stranger'), /owner/);
+  assert.deepEqual(await s.call('getAssignmentBatch', { id: b.id }), b);
+  const stopped = await s.call('cancelAssignmentBatch', { id: b.id, expectedRevision: b.revision });
+  await assert.rejects(s.call('editAssignmentBatch', { ...input, expectedRevision: stopped.revision }), /修改/);
+  assert.deepEqual(s.writes, []); assert.deepEqual(s.dispatches, []);
+});
+
 test('missing classification can be analyzed without dispatch even when automatic assignment is enabled', async () => {
   const s = await fixture(1, false); let b = await s.prepare();
   assert.equal(b.items[0].status, 'needs-analysis');

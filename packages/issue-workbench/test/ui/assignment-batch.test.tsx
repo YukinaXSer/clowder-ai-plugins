@@ -14,7 +14,11 @@ async function mount(delivery = 'assignment') {
   let batch: any = { id: 'batch', revision: 1, status: 'draft', initiator: 'system', delivery, createdAt: 1, items: [item(1), item(2, 'needs-analysis'), item(3, 'retained')] };
   const host: any = {
     getAssignmentBatch: vi.fn(async () => structuredClone(batch)), summary: vi.fn(async () => ({ settings: {}, analysisCats: [] })),
-    editAssignmentBatch: vi.fn(async (args: any) => { const row = batch.items.find((i: any) => i.issue.id === args.issueId); Object.assign(row, { login: args.login, included: args.included }); batch.revision++; return structuredClone(batch); }),
+    editAssignmentBatch: vi.fn(async (args: any) => {
+      if (args.items) for (const ref of args.items) batch.items.find((i: any) => i.issue.id === ref.issueId).included = args.included;
+      else { const row = batch.items.find((i: any) => i.issue.id === args.issueId); Object.assign(row, { login: args.login, included: args.included }); }
+      batch.revision++; return structuredClone(batch);
+    }),
     confirmAssignmentBatch: vi.fn(async () => { batch.status = 'running'; batch.revision++; return structuredClone(batch); }),
   };
   await act(async () => root.render(<AssignmentBatchBoard host={host} />));
@@ -44,6 +48,49 @@ it('restores the complete board, allows compatible adjustments, and never confir
     await act(async () => v.button('确认批量派工').click());
     expect(v.host.confirmAssignmentBatch).toHaveBeenCalledWith({ id: 'batch', expectedRevision: 3 });
     expect(v.node.textContent).toContain('执行中');
+  } finally { await v.close(); }
+});
+
+it('selects only the current filter in one save, preserves people and shows partial selection', async () => {
+  const v = await mount();
+  try {
+    const all = () => v.node.querySelector<HTMLInputElement>('[aria-label="全选当前列表"]')!;
+    expect(all()).not.toBeNull();
+    expect(all().checked).toBe(true);
+    await act(async () => all().click());
+    expect(v.host.editAssignmentBatch).toHaveBeenCalledWith({ id: 'batch', expectedRevision: 1, included: false,
+      items: [{ repo: 'fixture/repo', issueId: '1' }, { repo: 'fixture/repo', issueId: '2' }] });
+    expect(v.node.querySelector<HTMLInputElement>('[aria-label="本次参与 fixture/repo#2"]')!.checked).toBe(false);
+    await act(async () => v.button('可派工 1').click());
+    await act(async () => all().click());
+    expect(v.host.editAssignmentBatch).toHaveBeenLastCalledWith({ id: 'batch', expectedRevision: 2, included: true,
+      items: [{ repo: 'fixture/repo', issueId: '1' }] });
+    expect(v.node.querySelector<HTMLSelectElement>('[aria-label="调整 fixture/repo#1 指派成员"]')!.value).toBe('alice');
+    await act(async () => v.button('全部 3').click());
+    expect(all().indeterminate).toBe(true); expect(all().checked).toBe(false);
+    expect(v.node.querySelector<HTMLInputElement>('[aria-label="本次参与 fixture/repo#2"]')!.checked).toBe(false);
+    await act(async () => v.button('已有负责人 / 保留 1').click());
+    expect(all().disabled).toBe(true);
+    expect(v.host.editAssignmentBatch).toHaveBeenCalledTimes(2);
+    expect(v.host.confirmAssignmentBatch).not.toHaveBeenCalled();
+  } finally { await v.close(); }
+});
+
+it('rolls back the whole current selection after a failed save and prevents submission while saving', async () => {
+  const v = await mount();
+  try {
+    let fail!: (error: Error) => void;
+    v.host.editAssignmentBatch.mockImplementation(() => new Promise((_resolve, reject) => { fail = reject; }));
+    const all = v.node.querySelector<HTMLInputElement>('[aria-label="全选当前列表"]')!;
+    expect(all).not.toBeNull();
+    await act(async () => all.click());
+    for (const n of [1, 2]) expect(v.node.querySelector<HTMLInputElement>(`[aria-label="本次参与 fixture/repo#${n}"]`)!.checked).toBe(false);
+    expect(all.disabled).toBe(true); expect(v.button('核对并派工').disabled).toBe(true);
+    await act(async () => fail(new Error('批次版本已变化，请刷新看板')));
+    for (const n of [1, 2]) expect(v.node.querySelector<HTMLInputElement>(`[aria-label="本次参与 fixture/repo#${n}"]`)!.checked).toBe(true);
+    expect(all.checked).toBe(true); expect(all.disabled).toBe(false);
+    expect(v.node.querySelector('[role="alert"]')?.textContent).toContain('批次版本已变化');
+    expect(v.host.confirmAssignmentBatch).not.toHaveBeenCalled();
   } finally { await v.close(); }
 });
 it('refreshing or closing the board does not itself dispatch', async () => {
