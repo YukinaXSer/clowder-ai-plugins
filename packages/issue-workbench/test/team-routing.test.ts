@@ -50,8 +50,8 @@ test('direct owner assignment and analyzed assignment both reject an incompatibl
   }
 });
 
-test('unknown, other and multiple systems block even a member reporter and explicit owner target', async () => {
-  for (const system of ['', 'Linux', 'Windows and macOS']) {
+test('other and explicitly multiple systems block even a member reporter and explicit owner target', async () => {
+  for (const system of ['Linux', 'Windows and macOS']) {
     const s = fixture(system); s.issues[0].author = 'alice';
     const job = await analyze(s);
     assert.equal(job.assignment.status, 'needs-decision');
@@ -59,6 +59,37 @@ test('unknown, other and multiple systems block even a member reporter and expli
     const r = s.runtime(), detail = await r.invoke('get', { id: job.id }, s.caller()) as any;
     await r.invokeOwner('assign', { id: job.id, expectedRevision: detail.revision, login: 'alice' }, owner(s, 'assign'));
     assert.deepEqual(s.writes, []); assert.deepEqual(s.dispatches, []);
+  }
+});
+
+test('unreported systems use the common member pool without admitting unconfigured organization members', async () => {
+  const s = fixture(''); s.config.automaticAssignment = false; s.config.routingRules = '[]';
+  s.members.push('riveradalton824-collab', 'lesliekuo', 'zlzfun');
+  await analyze(s);
+  const r = s.runtime();
+  const summary = await r.invokeOwner('summary', { repo: 'fixture/repo', number: 1 }, owner(s, 'summary')) as any;
+  const options = summary.issueContext.assignmentOptions;
+  assert.equal(options.systemScope, 'common');
+  assert.deepEqual(options.affectedSystems, [], 'the default policy does not fabricate reported environments');
+  assert.deepEqual(options.eligibleMembers.slice().sort(), ['alice', 'architect', 'bob', 'planner']);
+  assert.equal(options.preferredLogin, 'alice');
+  assert.match(options.recommendationReason, /通用/);
+  for (const login of ['riveradalton824-collab', 'lesliekuo', 'zlzfun']) {
+    assert.ok(options.excluded.some((item: any) => item.login === login));
+  }
+  assert.deepEqual(s.writes, []); assert.deepEqual(s.dispatches, []);
+  const assigned = await r.invokeOwner('assignIssue', { repo: 'fixture/repo', number: 1, requestId: 'common-owner',
+    sourceVersion: issueVersion(s.issues[0]), login: 'bob' }, owner(s, 'assignIssue')) as any;
+  assert.equal(assigned.assignment.status, 'assigned');
+  assert.deepEqual(s.writes, ['bob'], 'a Windows member can explicitly accept an unreported-system issue');
+});
+
+test('common framework and core-plan recommendations preserve specialist priorities', async () => {
+  for (const [title, expected] of [['Framework architecture proposal', 'architect'], ['Core feature proposal', 'planner']]) {
+    const s = fixture(''); s.config.routingRules = '[]'; s.issues[0].title = title;
+    s.issues[0].author = 'alice';
+    await analyze(s);
+    assert.deepEqual(s.writes, [expected]);
   }
 });
 

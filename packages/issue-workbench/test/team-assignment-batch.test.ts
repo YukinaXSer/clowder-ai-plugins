@@ -36,6 +36,27 @@ test('Open snapshot previews weighted choices, retains existing owners, and bloc
   assert.equal((await s.prepare()).id, batch.id);
 });
 
+test('common-system batch previews both member environments and still requires owner confirmation', async () => {
+  const s = await fixture(3, false); s.config.dispatchMode = 'invitation'; s.login('bob');
+  s.members.push('riveradalton824-collab', 'lesliekuo', 'zlzfun');
+  const profiles = JSON.parse(s.config.memberProfiles as string); profiles[1].system = 'windows';
+  s.config.memberProfiles = JSON.stringify(profiles);
+  for (const issue of s.issues) {
+    issue.title = 'Conversation rendering failure'; issue.body = 'Messages are not rendered after refresh.';
+    await s.call('coordination', { action: 'saveWork', expectedRevision: 0, value: { ...newInvestigation(
+      { sourceId: sourceId(issue.repo), issueId: issue.id, number: issue.number }, issue.title, issueVersion(issue),
+      { enabled: true, name: '', branch: '', base: '' }), module: '界面交互' } });
+  }
+  const b = await s.prepare();
+  assert.deepEqual(b.items.map((i: any) => [i.status, i.login, i.options.systemScope]),
+    [['ready', 'alice', 'common'], ['ready', 'bob', 'common'], ['ready', 'alice', 'common']]);
+  assert.ok(b.items.every((i: any) => i.options.eligibleMembers.length === 2));
+  await s.recover(); assert.deepEqual(s.dispatches, []);
+  s.issues[0].body += '\n## Environment\nWindows';
+  await assert.rejects(s.call('confirmAssignmentBatch', { id: b.id, expectedRevision: b.revision }), /变化|changed/);
+  assert.deepEqual(s.dispatches, []); assert.deepEqual(s.writes, []);
+});
+
 test('owner edits, preview revision and full preflight fence the one-off execution', async () => {
   const s = await fixture(); let b = await s.prepare(); const initial = b;
   await assert.rejects(s.call('editAssignmentBatch', { id: b.id, expectedRevision: b.revision, issueId: 'issue-1', repo: 'fixture/repo', login: 'mallory', included: true }), /成员|member/);

@@ -30,6 +30,27 @@ async function fixture() {
   return { ...s, active, call };
 }
 
+test('owner bulk selection accepts a full 280-issue catalog atomically without dispatch', async () => {
+  const s = await fixture();
+  const original = structuredClone(s.issues[0]!);
+  s.issues.splice(0, 1, ...Array.from({ length: 280 }, (_, index) => ({ ...original,
+    id: `I_kwDORlB5ac7yvOR9-${index}`, number: index + 1,
+    url: `https://github.com/fixture/repo/issues/${index + 1}` })));
+  const batch = (await s.call('planAssignments', { requestId: 'whole-catalog' })).data;
+  const input = { id: batch.id, expectedRevision: batch.revision, included: false,
+    items: batch.items.map((item: any) => ({ repo: item.issue.repo, issueId: item.issue.id })) };
+  assert.ok(JSON.stringify(input).length > 16000);
+  const saved = (await s.call('editAssignmentBatch', input)).data;
+  assert.equal(saved.revision, batch.revision + 1);
+  assert.ok(saved.items.every((item: any) => !item.included));
+  assert.deepEqual(saved.items.map((item: any) => item.login), batch.items.map((item: any) => item.login));
+  await assert.rejects(s.call('editAssignmentBatch', { ...input, items: [{ repo: 'fixture/repo', issueId: 'x'.repeat(256000) }] }), /Invalid workbench payload/);
+  await assert.rejects(s.call('getAssignmentBatch', { id: 'x'.repeat(16001) }), /Invalid workbench payload/);
+  assert.equal((await s.call('getAssignmentBatch', { id: batch.id })).data.revision, saved.revision);
+  assert.deepEqual(s.writes, []); assert.deepEqual(s.dispatches, []);
+  await s.active.stop();
+});
+
 test('invalid analysis input returns safe corrective feedback and remains retryable', async () => {
   const s = await fixture();
   const job = (await s.call('analyze', { repo: 'fixture/repo', number: 1, requestId: 'invalid-input' })).data;

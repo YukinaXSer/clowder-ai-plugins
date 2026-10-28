@@ -1,7 +1,7 @@
 import { roleLabels } from '../classification/member-profile.js';
 import { z } from 'zod';
 import { routingContext, type RoutingInput } from '../classification/routing-context.js';
-import { systemLabels } from '../classification/issue-context.js';
+import { classifyIssueContext, systemLabels } from '../classification/issue-context.js';
 import type { TeamRecord } from './records.js';
 import { features, hash, login, organization, rulesSchema } from './schema.js';
 import type { TeamAnalysis, TeamContext, TeamIssue, TeamProvider } from './types.js';
@@ -16,6 +16,8 @@ export interface AssignmentOptions {
   profiles?: MemberProfile[];
   excluded?: Array<{ login: string; reason: string }>;
   affectedSystems?: RoutingInput['affectedSystems'];
+  /** Assignment default, not a claim that every platform was reproduced. */
+  systemScope?: 'common';
   systemsSource?: 'human' | 'cat' | 'source';
   routingFocus?: RoutingInput['routingFocus'];
   recommendationReason?: string;
@@ -63,15 +65,17 @@ export async function assignmentPlan(context: TeamContext, provider: TeamProvide
   const group = snapshotGroup ?? await readGroup(context, provider, signal);
   const rawRules = await context.config.get('routingRules');
   const routing = routingContext(issue, analysis);
+  const common = routing.affectedSystems.length === 0 && classifyIssueContext(issue).systems.length === 0;
   const options: AssignmentOptions = { ...group, eligibleMembers: [], profiles: [], excluded: [],
-    affectedSystems: routing.affectedSystems, systemsSource: analysis?.systemsSource ?? routing.systemsSource, routingFocus: routing.routingFocus };
+    affectedSystems: routing.affectedSystems, ...(common ? { systemScope: 'common' as const } : {}),
+    systemsSource: analysis?.systemsSource ?? routing.systemsSource, routingFocus: routing.routingFocus };
   try { options.profiles = await readProfiles(context); }
   catch (error) { options.blockedReason = options.error = (error as Error).message; }
   const profiles = options.profiles!;
-  const policyHash = hash([group, profiles, rawRules ?? null, analysis ?? null, routing, features(issue), issue.author]);
+  const policyHash = hash([group, profiles, rawRules ?? null, analysis ?? null, routing, common, features(issue), issue.author]);
   if (options.blockedReason) return { options, policyHash };
   const systems = routing.affectedSystems;
-  if (systems.length !== 1 || systems[0] === 'other') {
+  if (!common && (systems.length !== 1 || systems[0] === 'other')) {
     options.blockedReason = options.error = !systems.length ? '受影响系统待判断，请先确认并保存单一操作系统'
       : systems.length > 1 ? '涉及多个操作系统，请先拆分问题或确认本次处理的单一系统'
       : '其他系统暂无成员能力配置，请先确认可处理的系统与成员';
@@ -79,7 +83,7 @@ export async function assignmentPlan(context: TeamContext, provider: TeamProvide
   for (const member of group.members) {
     const profile = profiles.find(row => row.login === member);
     const reason = !profile ? '未配置成员环境与职责' : options.blockedReason
-      ?? (profile.system !== systems[0] ? `系统不兼容：成员仅处理 ${systemLabels[profile.system]}` : undefined);
+      ?? (!common && profile.system !== systems[0] ? `系统不兼容：成员仅处理 ${systemLabels[profile.system]}` : undefined);
     if (reason) options.excluded!.push({ login: member, reason });
     else options.eligibleMembers!.push(member);
   }
@@ -94,8 +98,9 @@ export async function assignmentPlan(context: TeamContext, provider: TeamProvide
   options.acceptanceSuggestedFor = qualifiedReporter;
   let candidates: MemberProfile[] = [];
   let basis: NonNullable<AssignmentOptions['basis']> = 'weighted';
-  const role = systems[0] === 'macos' && routing.routingFocus === 'framework' ? 'architect-reviewer'
-    : systems[0] === 'windows' && routing.routingFocus !== 'general' ? 'core-planner' : undefined;
+  const environment = common ? '未注明系统，按通用问题分工' : `${systemLabels[systems[0] as 'macos' | 'windows']} 环境兼容`;
+  const role = (common || systems[0] === 'macos') && routing.routingFocus === 'framework' ? 'architect-reviewer'
+    : (common && routing.routingFocus === 'core-plan' || systems[0] === 'windows' && routing.routingFocus !== 'general') ? 'core-planner' : undefined;
   if (role) {
     candidates = eligible.filter(row => row.role === role); basis = 'role';
     if (!candidates.length) {
@@ -104,7 +109,7 @@ export async function assignmentPlan(context: TeamContext, provider: TeamProvide
     }
   } else if (qualifiedReporter) {
     options.preferredLogin = qualifiedReporter; options.basis = 'reporter';
-    options.recommendationReason = `${systemLabels[systems[0] as 'macos' | 'windows']} 环境兼容；优先交给提交者本人`;
+    options.recommendationReason = `${environment}；优先交给提交者本人`;
     return { options, policyHash };
   } else {
     let rules: z.infer<typeof rulesSchema>;
@@ -127,7 +132,7 @@ export async function assignmentPlan(context: TeamContext, provider: TeamProvide
   }
   // The existing durable dispatch journal is the allocation ledger. Only a
   // verified GitHub assignment commits a slot; retries reuse the same job.
-  const poolKey = hash([group.organization, systems[0], basis, basis === 'feature' ? features(issue) : basis === 'category' ? analysis?.category : role ?? null,
+  const poolKey = hash([group.organization, common ? 'common' : systems[0], basis, basis === 'feature' ? features(issue) : basis === 'category' ? analysis?.category : role ?? null,
     candidates.map(row => [row.login, row.weight]).sort((a, b) => String(a[0]).localeCompare(String(b[0])))]);
   const counts = new Map<string, number>();
   for (const row of records) {
@@ -139,6 +144,6 @@ export async function assignmentPlan(context: TeamContext, provider: TeamProvide
   options.preferredLogin = candidates[0].login; options.basis = basis;
   options.allocation = { poolKey, committed: false };
   const reason = basis === 'role' ? roleLabels[role!] : basis === 'feature' ? 'Feature 分工' : basis === 'category' ? '类别分工' : '普通成员加权分配';
-  options.recommendationReason = `${systemLabels[systems[0] as 'macos' | 'windows']} 环境兼容；${reason}；同级权重 ${candidates.map(row => `${row.login}:${row.weight}`).join('、')}，按已确认派工数分配`;
+  options.recommendationReason = `${environment}；${reason}；同级权重 ${candidates.map(row => `${row.login}:${row.weight}`).join('、')}，按已确认派工数分配`;
   return { options, policyHash };
 }

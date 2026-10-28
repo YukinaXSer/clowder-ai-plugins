@@ -63,7 +63,8 @@ export function TeamAssignment({ host, context, row, busy, act }: {
     <p className={styles.muted}>{delivery === 'assignment'
       ? '派工会在 GitHub Issue 的 Assignees 中标记负责人，并在 Open 列表显示认领人。接收方配置通用 GitHub 认领收件后，会在自己的宿主对话收到通知，无需安装 Issue 工作台。'
       : '仅在 GitHub 评论中邀请对方，不设置负责人，也不会触发通用 GitHub 认领收件。对方同意后，在 GitHub 设置负责人或回到这里补充负责人。'}</p>
-    <p>派工系统：{options.affectedSystems?.map(system => systemLabels[system]).join('、') || '待判断'} · {options.systemsSource === 'human' ? '人工确认' : options.systemsSource === 'cat' ? '猫研判' : '原文判断'}</p>
+    <p>派工系统：{options.systemScope === 'common' ? '通用问题（未注明系统）' : options.affectedSystems?.map(system => systemLabels[system]).join('、') || '待判断'}
+      {options.systemScope !== 'common' && <> · {options.systemsSource === 'human' ? '人工确认' : options.systemsSource === 'cat' ? '猫研判' : '原文判断'}</>}</p>
     {options.preferredLogin && <p>推荐 @{options.preferredLogin}：{options.recommendationReason}</p>}
     {!!options.excluded?.length && <details><summary>查看未参与推荐的成员</summary><ul>{options.excluded.map(item =>
       <li key={item.login}>@{item.login}：{item.reason}</li>)}</ul></details>}

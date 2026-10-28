@@ -52,7 +52,7 @@ export function assignmentBatchDriver(context: TeamContext, provider: TeamProvid
           && row.assignment?.commentAttempted && !['assigned', 'invited'].includes(row.assignment.status));
         const status: AssignmentBatchItem['status'] = issue.state !== 'open' || issue.assignees.length ? 'retained'
           : effective.stale || unresolved ? 'blocked'
-          : !effective.analysis && (category === '待判断' || !options.affectedSystems?.length && options.systemsSource !== 'human') ? 'needs-analysis'
+          : !effective.analysis && (category === '待判断' || !options.affectedSystems?.length && options.systemsSource !== 'human' && options.systemScope !== 'common') ? 'needs-analysis'
           : options.blockedReason || !options.preferredLogin ? 'blocked' : 'ready';
         const reason = issue.state !== 'open' ? 'Issue 已关闭，本批保留'
           : issue.assignees.length ? '已有负责人，本批保留'

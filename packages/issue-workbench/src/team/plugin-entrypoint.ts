@@ -94,7 +94,10 @@ export function createIssueTeamModule(provider?: TeamProvider): PluginModuleEntr
               if (caller) throw new Error('Owner action cannot use a cat caller');
               await owner(authority);
               const payload = (params as { input?: { payload?: unknown } })?.input?.payload;
-              if (payload !== undefined && (typeof payload !== 'string' || payload.length > (method === 'coordination' ? 256000 : 16000))) throw new Error('Invalid workbench payload');
+              // Whole-catalog selection contains one stable reference per row.
+              // Keep its single atomic edit within the existing large owner-request budget.
+              const payloadLimit = method === 'coordination' || method === 'editAssignmentBatch' ? 256000 : 16000;
+              if (payload !== undefined && (typeof payload !== 'string' || payload.length > payloadLimit)) throw new Error('Invalid workbench payload');
               return { render: 'status', data: await runtime.invokeOwner(method,
                 payload === undefined ? {} : JSON.parse(payload as string), authority as import('@clowder-ai/plugin-sdk').PluginOwnerOperationContext) };
             };

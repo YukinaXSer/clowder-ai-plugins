@@ -29,7 +29,7 @@ for (const delivery of ['assignment', 'invitation']) test(`packed bulk board (${
   const original = structuredClone(s.issues[0]);
   s.issues.splice(0, 1, ...Array.from({ length: 7 }, (_, index) => ({ ...structuredClone(original), id: `issue-${index + 1}`, number: index + 1,
     title: ['启动时会话初始化失败', 'Windows 工具路径解析失败', 'macOS 配置同步问题', '历史消息显示异常', '已经认领的问题', '尚未分析的新问题', '跨平台环境差异'][index],
-    url: `https://github.com/fixture/repo/issues/${index + 1}`, body: index === 1 ? 'Windows tool path failed' : index === 6 ? 'Windows and macOS both fail' : original.body,
+    url: `https://github.com/fixture/repo/issues/${index + 1}`, body: index === 0 ? 'The conversation cannot initialize.' : index === 1 ? 'Windows tool path failed' : index === 6 ? 'Windows and macOS both fail' : original.body,
     assignees: index === 4 ? ['bob'] : [] })));
   const host = { ...s.context, dataPath: directory, messaging: { ...s.context.messaging, send: ({ threadId, ...draft }) => s.context.messaging.send(threadId, draft) } };
   const start = () => createIssueTeamModule(s.provider).create({ pluginId: 'dev.clowder.issue-workbench', runtime: { entrypoint: 'dist/team-plugin.js' } }).start(host);
@@ -60,6 +60,7 @@ for (const delivery of ['assignment', 'invitation']) test(`packed bulk board (${
   await board.getByRole('button', { name: '读取当前 Open 问题看板' }).click();
   await board.getByText('全部 7', { exact: true }).waitFor();
   assert.deepEqual(s.writes, []); assert.equal(await board.locator('article').count(), 7);
+  await board.getByRole('article', { name: 'fixture/repo#1', exact: true }).getByText('通用问题（未注明系统） · 普通问题', { exact: true }).waitFor();
   assert.ok(await board.getByRole('button', { name: '核对并派工', exact: true }).isDisabled());
   const selectAll = board.getByRole('checkbox', { name: '全选当前列表', exact: true });
   const bulkRequests = [];

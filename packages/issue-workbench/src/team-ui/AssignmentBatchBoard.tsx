@@ -113,7 +113,7 @@ export function AssignmentBatchBoard({ host }: { host: TeamHost }) {
             <div><a href={item.issue.url} target="_blank" rel="noreferrer">{ref}</a><strong>{item.issue.title}</strong>
               <span>{labels[item.status]}{item.issue.assignees.length ? ` · ${item.issue.assignees.map(x => '@' + x).join('、')}` : ''}</span></div>
             <div><strong>{item.category} · {item.score === null ? '优先级待判断' : `${item.score}/10`}</strong>
-              <span>{options.affectedSystems?.map(s => systemLabels[s]).join(' / ') || '系统待判断'} · {({ general: '普通问题', framework: '框架与架构', 'core-plan': '核心功能方案' })[options.routingFocus ?? 'general']}</span>
+              <span>{options.systemScope === 'common' ? '通用问题（未注明系统）' : options.affectedSystems?.map(s => systemLabels[s]).join(' / ') || '系统待判断'} · {({ general: '普通问题', framework: '框架与架构', 'core-plan': '核心功能方案' })[options.routingFocus ?? 'general']}</span>
               <span>{item.reason ?? options.recommendationReason}</span>
               {item.manual && <span>人工调整 · 原推荐 @{options.preferredLogin ?? '无'}</span>}</div>
             <div>{item.status !== 'retained' && <>
