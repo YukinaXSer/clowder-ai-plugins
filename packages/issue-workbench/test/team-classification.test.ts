@@ -70,6 +70,9 @@ test('new analysis instructions ask for content-based origin and system evidence
   assert.match(text, /codeagent.*codehub/i);
   assert.match(text, /Windows.*macOS.*其他系统/);
   assert.match(text, /证据不足.*待判断/);
+  assert.match(text, /原文与有效分析均未注明系统.*通用问题/);
+  assert.match(text, /已配置.*成员.*候选/);
+  assert.doesNotMatch(text, /未知、其他系统或跨平台留待主人判断/);
   assert.match(text, /此任务不授权修代码/);
   assert.match(text, /category 仅从以下名称中选一个/);
   assert.match(text, /多个同等独立问题/);
