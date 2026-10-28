@@ -3,6 +3,7 @@ import type { TeamHost, TeamSummary } from '../ports/team.js';
 import type { AssignmentBatchItem, AssignmentBatchView } from '../team/assignment-batch.js';
 import { memberDescription } from '../classification/member-profile.js';
 import { systemLabels } from '../classification/issue-context.js';
+import { matchesIssueKeyword } from '../team/search.js';
 import styles from './team.module.css';
 
 const labels = { ready: '可派工', 'needs-analysis': '待分析', blocked: '待处理', retained: '已有负责人 / 保留', assigned: '已派工', invited: '已邀请 / 待接手', failed: '未完成' };
@@ -17,6 +18,7 @@ export function AssignmentBatchBoard({ host }: { host: TeamHost }) {
   const [batch, setBatch] = useState<AssignmentBatchView | null>();
   const [summary, setSummary] = useState<TeamSummary>();
   const [catId, setCatId] = useState(''), [filter, setFilter] = useState('all');
+  const [query, setQuery] = useState('');
   const [busy, setBusy] = useState(false), [error, setError] = useState('');
   const [pendingEdit, setPendingEdit] = useState<PendingEdit>();
   const [confirmation, setConfirmation] = useState<number>();
@@ -50,7 +52,8 @@ export function AssignmentBatchBoard({ host }: { host: TeamHost }) {
     if ('items' in pendingEdit) return pendingKeys.has(itemKey(item)) ? { ...item, included: pendingEdit.included } : item;
     return itemKey(item) === itemKey(pendingEdit.item) ? { ...item, login: pendingEdit.login, included: pendingEdit.included } : item;
   });
-  const visible = items.filter(i => filter === 'all' || i.status === filter);
+  const visible = items.filter(i => (filter === 'all' || i.status === filter)
+    && matchesIssueKeyword(query, i.issue, i.category, `@${i.login}`, ...i.issue.assignees.map(login => `@${login}`)));
   const selectable = visible.filter(i => i.status !== 'retained');
   const selectedCount = selectable.filter(i => i.included).length;
   const allSelected = selectable.length > 0 && selectedCount === selectable.length;
@@ -100,6 +103,12 @@ export function AssignmentBatchBoard({ host }: { host: TeamHost }) {
       </div>
       <p>本次参与 {selected.length} · 跳过 {items.filter(i => !i.included && i.status !== 'retained').length} · 已派工 {selected.filter(i => i.status === 'assigned').length} · 已邀请 {selected.filter(i => i.status === 'invited').length}</p>
       <p>成员分布：{distribution.map(([login, count]) => `@${login} ${count} 条`).join(' · ') || '暂无可派工人选'}</p>
+      <div className={styles.actions}>
+        <label className={styles.search}>搜索派工条目<input type="search" aria-label="搜索派工条目" maxLength={200}
+          placeholder="编号、标题、仓库、成员或分类" value={query} onChange={e => setQuery(e.target.value)} /></label>
+        {query && <button onClick={() => setQuery('')}>清空搜索</button>}
+        <span aria-live="polite">当前显示 {visible.length} / {items.length} 条</span>
+      </div>
       <div className={`${styles.actions} ${styles.batchSelection}`}>
         <label><input ref={selectAll} type="checkbox" aria-label="全选当前列表" checked={allSelected}
           disabled={busy || !draft || !selectable.length} onChange={e => void selectCurrent(e.target.checked)} />全选当前列表</label>
@@ -107,6 +116,7 @@ export function AssignmentBatchBoard({ host }: { host: TeamHost }) {
       </div>
       {['running', 'partial', 'completed'].includes(batch.status) && <progress aria-label="批量派工进度" max={selected.length || 1} value={selected.length - remaining.length} />}
       <div className={styles.batchRows}>
+        {!visible.length && <p>没有匹配的派工条目，请调整关键词或状态筛选。</p>}
         {visible.map(item => {
           const ref = `${item.issue.repo}#${item.issue.number}`, options = item.options;
           return <article key={item.issue.repo + ':' + item.issue.id} className={styles.batchRow} aria-label={ref}>

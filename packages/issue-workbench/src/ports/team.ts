@@ -30,7 +30,7 @@ export interface TeamSummary {
 export interface TeamHost {
   /** Installed mode uses the same durable work records as assignment rules. */
   coordination?: CoordinationHost;
-  summary(input?: { repo?: string; number?: number; kind?: 'analysis' | 'assignment' | 'inbox'; offset?: number }): Promise<TeamSummary>;
+  summary(input?: { repo?: string; number?: number; kind?: 'analysis' | 'assignment' | 'inbox'; query?: string; offset?: number }): Promise<TeamSummary>;
   get(id: string): Promise<TeamRecordDetail>;
   acceptInbox(input: { id: string; expectedRevision: number }): Promise<TeamRecord>;
   analyze(input: { repo: string; number: number; requestId: string; catId?: string }): Promise<TeamRecord>;

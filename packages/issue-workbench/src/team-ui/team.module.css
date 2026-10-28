@@ -25,7 +25,7 @@
 .panel p, .dialog p { margin: 8px 0; }
 .panel label, .dialog label { display: grid; gap: 6px; margin: 8px 0; }
 .panel textarea { min-height: 64px; }
-.panel select, .dialog select {
+.panel select, .dialog select, .search input {
   width: 100%;
   min-width: 0;
   min-height: 36px;
@@ -35,6 +35,7 @@
   border: 1px solid var(--cafe-border);
   border-radius: 8px;
 }
+.search { flex: 1 1 260px; min-width: 0; }
 .panel a, .dialog a { color: var(--cafe-accent-hover); }
 .panel button, .dialog button {
   min-height: 32px;

@@ -14,16 +14,17 @@ function Contents({ host }: { host: TeamHost }) {
   const [detail, setDetail] = useState<TeamRecordDetail>(), [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [refresh, setRefresh] = useState(0);
+  const [query, setQuery] = useState(''), [search, setSearch] = useState('');
   const version = useRef(0);
   useEffect(() => {
     const current = ++version.current;
     setBusy(true); setError(''); setDetail(undefined); setSummary(undefined);
-    void host.summary({ ...(['statistics', 'automatic'].includes(tab) ? {} : { kind: tab as 'inbox' | 'analysis' | 'assignment' }), offset })
+    void host.summary({ ...(['statistics', 'automatic'].includes(tab) ? {} : { kind: tab as 'inbox' | 'analysis' | 'assignment', query: search }), offset })
       .then(value => { if (version.current === current) setSummary(value); })
       .catch(error => { if (version.current === current) setError(error.message); })
       .finally(() => { if (version.current === current) setBusy(false); });
     return () => { version.current++; };
-  }, [host, tab, offset, refresh]);
+  }, [host, tab, offset, refresh, search]);
   async function read(id: string) {
     const current = ++version.current; setBusy(true); setError('');
     try { const next = await host.get(id); if (version.current === current) setDetail(next); }
@@ -47,9 +48,18 @@ function Contents({ host }: { host: TeamHost }) {
     <button type="button" disabled={busy} onClick={() => setRefresh(value => value + 1)}>刷新组织成员</button>
     <nav className={styles.actions} aria-label="团队记录视图">
       {(['inbox', 'automatic', 'analysis', 'assignment', 'statistics'] as const).map(value => <button type="button" key={value}
-        aria-pressed={tab === value} onClick={() => { setTab(value); setOffset(0); }}>
+        aria-pressed={tab === value} onClick={() => { setTab(value); setOffset(0); setQuery(''); setSearch(''); }}>
         {({ inbox: '我的收件', automatic: '自动研判', analysis: '研判记录', assignment: '派工记录', statistics: '反馈统计' })[value]}</button>)}
     </nav>
+    {tab !== 'statistics' && tab !== 'automatic' && <form className={styles.actions} onSubmit={e => {
+      e.preventDefault(); setOffset(0); setSearch(query.trim()); setRefresh(value => value + 1);
+    }}>
+      <label className={styles.search}>搜索团队记录<input type="search" aria-label="搜索团队记录" maxLength={200}
+        placeholder="编号、标题、仓库、成员或分类" value={query} onChange={e => setQuery(e.target.value)} /></label>
+      <button type="submit" disabled={busy}>搜索</button>
+      {(query || search) && <button type="button" onClick={() => { setQuery(''); setSearch(''); setOffset(0); }}>清空搜索</button>}
+      {search && <span>搜索结果：{search}</span>}
+    </form>}
     {busy && <p role="status">正在读取…</p>}
     {error && <p role="alert">{error}</p>}
     {summary?.configurationError && <p>{summary.configurationError}</p>}
@@ -78,7 +88,7 @@ function Contents({ host }: { host: TeamHost }) {
       <p className={styles.muted}>统计来自保存的研判与明确的人工反馈，未进行模型训练。</p>
     </div>}
     {tab !== 'statistics' && tab !== 'automatic' && summary && <>
-      {!summary.rows.length && <p>{tab === 'inbox' ? '暂无收件记录' : tab === 'assignment' ? '暂无直接指派记录' : '暂无研判记录'}</p>}
+      {!summary.rows.length && <p>{search ? '没有匹配的记录，请调整关键词。' : tab === 'inbox' ? '暂无收件记录' : tab === 'assignment' ? '暂无直接指派记录' : '暂无研判记录'}</p>}
       <div className={styles.records}>{summary.rows.map(row => <button type="button" key={row.id}
         aria-pressed={detail?.id === row.id} onClick={() => void read(row.id)}>
         <strong>{row.issue.repo}#{row.issue.number} · {row.issue.title}</strong>

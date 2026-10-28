@@ -150,3 +150,35 @@ it('restores the edited participation after a failed save without changing other
     expect(v.host.confirmAssignmentBatch).not.toHaveBeenCalled();
   } finally { await v.close(); }
 });
+
+it('searches the entire board and limits bulk selection to the search and status intersection', async () => {
+  const v = await mount();
+  try {
+    const search = v.node.querySelector<HTMLInputElement>('[aria-label="搜索派工条目"]');
+    expect(search).not.toBeNull();
+    const type = async (value: string) => act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(search, value);
+      search!.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await type(' #2 ');
+    expect(v.node.querySelectorAll('article')).toHaveLength(1);
+    expect(v.node.textContent).toContain('本次参与 2');
+    await act(async () => v.node.querySelector<HTMLInputElement>('[aria-label="全选当前列表"]')!.click());
+    expect(v.host.editAssignmentBatch).toHaveBeenLastCalledWith({ id: 'batch', expectedRevision: 1, included: false,
+      items: [{ repo: 'fixture/repo', issueId: '2' }] });
+    await act(async () => v.button('可派工 1').click());
+    expect(v.node.querySelectorAll('article')).toHaveLength(0);
+    expect(v.node.textContent).toContain('没有匹配的派工条目');
+    expect(v.node.querySelector<HTMLInputElement>('[aria-label="全选当前列表"]')!.disabled).toBe(true);
+    await type('@ALICE');
+    expect(v.node.querySelectorAll('article')).toHaveLength(1);
+    await type('问题 1'); expect(v.node.querySelectorAll('article')).toHaveLength(1);
+    await act(async () => v.button('清空搜索').click());
+    await act(async () => v.button('全部 3').click());
+    expect(v.node.querySelectorAll('article')).toHaveLength(3);
+    expect(v.node.querySelector<HTMLInputElement>('[aria-label="本次参与 fixture/repo#1"]')!.checked).toBe(true);
+    expect(v.node.querySelector<HTMLInputElement>('[aria-label="本次参与 fixture/repo#2"]')!.checked).toBe(false);
+    expect(v.host.editAssignmentBatch).toHaveBeenCalledTimes(1);
+    expect(v.host.confirmAssignmentBatch).not.toHaveBeenCalled();
+  } finally { await v.close(); }
+});

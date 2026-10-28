@@ -62,6 +62,15 @@ for (const delivery of ['assignment', 'invitation']) test(`packed bulk board (${
   assert.deepEqual(s.writes, []); assert.equal(await board.locator('article').count(), 7);
   await board.getByRole('article', { name: 'fixture/repo#1', exact: true }).getByText('通用问题（未注明系统） · 普通问题', { exact: true }).waitFor();
   assert.ok(await board.getByRole('button', { name: '核对并派工', exact: true }).isDisabled());
+  const search = board.getByRole('searchbox', { name: '搜索派工条目' });
+  await search.fill('#1');
+  assert.equal(await board.locator('article').count(), 1);
+  await board.getByRole('article', { name: 'fixture/repo#1', exact: true }).waitFor();
+  await search.fill('no-such-issue-keyword');
+  await board.getByText('没有匹配的派工条目，请调整关键词或状态筛选。').waitFor();
+  assert.ok(await board.getByRole('checkbox', { name: '全选当前列表', exact: true }).isDisabled());
+  await board.getByRole('button', { name: '清空搜索', exact: true }).click();
+  assert.equal(await board.locator('article').count(), 7);
   const selectAll = board.getByRole('checkbox', { name: '全选当前列表', exact: true });
   const bulkRequests = [];
   const trackBulk = request => {
@@ -214,5 +223,17 @@ for (const delivery of ['assignment', 'invitation']) test(`packed bulk board (${
   await page.screenshot({ path: 'artifacts/batch-assignment-2026-10-26/completed.png', fullPage: true });
   await mkdir('artifacts/official-dispatch-2026-10-27', { recursive: true });
   await page.screenshot({ path: `artifacts/official-dispatch-2026-10-27/completed-${delivery}.png`, fullPage: true });
+  await board.getByRole('button', { name: '关闭', exact: true }).click();
+  await page.getByRole('button', { name: '团队记录', exact: true }).click();
+  const records = page.getByRole('dialog', { name: '团队记录', exact: true });
+  await records.getByRole('button', { name: '派工记录', exact: true }).click();
+  await records.getByRole('searchbox', { name: '搜索团队记录' }).fill('#3');
+  await records.getByRole('button', { name: '搜索', exact: true }).click();
+  await records.getByText('1 条记录', { exact: true }).waitFor();
+  assert.equal(await records.getByRole('button', { name: /fixture\/repo#1 ·/ }).count(), 0);
+  await records.getByRole('button', { name: /fixture\/repo#3 ·/ }).waitFor();
+  await mkdir('artifacts/keyword-dispatch-2026-10-28', { recursive: true });
+  await page.screenshot({ path: `artifacts/keyword-dispatch-2026-10-28/record-search-${delivery}.png` });
+  assert.equal(s.dispatches.length, 2);
   assert.deepEqual(errors, []);
 });

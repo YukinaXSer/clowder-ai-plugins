@@ -394,3 +394,26 @@ test('reopening the same assignment resumes intake with a new notification and p
   await s.runtime().recover();
   assert.equal(s.sends.size, 4, 'the second closure also has its own idempotency key');
 });
+
+test('owner record keyword search filters the full catalog before pagination and preserves other scopes', async () => {
+  const s = await fixture();
+  const original = structuredClone(s.issues[0]!);
+  s.issues.splice(0, 1, ...Array.from({ length: 35 }, (_, index) => ({ ...original,
+    id: 'search-' + index, number: index + 1, title: index === 34 ? '中文 Network repair' : 'Network routine',
+    url: `https://github.com/fixture/repo/issues/${index + 1}` })));
+  for (const issue of s.issues) await s.call('analyze', { repo: issue.repo, number: issue.number, requestId: 'search-' + issue.number });
+  const before = await s.context.storage.list('');
+  const one = (await s.call('summary', { kind: 'analysis', query: '  #35  ' })).data;
+  assert.deepEqual(one.rows.map((row: any) => row.issue.number), [35]); assert.equal(one.total, 1); assert.equal(one.nextOffset, null);
+  assert.equal((await s.call('summary', { query: '中文 network' })).data.total, 1);
+  const first = (await s.call('summary', { query: 'NETWORK', limit: 30 })).data;
+  assert.equal(first.rows.length, 30); assert.equal(first.total, 35); assert.equal(first.nextOffset, 30);
+  assert.equal((await s.call('summary', { query: 'network', offset: 30 })).data.rows.length, 5);
+  assert.equal((await s.call('summary', { query: '#35', number: 1 })).data.total, 0);
+  assert.equal((await s.call('summary', { query: 'network', kind: 'assignment' })).data.total, 0);
+  assert.equal((await s.call('summary', { query: 'missing' })).data.total, 0);
+  assert.equal((await s.call('summary', { query: '  ' })).data.total, 35);
+  assert.equal(one.statistics.analyzed, 0); // Search does not manufacture analyses or dispatches.
+  assert.deepEqual(await s.context.storage.list(''), before); assert.deepEqual(s.writes, []); assert.deepEqual(s.dispatches, []);
+  await s.active.stop();
+});

@@ -2,6 +2,7 @@ import { routingContext } from '../classification/routing-context.js';
 import { categoryInstructions } from '../classification/taxonomy.js';
 import { z } from 'zod';
 import { AnalysisValidationError } from './analysis-feedback.js';
+import { matchesIssueKeyword } from './search.js';
 import { createHash } from 'node:crypto';
 import type { PluginOwnerOperationContext } from '@clowder-ai/plugin-sdk';
 import type { TeamIssueContext } from '../ports/team.js';
@@ -725,6 +726,7 @@ export class IssueTeamRuntime {
         case 'controlClassification': return this.classificationQueues.control(input, owner);
         case 'summary': {
           const args = z.object({ repo: repository.optional(), number: z.number().int().positive().optional(), kind: z.enum(['analysis', 'assignment', 'inbox']).optional(),
+            query: z.string().max(200).default(''),
             offset: z.number().int().min(0).default(0), limit: z.number().int().min(1).max(100).default(30) }).strict().parse(input);
           let rows: RecordValue[] = [];
           let configurationError: string | undefined;
@@ -734,6 +736,9 @@ export class IssueTeamRuntime {
             rows = rows.filter(row => row.kind !== 'inbox' || row.login === login);
           }
           const selected = rows.filter(row => (!args.repo || row.issue.repo === args.repo) && (!args.number || row.issue.number === args.number) && (!args.kind || row.kind === args.kind))
+            .filter(row => matchesIssueKeyword(args.query, row.issue,
+              `@${row.kind === 'inbox' ? row.login : row.assignment?.login ?? ''}`,
+              row.kind === 'assignment' ? row.category : row.kind === 'analysis' ? row.analysis?.category : undefined))
             .sort((a, b) => {
               if (a.kind === 'inbox' && b.kind === 'inbox') {
                 const inactive = Number(a.status === 'inactive') - Number(b.status === 'inactive');
