@@ -27,6 +27,8 @@ export interface SharedDispatch {
   reason: string;
   sourceVersion: string;
   acceptanceSuggestedFor?: string;
+  /** Explicitly versioned edits of an invitation, never of a GitHub assignment. */
+  invitationRevision?: { number: number; previousAssignee: string };
 }
 export interface AssignmentObservation {
   issue: TeamIssue;
@@ -64,6 +66,8 @@ export interface TeamProvider {
   canWrite(repo: string, login: string, signal: AbortSignal): Promise<boolean>;
   addAssignee(issue: TeamIssue, login: string, signal: AbortSignal): Promise<void>;
   publishDispatch(issue: TeamIssue, dispatch: SharedDispatch, signal: AbortSignal, allowCreate: boolean): Promise<string>;
+  replaceInvitation?(issue: TeamIssue, commentId: string, previous: SharedDispatch, next: SharedDispatch,
+    signal: AbortSignal, authorized: () => Promise<void>): Promise<string>;
   invitations(repo: string, login: string, trustedSenders: string[], signal: AbortSignal, page?: number, since?: string): Promise<InvitationPage>;
   invitation(issue: TeamIssue, assignmentId: string, login: string, trustedSenders: string[], signal: AbortSignal): Promise<AssignmentObservation | null>;
   assigned(repo: string, login: string, signal: AbortSignal): Promise<AssignmentObservation[]>;

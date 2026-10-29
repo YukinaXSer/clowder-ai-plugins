@@ -37,6 +37,15 @@ export function TeamRecordView({ row }: { row: TeamRecordDetail }) {
         : row.assignment.status === 'needs-decision' ? '分配需要确认' : '分配待核对'}
       {row.assignment.reason ? ` · ${row.assignment.reason}` : ''}
     </p>}
+    {row.kind !== 'inbox' && row.assignment?.status === 'invited' && <p>
+      {row.assignment.replacement ? '邀请覆盖结果待核对，当前收件人以 GitHub 原评论为准' : `当前邀请：@${row.assignment.login}`}
+      {row.assignment.commentId && <> · <a href={`${row.currentIssue.url}#issuecomment-${row.assignment.commentId}`} target="_blank" rel="noreferrer">查看原邀请</a></>}
+    </p>}
+    {row.kind !== 'inbox' && !!row.assignment?.replacementHistory?.length && <details><summary>邀请变更历史</summary>
+      {row.assignment.replacementHistory.map(change => <p key={change.next.invitationRevision!.number}>
+        第 {change.next.invitationRevision!.number} 次调整：@{change.previous.assignee} → @{change.next.assignee} · {new Date(change.appliedAt!).toLocaleString()}
+      </p>)}
+    </details>}
     {row.kind === 'inbox' && <p>{row.status === 'inactive' ? '原分配已结束' : row.status === 'delivered' ? '团队已收取' : '等待投递'}
       {row.withdrawal?.status === 'pending' ? ' · 变更提醒待发送' : row.withdrawal?.status === 'delivered' ? ' · 变更提醒已发送' : ''}</p>}
     {row.kind === 'inbox' && row.receipt && <p>{row.receipt.commentId ? '回执已发布' : '回执发布结果待核对'}</p>}

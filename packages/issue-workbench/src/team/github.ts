@@ -44,22 +44,26 @@ const catalogPages = z.array(z.object({
   }) }) }),
 })).min(1);
 const commentSchema = z.object({
+  node_id: z.string().min(1).optional(),
   id: z.number().int().positive(), body: z.string(), user: z.object({ login: authorLogin }).nullable(),
   created_at: z.string(), updated_at: z.string(),
 });
 const marker = (id: string) => `<!-- issue-workbench.dispatch.v1:${id} -->`;
+const invitationId = (commentId: number, dispatch: SharedDispatch) => `invitation:${commentId}${dispatch.invitationRevision ? `:r${dispatch.invitationRevision.number}` : ''}`;
 const escapeMention = (text: string) => text.replaceAll('@', '＠');
 export const dispatchBody = (dispatch: SharedDispatch) =>
-  `Issue Workbench${dispatch.initiator === 'system' ? ' · 提交人：system' : ''} · @${dispatch.assignee}${dispatch.delivery === 'invitation' ? ' · 任务邀请（待接手，未设置 GitHub 负责人）' : ''}\n\n优先级：${dispatch.score ?? '待研判'}${dispatch.score === null ? '' : '/10'}\n${escapeMention(dispatch.reason)}\n${dispatch.acceptanceSuggestedFor ? `\n建议合入前邀请 Issue 提交者 @${dispatch.acceptanceSuggestedFor} 参与验收；此建议不表示已验收，也不替代独立审查。\n` : ''}\n${marker(dispatch.id)}\n\`\`\`json\n${JSON.stringify(dispatch)}\n\`\`\``;
+  `Issue Workbench${dispatch.initiator === 'system' ? ' · 提交人：system' : ''} · @${dispatch.assignee}${dispatch.delivery === 'invitation' ? ' · 任务邀请（待接手，未设置 GitHub 负责人）' : ''}\n\n优先级：${dispatch.score ?? '待研判'}${dispatch.score === null ? '' : '/10'}\n${escapeMention(dispatch.reason)}${dispatch.invitationRevision ? `\n\n邀请已调整（第 ${dispatch.invitationRevision.number} 次）：${escapeMention(dispatch.invitationRevision.previousAssignee)} → @${dispatch.assignee}。原收件人的邀请已失效。` : ''}\n${dispatch.acceptanceSuggestedFor ? `\n建议合入前邀请 Issue 提交者 @${dispatch.acceptanceSuggestedFor} 参与验收；此建议不表示已验收，也不替代独立审查。\n` : ''}\n${marker(dispatch.id)}\n\`\`\`json\n${JSON.stringify(dispatch)}\n\`\`\``;
 
 function invitationDispatch(comment: z.infer<typeof commentSchema>, target: string, trustedSenders: string[]) {
-  if (comment.created_at !== comment.updated_at || (!comment.user || !trustedSenders.includes(comment.user.login))) return null;
+  if (!comment.user || !trustedSenders.includes(comment.user.login)) return null;
   const match = /<!-- issue-workbench\.dispatch\.v1:([a-f0-9]{64}) -->\n```json\n([^\n]+)\n```$/.exec(comment.body);
   if (!match) return null;
   try {
     const dispatch = dispatchSchema.parse(JSON.parse(match[2]));
     // Compare to the original JSON, not schema property order. An invitation is
     // an exact protocol record; arbitrary mentions never become executable work.
+    if (comment.created_at !== comment.updated_at && !dispatch.invitationRevision) return null;
+    if (dispatch.invitationRevision?.previousAssignee === dispatch.assignee) return null;
     if (dispatch.delivery !== 'invitation' || dispatch.id !== match[1] || dispatch.assignee !== target ||
         dispatchBody(JSON.parse(match[2])) !== comment.body) return null;
     return dispatch;
@@ -79,11 +83,11 @@ export class GhTeamProvider implements TeamProvider {
       throw new Error(status ? `GitHub request failed (HTTP ${status})` : 'GitHub unavailable; check authentication and retry');
     }
   }) {}
-  private async api(path: string, signal: AbortSignal, payload?: Record<string, unknown>, paged = false): Promise<unknown> {
+  private async api(path: string, signal: AbortSignal, payload?: Record<string, unknown>, paged = false, method = 'POST'): Promise<unknown> {
     const args = ['api', '--hostname', 'github.com', path, '-H', 'Accept: application/vnd.github+json', '-H', 'X-GitHub-Api-Version: 2026-03-10'];
     if (paged) args.push('--paginate', '--slurp');
     if (payload) {
-      args.push('--method', 'POST');
+      args.push('--method', method);
       for (const [key, value] of Object.entries(payload)) {
         for (const item of Array.isArray(value) ? value : [value]) args.push('-f', `${key}${Array.isArray(value) ? '[]' : ''}=${item}`);
       }
@@ -190,6 +194,22 @@ export class GhTeamProvider implements TeamProvider {
   private async comments(issue: TeamIssue, signal: AbortSignal) {
     return z.array(commentSchema).parse(await this.api(`${this.path(issue.repo, issue.number)}/comments?per_page=100`, signal, undefined, true));
   }
+  private async trustedInvitation(comment: z.infer<typeof commentSchema>, target: string, senders: string[], signal: AbortSignal) {
+    const dispatch = invitationDispatch(comment, target, senders);
+    if (!dispatch?.invitationRevision) return dispatch;
+    if (!comment.node_id) return null;
+    // REST retains the original author after a maintainer edits their comment.
+    // An explicit revision is trusted only when that same author was its editor.
+    const query = 'query($id:ID!){node(id:$id){... on IssueComment{id body updatedAt author{login} editor{login}}}}';
+    const result = z.object({ errors: z.array(z.unknown()).max(0).optional(), data: z.object({ node: z.object({
+      id: z.string(), body: z.string(), updatedAt: z.string(),
+      author: z.object({ login: authorLogin }).nullable(), editor: z.object({ login: authorLogin }).nullable(),
+    }).nullable() }) }).parse(await this.api('graphql', signal, { query, id: comment.node_id }));
+    const node = result.data.node;
+    if (!node || node.id !== comment.node_id || node.author?.login !== comment.user?.login || node.editor?.login !== comment.user?.login) return null;
+    if (node.body !== comment.body || Date.parse(node.updatedAt) !== Date.parse(comment.updated_at)) throw new Error('Invitation changed during lookup; retry');
+    return dispatch;
+  }
   async discussion(issue: TeamIssue, signal: AbortSignal) {
     return (await this.comments(issue, signal)).map(comment => ({
       id: String(comment.id), author: comment.user?.login ?? '[deleted]', body: comment.body,
@@ -213,6 +233,36 @@ export class GhTeamProvider implements TeamProvider {
       await this.api(`${this.path(issue.repo, issue.number)}/comments`, signal, { body }),
     );
     return String(result.id);
+  }
+  async replaceInvitation(issue: TeamIssue, commentId: string, previousInput: SharedDispatch, nextInput: SharedDispatch,
+    signal: AbortSignal, authorized: () => Promise<void>) {
+    const previous = dispatchSchema.parse(previousInput), next = dispatchSchema.parse(nextInput);
+    if (!/^[1-9][0-9]*$/.test(commentId) || previous.delivery !== 'invitation' || next.delivery !== 'invitation' ||
+        next.id !== previous.id || next.issueId !== previous.issueId || next.assignee === previous.assignee ||
+        next.invitationRevision?.number !== (previous.invitationRevision?.number ?? 0) + 1 ||
+        next.invitationRevision.previousAssignee !== previous.assignee ||
+        JSON.stringify({ ...next, assignee: previous.assignee, invitationRevision: previous.invitationRevision }) !==
+          JSON.stringify({ ...previous, invitationRevision: previous.invitationRevision })) throw new Error('Invalid invitation replacement');
+    const actor = await this.identity(signal), comments = await this.comments(issue, signal);
+    const comment = comments.find(row => String(row.id) === commentId);
+    if (!comment || comment.user?.login !== actor ||
+        comments.filter(row => row.body.includes(marker(previous.id))).length !== 1) throw new Error('Original invitation owner or marker changed');
+    const body = dispatchBody(next);
+    if (comment.body !== body && (!await this.trustedInvitation(comment, previous.assignee, [actor], signal) || comment.body !== dispatchBody(previous))) {
+      throw new Error('Original invitation content changed; inspect before replacing');
+    }
+    const current = await this.issue(issue.repo, issue.number, signal);
+    if (current.assignees.length) throw new Error('Issue has an assignee; invitation replacement is forbidden');
+    if (current.id !== previous.issueId || current.state !== 'open' || issueVersion(current) !== previous.sourceVersion) throw new Error('Invitation source changed');
+    await authorized(); signal.throwIfAborted();
+    // A lost PATCH response is reconciled by its exact desired body. Never POST.
+    if (comment.body !== body) {
+      await this.api(`${this.path(issue.repo)}/issues/comments/${commentId}`, signal, { body }, false, 'PATCH');
+    }
+    const verified = (await this.comments(issue, signal)).find(row => String(row.id) === commentId);
+    if (!verified || verified.user?.login !== actor || verified.body !== body ||
+        !await this.trustedInvitation(verified, next.assignee, [actor], signal)) throw new Error('Replacement outcome unverified; inspect and retry');
+    return commentId;
   }
   private async sharedDispatch(issue: TeamIssue, target: string, signal: AbortSignal) {
     for (const comment of (await this.comments(issue, signal)).reverse()) {
@@ -259,11 +309,13 @@ export class GhTeamProvider implements TeamProvider {
         const assignment = timeline.filter(event =>
           ['assigned', 'unassigned'].includes(event.event) && event.assignee?.login === receipt.login &&
           event.created_at && Date.parse(event.created_at) <= Date.parse(comment.created_at)).at(-1);
-        const invitation = comments.find(candidate => {
-          const dispatch = invitationDispatch(candidate, receipt.login, trustedSenders);
-          return dispatch?.issueId === issue.id && receipt.assignmentId === `invitation:${candidate.id}` &&
-            Date.parse(candidate.created_at) <= Date.parse(comment.created_at);
-        });
+        let invitation = false;
+        for (const candidate of comments) {
+          if (!receipt.assignmentId.startsWith(`invitation:${candidate.id}`)) continue;
+          const dispatch = await this.trustedInvitation(candidate, receipt.login, trustedSenders, signal);
+          if (dispatch?.issueId === issue.id && receipt.assignmentId === invitationId(candidate.id, dispatch) &&
+              Date.parse(dispatch.invitationRevision ? candidate.updated_at : candidate.created_at) <= Date.parse(comment.created_at)) invitation = true;
+        }
         if (receipt.id === match[1] && receipt.issueId === issue.id && receipt.login === comment.user?.login &&
             (invitation || assignment?.event === 'assigned' && String(assignment.id) === receipt.assignmentId)) receipts.push(receipt);
       } catch { /* Ordinary comments are not structured progress. */ }
@@ -271,16 +323,19 @@ export class GhTeamProvider implements TeamProvider {
     // These are authored reports with assignment IDs, not Host execution truth.
     return receipts;
   }
-  private observeInvitation(issue: TeamIssue, comment: z.infer<typeof commentSchema>, target: string, senders: string[]): AssignmentObservation | null {
-    const dispatch = invitationDispatch(comment, target, senders);
+  private async observeInvitation(issue: TeamIssue, comment: z.infer<typeof commentSchema>, target: string, senders: string[], signal: AbortSignal): Promise<AssignmentObservation | null> {
+    const dispatch = await this.trustedInvitation(comment, target, senders, signal);
     if (!dispatch || dispatch.issueId !== issue.id || dispatch.sourceVersion !== issueVersion(issue) ||
         issue.state !== 'open' || issue.assignees.some(assignee => assignee !== target)) return null;
-    return { issue, assignmentId: `invitation:${comment.id}`, dispatch, delivery: 'invitation' };
+    return { issue, assignmentId: invitationId(comment.id, dispatch), dispatch, delivery: 'invitation' };
   }
   async invitation(issue: TeamIssue, assignmentId: string, target: string, trustedSenders: string[], signal: AbortSignal) {
     target = login.parse(target);
-    const comment = (await this.comments(issue, signal)).find(row => `invitation:${row.id}` === assignmentId);
-    return comment ? this.observeInvitation(issue, comment, target, trustedSenders) : null;
+    for (const comment of await this.comments(issue, signal)) {
+      const observed = await this.observeInvitation(issue, comment, target, trustedSenders, signal);
+      if (observed?.assignmentId === assignmentId) return observed;
+    }
+    return null;
   }
   async invitations(repo: string, target: string, trustedSenders: string[], signal: AbortSignal, page = 1, since?: string): Promise<InvitationPage> {
     repo = repository.parse(repo); target = login.parse(target);
@@ -307,7 +362,7 @@ export class GhTeamProvider implements TeamProvider {
       }
       const issue = issues.get(number);
       if (!issue) continue;
-      const observed = this.observeInvitation(issue, comment, target, trustedSenders);
+      const observed = await this.observeInvitation(issue, comment, target, trustedSenders, signal);
       if (observed) result.push(observed);
     }
     const dates = comments.map(comment => Date.parse(comment.updated_at)).filter(Number.isFinite);

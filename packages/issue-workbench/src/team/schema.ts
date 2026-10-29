@@ -38,6 +38,7 @@ export const dispatchSchema = z.object({
   score: z.number().int().min(1).max(10).nullable(),
   reason: z.string().max(1000), sourceVersion: idInput.shape.id,
   acceptanceSuggestedFor: login.optional(),
+  invitationRevision: z.object({ number: z.number().int().positive().safe(), previousAssignee: login }).strict().optional(),
 }).strict();
 export const receiptSchema = z.object({
   schema: z.literal('issue-workbench.receipt.v1'), id: idInput.shape.id,

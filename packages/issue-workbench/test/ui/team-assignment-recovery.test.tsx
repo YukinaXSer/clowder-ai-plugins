@@ -33,7 +33,7 @@ function fixture(assignees: string[] = []) {
 async function mount(context: any, row?: any) {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
   const node = document.createElement('div'); document.body.append(node); const root = createRoot(node);
-  const host = { assignIssue: vi.fn().mockResolvedValue({ id: 'new-record' }), assign: vi.fn() } as any;
+  const host = { assignIssue: vi.fn().mockResolvedValue({ id: 'new-record' }), assign: vi.fn(), replaceInvitation: vi.fn().mockResolvedValue({}) } as any;
   await act(async () => root.render(<TeamAssignment context={context} row={row} host={host} busy={false} act={async work => { await work(); }} />));
   const button = (label: string) => [...node.querySelectorAll('button')].find(b => b.textContent === label)!;
   return { node, host, button, async close() { await act(async () => root.unmount()); node.remove(); vi.unstubAllGlobals(); } };
@@ -99,4 +99,44 @@ it('does not label a historical invitation as still awaiting acceptance after Gi
     expect(node.textContent).not.toContain('等待成员接手');
     expect(node.textContent).toContain('历史邀请'); expect(node.textContent).toContain('@alice');
   } finally { await act(async () => root.unmount()); vi.unstubAllGlobals(); }
+});
+
+it('confirms original-comment replacement without creating another invitation', async () => {
+  const f = fixture(); f.context.assignmentOptions.eligibleMembers.push('bob');
+  const row = f.row('invited'); row.sourceStale = false;
+  const view = await mount(f.context, row);
+  try {
+    const change = async (label: string, value: string) => act(async () => {
+      const select = view.node.querySelector<HTMLSelectElement>(`[aria-label="${label}"]`)!;
+      select.value = value; select.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    await change('派工方式', 'invitation'); await change('指派给组员', 'bob');
+    expect(view.button('覆盖原邀请')).toBeTruthy();
+    await act(async () => view.button('覆盖原邀请').click());
+    expect(view.node.textContent).toContain('@alice → @bob');
+    expect(view.node.textContent).toContain('原评论');
+    expect(view.host.replaceInvitation).not.toHaveBeenCalled();
+    await act(async () => view.button('确认覆盖邀请').click());
+    expect(view.host.replaceInvitation).toHaveBeenCalledWith({ id: 'old-record', expectedRevision: 7, login: 'bob' });
+    expect(view.host.assignIssue).not.toHaveBeenCalled(); expect(view.host.assign).not.toHaveBeenCalled();
+  } finally { await view.close(); }
+});
+
+it('disables replacement when the original source has changed or the recipient is unchanged', async () => {
+  for (const stale of [false, true]) {
+    const f = fixture(); f.context.assignmentOptions.eligibleMembers.push('bob');
+    const row = f.row('invited'); row.sourceStale = stale;
+    const view = await mount(f.context, row);
+    try {
+      const change = async (label: string, value: string) => act(async () => {
+        const select = view.node.querySelector<HTMLSelectElement>(`[aria-label="${label}"]`)!;
+        select.value = value; select.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+      await change('派工方式', 'invitation'); await change('指派给组员', 'alice');
+      expect(view.button('覆盖原邀请').disabled).toBe(true);
+      await change('指派给组员', 'bob');
+      expect(view.button('覆盖原邀请').disabled).toBe(stale);
+      expect(view.host.replaceInvitation).not.toHaveBeenCalled();
+    } finally { await view.close(); }
+  }
 });

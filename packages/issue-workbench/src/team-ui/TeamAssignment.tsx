@@ -11,11 +11,13 @@ export function TeamAssignment({ host, context, row, busy, act }: {
 }) {
   const options = context.assignmentOptions;
   const completed = row && row.kind !== 'inbox' && !!row.assignment && ['assigned', 'invited'].includes(row.assignment.status);
-  // Recommendations are advice, not the owner's selection. A completed record
-  // stays immutable; a subsequent assignment uses fresh source and request IDs.
+  // A real assignment stays historical. An unclaimed invitation can be revised
+  // at the original comment, with a separate owner confirmation and history.
+  const pendingReplacement = row && row.kind !== 'inbox' ? row.assignment?.replacement : undefined;
   const committedRecipient = !completed && row && row.kind !== 'inbox' && row.assignment?.commentAttempted ? row.assignment.login : '';
-  const [login, setLogin] = useState(committedRecipient ?? '');
-  const [delivery, setDelivery] = useState<'invitation' | 'assignment'>(!completed && row && row.kind !== 'inbox' && row.assignment ? row.assignment.delivery ?? 'assignment' : 'assignment');
+  const [login, setLogin] = useState(pendingReplacement?.next.assignee ?? committedRecipient ?? '');
+  const [delivery, setDelivery] = useState<'invitation' | 'assignment'>(pendingReplacement ? 'invitation' : !completed && row && row.kind !== 'inbox' && row.assignment ? row.assignment.delivery ?? 'assignment' : 'assignment');
+  const replacing = completed && row.assignment?.status === 'invited' && delivery === 'invitation';
   const [confirming, setConfirming] = useState(false);
   const requestId = useRef<string>();
   const record = !completed && row && row.kind !== 'inbox' && (row.kind === 'assignment' || row.analysis) ? row : undefined;
@@ -28,9 +30,11 @@ export function TeamAssignment({ host, context, row, busy, act }: {
   // An unfinished analysis may still be published for the same current owner.
   if (ownerHelp && !record?.analysis) return ownerHelp;
   if (!options.members.length) return <p className={styles.notice}>{options.error || '关联组织暂无可用成员，请刷新组织成员后重试'}</p>;
-  const blocked = busy || (!completed && row?.sourceStale) || context.currentIssue.state !== 'open' || !options.eligibleMembers?.includes(login) || !!options.blockedReason
+  const blocked = busy || ((!completed || replacing) && row?.sourceStale) || context.currentIssue.state !== 'open' || !options.eligibleMembers?.includes(login) || !!options.blockedReason
+    || (replacing && (row.assignment?.login === login || !row.assignment?.commentId || context.currentIssue.assignees.length > 0))
     || context.currentIssue.assignees.some(member => member !== login);
   async function assign() {
+    if (replacing) return host.replaceInvitation({ id: row.id, expectedRevision: row.revision, login });
     if (record) return host.assign({ id: record.id, expectedRevision: record.revision, login, delivery });
     requestId.current ??= crypto.randomUUID();
     return host.assignIssue({ repo: context.currentIssue.repo, number: context.currentIssue.number,
@@ -38,17 +42,18 @@ export function TeamAssignment({ host, context, row, busy, act }: {
   }
   return <div>
     {ownerHelp}
-    {completed && <p className={styles.notice}>历史{row.assignment?.status === 'invited' ? '邀请' : '派工'}记录已保留；GitHub 当前未认领。可以在这里明确选择负责人并发起一次新的派工。</p>}
+    {completed && <p className={styles.notice}>{replacing ? '将在原评论上替换邀请收件人，保留链接与变更历史。请先核对旧收件人是否已有未公开工作。' : '历史记录已保留；GitHub 当前未认领。可选择设置负责人；选择通知成员接手时，已发布的邀请会原址覆盖。'}</p>}
+    {pendingReplacement && <p role="alert">覆盖结果待核对：@{pendingReplacement.previous.assignee} → @{pendingReplacement.next.assignee}。重试将核对原评论，不另发邀请。{pendingReplacement.error}</p>}
     {options.error && <p className={styles.notice}>{options.error}</p>}
     <label>派工方式
-      <select aria-label="派工方式" value={delivery} disabled={busy || confirming || !!record?.assignment?.commentAttempted}
+      <select aria-label="派工方式" value={delivery} disabled={busy || confirming || !!pendingReplacement || !!record?.assignment?.commentAttempted}
         onChange={event => { setDelivery(event.target.value as 'invitation' | 'assignment'); requestId.current = undefined; }}>
         <option value="assignment">设置 GitHub 负责人</option>
         <option value="invitation">通知成员接手</option>
       </select>
     </label>
     <label>指派给组员
-      <select aria-label="指派给组员" value={login} disabled={busy || confirming || !!record?.assignment?.commentAttempted}
+      <select aria-label="指派给组员" value={login} disabled={busy || confirming || !!pendingReplacement || !!record?.assignment?.commentAttempted}
         onChange={event => { setLogin(event.target.value); requestId.current = undefined; }}>
         <option value="">选择组织成员</option>
         {options.members.map(member => <option key={member} value={member} disabled={!options.eligibleMembers?.includes(member)}>
@@ -57,7 +62,7 @@ export function TeamAssignment({ host, context, row, busy, act }: {
         </option>)}
       </select>
     </label>
-    {options.preferredLogin && <button type="button" disabled={busy || confirming || !!record?.assignment?.commentAttempted || !!options.blockedReason || !options.eligibleMembers?.includes(options.preferredLogin)}
+    {options.preferredLogin && <button type="button" disabled={busy || confirming || !!pendingReplacement || !!record?.assignment?.commentAttempted || !!options.blockedReason || !options.eligibleMembers?.includes(options.preferredLogin)}
       onClick={() => { setLogin(options.preferredLogin!); requestId.current = undefined; }}>采用推荐人选</button>}
     {!login && <p className={styles.muted}>请先选择收件人，或点击“采用推荐人选”；推荐不会自动成为指派。</p>}
     <p className={styles.muted}>{delivery === 'assignment'
@@ -69,15 +74,16 @@ export function TeamAssignment({ host, context, row, busy, act }: {
     {!!options.excluded?.length && <details><summary>查看未参与推荐的成员</summary><ul>{options.excluded.map(item =>
       <li key={item.login}>@{item.login}：{item.reason}</li>)}</ul></details>}
     {confirming ? <div className={styles.notice}>
-      <p>将 {context.currentIssue.repo}#{context.currentIssue.number} {delivery === 'invitation' ? '发送任务邀请给' : '设置负责人为'} @{login}，并在 GitHub 公开记录{record?.analysis
+      {replacing && <p>覆盖原评论：@{row.assignment?.login} → @{login}。旧邀请失效；保留原链接与历史，不新增第二条邀请。</p>}
+      {replacing ? <p>保留原邀请的分析分数与理由，只更新收件人与邀请版本。</p> : <p>将 {context.currentIssue.repo}#{context.currentIssue.number} {delivery === 'invitation' ? '发送任务邀请给' : '设置负责人为'} @{login}，并在 GitHub 公开记录{record?.analysis
         ? `研判分数 ${record.analysis.score == null ? '待研判' : `${record.analysis.score} / 10`} 和研判理由。`
-        : '主人直接指派；尚无猫猫研判分数。'}</p>
+        : '主人直接指派；尚无猫猫研判分数。'}</p>}
       {delivery === 'invitation' && <p>在 Issue 评论中通知对方；邀请发出后仍待对方接手，GitHub 负责人保持原样。</p>}
       <p>{delivery === 'assignment' ? '成员启用通用 GitHub 认领收件后，通知会进入本人配置的宿主对话。' : '本次只发布 GitHub 邀请评论，尚未建立认领。'}此操作不会自动修代码或合入。</p>
       <div className={styles.actions}>
-        <button type="button" disabled={blocked} onClick={() => void act(assign)}>{delivery === 'invitation' ? '确认发送邀请' : '确认指派'}</button>
+        <button type="button" disabled={blocked} onClick={() => void act(assign)}>{replacing ? '确认覆盖邀请' : delivery === 'invitation' ? '确认发送邀请' : '确认指派'}</button>
         <button type="button" disabled={busy} onClick={() => setConfirming(false)}>取消</button>
       </div>
-    </div> : <button type="button" disabled={blocked} onClick={() => setConfirming(true)}>{delivery === 'invitation' ? '通知成员接手' : '指派任务'}</button>}
+    </div> : <button type="button" disabled={blocked} onClick={() => setConfirming(true)}>{replacing ? '覆盖原邀请' : delivery === 'invitation' ? '通知成员接手' : '指派任务'}</button>}
   </div>;
 }

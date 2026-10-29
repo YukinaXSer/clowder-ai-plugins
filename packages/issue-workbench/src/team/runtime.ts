@@ -25,7 +25,7 @@ const dispatchReason = (row: DispatchRecord) => (row.kind === 'assignment' && ro
   ? `按已启用的团队分工批量派工${row.category ? `；当前类别：${row.category}` : ''}。` : '主人直接指派；尚未请求猫猫研判。');
 const requestInput = issueInput.extend({ requestId: z.string().regex(/^[A-Za-z0-9_.:-]{1,128}$/) });
 const revisionInput = idInput.extend({ expectedRevision: z.number().int().positive() });
-export const WORKBENCH_METHODS = ['summary', 'get', 'analyze', 'assign', 'assignIssue', 'retry', 'republish', 'feedback', 'planClassification', 'controlClassification', 'coordination', 'acceptInbox', 'planAssignments', 'getAssignmentBatch', 'refreshAssignmentBatch', 'editAssignmentBatch', 'analyzeAssignmentBatch', 'confirmAssignmentBatch', 'retryAssignmentBatch', 'cancelAssignmentBatch'] as const;
+export const WORKBENCH_METHODS = ['summary', 'get', 'analyze', 'assign', 'assignIssue', 'replaceInvitation', 'retry', 'republish', 'feedback', 'planClassification', 'controlClassification', 'coordination', 'acceptInbox', 'planAssignments', 'getAssignmentBatch', 'refreshAssignmentBatch', 'editAssignmentBatch', 'analyzeAssignmentBatch', 'confirmAssignmentBatch', 'retryAssignmentBatch', 'cancelAssignmentBatch'] as const;
 type InboxCatchup = Array<{ repository: string; nextPage: number; state: 'catching-up' | 'current' }>;
 type RequestAuthority = { assertCurrent(): void | Promise<void>; signal?: AbortSignal };
 type PlanningState = { records: RecordValue[]; store: PluginCoordinationStore; group: Awaited<ReturnType<typeof readGroup>> };
@@ -679,6 +679,64 @@ export class IssueTeamRuntime {
     if (row.withdrawal?.status === 'pending') { await this.withdraw(row, revision); return row; }
     return this.deliver(row, revision);
   }
+  private async replaceInvitation(input: unknown, owner: PluginOwnerOperationContext) {
+    const args = revisionInput.extend({ login: memberLogin }).strict().parse(input);
+    let { value: row, revision } = await this.row(args.id);
+    if (revision !== args.expectedRevision) throw new Error('Record changed; reload before replacing');
+    if (row.kind === 'inbox' || row.ownerUserId !== owner.userId) throw new Error('Original invitation owner required');
+    const assignment = row.assignment;
+    if (assignment?.status !== 'invited' || assignment.delivery !== 'invitation' || !assignment.commentId || !assignment.login) {
+      throw new Error('A verified invitation is required');
+    }
+    if (!this.provider.replaceInvitation) throw new Error('Provider does not support invitation replacement');
+    if (args.login === assignment.login) throw new Error('Select a different recipient');
+    if (assignment.replacement && (assignment.replacement.ownerUserId !== owner.userId || assignment.replacement.next.assignee !== args.login)) {
+      throw new Error('Resolve the pending replacement before selecting another recipient');
+    }
+    const current = await this.issue(row.issue.repo, row.issue.number);
+    if (current.assignees.length) throw new Error('Issue has an assignee; invitation replacement is forbidden');
+    if (current.state !== 'open' || issueVersion(current) !== row.sourceVersion) throw new Error('Invitation source changed');
+    const actor = await this.provider.identity(this.abort.signal);
+    const validate = async () => {
+      await this.activeSource(current.repo);
+      await requireMember(this.context, this.provider, this.abort.signal, actor);
+      await requireMember(this.context, this.provider, this.abort.signal, args.login);
+      if (await this.provider.identity(this.abort.signal) !== actor) throw new Error('GitHub identity changed');
+      const policy = await this.planAssignment(current, row.kind === 'analysis' ? row.analysis : undefined);
+      if (policy.options.blockedReason || !policy.options.eligibleMembers?.includes(args.login)) {
+        throw new Error(policy.options.blockedReason ?? '目标成员操作系统不兼容或尚未配置环境');
+      }
+      await this.authorized();
+    };
+    await validate();
+    if (!assignment.replacement) {
+      const previous: import('./types.js').SharedDispatch = {
+        schema: 'issue-workbench.dispatch.v1', delivery: 'invitation', id: row.id, issueId: current.id,
+        assignee: assignment.login, score: row.kind === 'assignment' && row.batch ? row.batch.score : row.analysis?.score ?? null,
+        reason: dispatchReason(row), sourceVersion: row.sourceVersion,
+        ...(row.kind === 'assignment' && row.batch ? { initiator: 'system' as const } : {}),
+        ...(assignment.acceptanceSuggestedFor ? { acceptanceSuggestedFor: assignment.acceptanceSuggestedFor } : {}),
+        ...(assignment.invitationRevision ? { invitationRevision: assignment.invitationRevision } : {}),
+      };
+      assignment.replacement = { previous, next: { ...previous, assignee: args.login,
+        invitationRevision: { number: (previous.invitationRevision?.number ?? 0) + 1, previousAssignee: previous.assignee } },
+        commentId: assignment.commentId, ownerUserId: owner.userId, operationId: owner.requestId, createdAt: Date.now() };
+    }
+    // Durable intent before PATCH; a restart never automatically edits GitHub.
+    revision = await this.save(row, revision);
+    const intent = assignment.replacement;
+    try {
+      await this.provider.replaceInvitation(current, intent.commentId, intent.previous, intent.next, this.abort.signal, validate);
+      await this.authorized();
+      intent.appliedAt = Date.now(); delete intent.error;
+      (assignment.replacementHistory ??= []).push(structuredClone(intent));
+      assignment.login = intent.next.assignee; assignment.invitationRevision = intent.next.invitationRevision;
+      assignment.basis = 'manual'; delete assignment.replacement; delete assignment.reason;
+    } catch (error) {
+      await this.authorized(); intent.error = errorText(error);
+    }
+    await this.save(row, revision); return row;
+  }
   /** Settings authority is independent of cat invocation identity. Never synthesize
    * a native caller from browser input or treat pending config as saved policy. */
   async invokeOwner(method: string, input: unknown, owner: PluginOwnerOperationContext) {
@@ -861,6 +919,7 @@ export class IssueTeamRuntime {
           const args = revisionInput.parse(input);
           return await this.retryRecord(args.id, args.expectedRevision);
         }
+        case 'replaceInvitation': return this.replaceInvitation(input, owner);
         case 'feedback': {
           const args = revisionInput.extend({ verdict: z.enum(['accepted', 'corrected', 'rejected']), reason: z.string().trim().min(1).max(1000) }).parse(input);
           const { value: job, revision } = await this.row(args.id);

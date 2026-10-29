@@ -182,6 +182,11 @@ configuration:
         render: row
         confirm: 请先核对 GitHub 评论。上次发布结果不确定，重新发布可能产生重复评论；不会更改负责人。
         action: { method: issue.workbench.republish }
+      - id: replaceInvitation
+        label: 确认覆盖原邀请
+        render: row
+        confirm: 仅在 Issue 没有 GitHub 负责人时，原址更新本账号发布的邀请评论。旧邀请失效，新收件人待接手；保留原链接和变更历史，不设置负责人、不自动开工。
+        action: { method: issue.workbench.replaceInvitation }
       - id: feedback
         label: 保存人工反馈
         render: row

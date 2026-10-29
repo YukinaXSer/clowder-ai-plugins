@@ -1,4 +1,4 @@
-import type { SharedReceipt, TeamAnalysis, TeamIssue } from './types.js';
+import type { SharedDispatch, SharedReceipt, TeamAnalysis, TeamIssue } from './types.js';
 import type { AssignmentOptions } from './group.js';
 
 export interface TeamFeedback {
@@ -36,10 +36,17 @@ export interface Job {
   analysis?: TeamAnalysis;
   provenance?: { catId: string; invocationId: string; sourceMessageId: string; recordedAt: number };
   assignment?: { status: 'pending' | 'assigned' | 'invited' | 'needs-decision'; delivery?: 'invitation' | 'assignment'; login?: string; reason?: string; commentAttempted?: boolean; commentId?: string; rulesHash?: string;
+    invitationRevision?: SharedDispatch['invitationRevision'];
+    replacement?: InvitationReplacement;
+    replacementHistory?: InvitationReplacement[];
     allocation?: { poolKey: string; committed: boolean };
     basis?: 'reporter' | 'feature' | 'category' | 'role' | 'weighted' | 'manual'; groupName?: string; acceptanceSuggestedFor?: string };
   feedback?: TeamFeedback;
   feedbackHistory?: TeamFeedback[];
+}
+export interface InvitationReplacement {
+  previous: SharedDispatch; next: SharedDispatch; commentId: string;
+  ownerUserId: string; operationId: string; createdAt: number; appliedAt?: number; error?: string;
 }
 export interface Inbox {
   kind: 'inbox'; id: string; issue: TeamIssue; assignmentId: string; login: string;

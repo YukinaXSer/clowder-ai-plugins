@@ -38,6 +38,7 @@ export interface TeamHost {
   assign(input: { id: string; expectedRevision: number; login: string; delivery?: 'assignment' | 'invitation' }): Promise<TeamRecord>;
   assignIssue(input: { repo: string; number: number; sourceVersion: string; requestId: string; login: string; delivery?: 'assignment' | 'invitation' }): Promise<TeamRecord>;
   republish(id: string, expectedRevision: number): Promise<TeamRecord>;
+  replaceInvitation(input: { id: string; expectedRevision: number; login: string }): Promise<TeamRecord>;
   feedback(input: { id: string; expectedRevision: number; verdict: 'accepted' | 'corrected' | 'rejected'; reason: string }): Promise<TeamRecord>;
   planClassification(input: { repo: string; catId: string; requestId: string }): Promise<ClassificationQueueView>;
   controlClassification(input: { id: string; expectedRevision: number; status: 'running' | 'paused' | 'stopped' }): Promise<ClassificationQueueView>;
@@ -90,6 +91,7 @@ export function createTeamClient(request: (path: string, options?: RequestInit) 
     assign: input => call('assign', input, true),
     assignIssue: input => call('assignIssue', input, true),
     republish: (id, expectedRevision) => call('republish', { id, expectedRevision }, true),
+    replaceInvitation: input => call('replaceInvitation', input, true),
     feedback: input => call('feedback', input),
     planClassification: input => call('planClassification', input),
     controlClassification: input => call('controlClassification', input),
