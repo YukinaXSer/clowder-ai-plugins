@@ -140,3 +140,17 @@ it('disables replacement when the original source has changed or the recipient i
     } finally { await view.close(); }
   }
 });
+
+it('allows explicit reconciliation of an uncertain edit after the new recipient has claimed the issue', async () => {
+  const f = fixture(['bob']); const row = f.row('invited');
+  row.assignment.replacement = { previous: { assignee: 'alice' }, next: { assignee: 'bob' }, error: 'response lost' };
+  const view = await mount(f.context, row);
+  try {
+    expect(view.button('核对覆盖结果')).toBeTruthy();
+    await act(async () => view.button('核对覆盖结果').click());
+    expect(view.node.textContent).toContain('已完成时只同步本地历史');
+    await act(async () => view.button('确认核对覆盖结果').click());
+    expect(view.host.replaceInvitation).toHaveBeenCalledWith({ id: row.id, expectedRevision: 7, login: 'bob' });
+    expect(view.host.assignIssue).not.toHaveBeenCalled();
+  } finally { await view.close(); }
+});

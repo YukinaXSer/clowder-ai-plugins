@@ -694,10 +694,10 @@ export class IssueTeamRuntime {
       throw new Error('Resolve the pending replacement before selecting another recipient');
     }
     const current = await this.issue(row.issue.repo, row.issue.number);
-    if (current.assignees.length) throw new Error('Issue has an assignee; invitation replacement is forbidden');
-    if (current.state !== 'open' || issueVersion(current) !== row.sourceVersion) throw new Error('Invitation source changed');
     const actor = await this.provider.identity(this.abort.signal);
     const validate = async () => {
+      if (current.assignees.length) throw new Error('Issue has an assignee; invitation replacement is forbidden');
+      if (current.state !== 'open' || issueVersion(current) !== row.sourceVersion) throw new Error('Invitation source changed');
       await this.activeSource(current.repo);
       await requireMember(this.context, this.provider, this.abort.signal, actor);
       await requireMember(this.context, this.provider, this.abort.signal, args.login);
@@ -708,8 +708,9 @@ export class IssueTeamRuntime {
       }
       await this.authorized();
     };
-    await validate();
+    await this.activeSource(current.repo); await this.authorized();
     if (!assignment.replacement) {
+      await validate();
       const previous: import('./types.js').SharedDispatch = {
         schema: 'issue-workbench.dispatch.v1', delivery: 'invitation', id: row.id, issueId: current.id,
         assignee: assignment.login, score: row.kind === 'assignment' && row.batch ? row.batch.score : row.analysis?.score ?? null,

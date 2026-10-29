@@ -27,6 +27,17 @@ export function TeamAssignment({ host, context, row, busy, act }: {
     <a href={context.currentIssue.url} target="_blank" rel="noreferrer">在 GitHub 退回或改派</a>
     <p>退回后点击“刷新团队结果”，由协调人重新选择符合系统与分工的成员。已有分析和历史派工记录保留；GitHub 原生改派不会执行工作台的成员筛选，需由协调人核对。</p>
   </div>;
+  if (row && pendingReplacement) return <div>
+    {ownerHelp}
+    <p role="alert">覆盖结果待核对：@{pendingReplacement.previous.assignee} → @{pendingReplacement.next.assignee}。{pendingReplacement.error}</p>
+    <p>回读原评论，已完成时只同步本地历史；尚未完成时，仅在未认领、原文与成员规则仍有效的情况下继续原操作。不会另发评论。</p>
+    {confirming ? <div className={styles.actions}>
+      <button type="button" disabled={busy} onClick={() => void act(() => host.replaceInvitation({
+        id: row.id, expectedRevision: row.revision, login: pendingReplacement.next.assignee,
+      }))}>确认核对覆盖结果</button>
+      <button type="button" disabled={busy} onClick={() => setConfirming(false)}>取消</button>
+    </div> : <button type="button" disabled={busy} onClick={() => setConfirming(true)}>核对覆盖结果</button>}
+  </div>;
   // An unfinished analysis may still be published for the same current owner.
   if (ownerHelp && !record?.analysis) return ownerHelp;
   if (!options.members.length) return <p className={styles.notice}>{options.error || '关联组织暂无可用成员，请刷新组织成员后重试'}</p>;
@@ -43,7 +54,6 @@ export function TeamAssignment({ host, context, row, busy, act }: {
   return <div>
     {ownerHelp}
     {completed && <p className={styles.notice}>{replacing ? '将在原评论上替换邀请收件人，保留链接与变更历史。请先核对旧收件人是否已有未公开工作。' : '历史记录已保留；GitHub 当前未认领。可选择设置负责人；选择通知成员接手时，已发布的邀请会原址覆盖。'}</p>}
-    {pendingReplacement && <p role="alert">覆盖结果待核对：@{pendingReplacement.previous.assignee} → @{pendingReplacement.next.assignee}。重试将核对原评论，不另发邀请。{pendingReplacement.error}</p>}
     {options.error && <p className={styles.notice}>{options.error}</p>}
     <label>派工方式
       <select aria-label="派工方式" value={delivery} disabled={busy || confirming || !!pendingReplacement || !!record?.assignment?.commentAttempted}

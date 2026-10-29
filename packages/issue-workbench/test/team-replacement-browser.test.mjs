@@ -10,7 +10,7 @@ import { setup } from './helpers/team-fixture.ts';
 import { issueVersion } from '../src/team/schema.ts';
 
 const repo = fileURLToPath(new URL('../../../', import.meta.url));
-test('packed owner journey replaces original invitation with confirmation and preserves history across restart', { timeout: 90000 }, async t => {
+for (const uncertain of [false, true]) test(`packed owner journey replaces original invitation and preserves history${uncertain ? ' after lost response and immediate claim' : ''}`, { timeout: 90000 }, async t => {
   const directory = await mkdtemp(join(tmpdir(), 'issue-replacement-browser-'));
   t.after(() => rm(directory, { recursive: true, force: true }));
   const [pack] = JSON.parse(execFileSync(process.execPath, ['scripts/pack-publish-artifact.mjs', 'packages/issue-workbench', directory], { cwd: repo, encoding: 'utf8' }));
@@ -20,8 +20,11 @@ test('packed owner journey replaces original invitation with confirmation and pr
   const s = setup(); s.login('bob'); s.config.automaticAssignment = false; s.config.analysisThreadId = 'analysis';
   let replacements = 0, operations = 0;
   s.provider.replaceInvitation = async (_issue, commentId, previous, next, _signal, authorized) => {
-    await authorized(); assert.equal(commentId, 'comment-1'); assert.equal(previous.assignee, 'alice');
-    replacements++; s.dispatches[0] = next; return commentId;
+    assert.equal(commentId, 'comment-1'); assert.equal(previous.assignee, 'alice');
+    if (s.dispatches[0].invitationRevision?.number === next.invitationRevision.number) return commentId;
+    await authorized(); replacements++; s.dispatches[0] = next;
+    if (uncertain) { s.issues[0].assignees = ['bob']; throw new Error('PATCH response lost; Bob claimed the issue'); }
+    return commentId;
   };
   const start = () => createIssueTeamModule(s.provider).create({ pluginId: 'dev.clowder.issue-workbench', runtime: { entrypoint: 'dist/team-plugin.js' } }).start({
     ...s.context, dataPath: directory,
@@ -58,15 +61,20 @@ test('packed owner journey replaces original invitation with confirmation and pr
   await page.getByText('覆盖原评论：@alice → @bob。旧邀请失效；保留原链接与历史，不新增第二条邀请。', { exact: true }).waitFor();
   assert.equal(replacements, 0);
   await mkdir('artifacts/invitation-replacement-2026-10-29', { recursive: true });
-  await page.screenshot({ path: 'artifacts/invitation-replacement-2026-10-29/confirmation.png', fullPage: true });
+  await page.screenshot({ path: `artifacts/invitation-replacement-2026-10-29/confirmation${uncertain ? '-uncertain' : ''}.png`, fullPage: true });
   await page.getByRole('button', { name: '确认覆盖邀请', exact: true }).click();
+  if (uncertain) {
+    await page.getByRole('button', { name: '核对覆盖结果', exact: true }).click();
+    await page.getByText('GitHub 当前负责人：@bob。', { exact: true }).waitFor();
+    await page.getByRole('button', { name: '确认核对覆盖结果', exact: true }).click();
+  }
   await page.getByText('当前邀请：@bob', { exact: false }).waitFor();
   await page.getByText('邀请变更历史', { exact: true }).click();
   await page.getByText('第 1 次调整：@alice → @bob', { exact: false }).waitFor();
   const row = Object.values(await s.context.storage.list()).map(v => v.value).find(v => v.id === original.id);
   assert.equal(row.assignment.commentId, original.assignment.commentId); assert.equal(s.dispatches.length, 1);
   assert.equal(replacements, 1); assert.deepEqual(s.writes, []);
-  await page.screenshot({ path: 'artifacts/invitation-replacement-2026-10-29/replaced.png', fullPage: true });
+  await page.screenshot({ path: `artifacts/invitation-replacement-2026-10-29/replaced${uncertain ? '-uncertain' : ''}.png`, fullPage: true });
   await active.stop(); active = await start(); await page.reload();
   await page.getByText('当前邀请：@bob', { exact: false }).waitFor(); assert.equal(replacements, 1);
   s.issues[0].assignees = ['alice'];

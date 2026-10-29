@@ -11,7 +11,7 @@ const owner = () => ({ kind: 'owner-operation' as const, userId: 'owner', plugin
 function github() {
   const raw: any = { node_id: 'I_1', number: 1, title: 'Fails', body: 'blocked', state: 'open',
     user: { login: 'reporter' }, labels: [], assignees: [], html_url: 'https://github.com/fixture/repo/issues/1' };
-  let comment: any, patches = 0, loseResponse = false, editor = 'bob';
+  let comment: any, patches = 0, loseResponse = false, editor = 'bob', extra: any[] = [];
   const provider = new GhTeamProvider(async args => {
     const path = args[3];
     if (path === 'user') return JSON.stringify({ login: 'bob' });
@@ -25,12 +25,12 @@ function github() {
       return JSON.stringify(comment);
     }
     assert.ok(!args.includes('POST'), 'replacement must never append another comment');
-    if (path.includes('/comments?')) return JSON.stringify(args.includes('--slurp') ? [[comment]] : [comment]);
+    if (path.includes('/comments?')) return JSON.stringify(args.includes('--slurp') ? [[comment, ...extra]] : [comment, ...extra]);
     assert.equal(path, 'repos/fixture/repo/issues/1');
     return JSON.stringify(raw);
   });
   return { provider, raw, set: (value: any) => { comment = value; }, comment: () => comment, editor: (value: string) => { editor = value; },
-    patches: () => patches, lose: (value: boolean) => { loseResponse = value; } };
+    patches: () => patches, lose: (value: boolean) => { loseResponse = value; }, extra: (value: any[]) => { extra = value; } };
 }
 
 test('original comment replacement withdraws old identity, receives new revision and reconciles a lost PATCH without a second write', async () => {
@@ -44,8 +44,10 @@ test('original comment replacement withdraws old identity, receives new revision
   await assert.rejects(s.provider.replaceInvitation(issue, '44', previous, next, signal, async () => {}), /response lost/);
   assert.equal(s.patches(), 1);
   s.lose(false);
-  assert.equal(await s.provider.replaceInvitation(issue, '44', previous, next, signal, async () => {}), '44');
+  s.raw.assignees = [{ login: 'bob' }]; s.raw.body = 'edited after the successful PATCH';
+  assert.equal(await s.provider.replaceInvitation(issue, '44', previous, next, signal, async () => { throw new Error('Read-only reconciliation must not request edit authority'); }), '44');
   assert.equal(s.patches(), 1);
+  s.raw.assignees = []; s.raw.body = 'blocked';
   assert.equal(await s.provider.invitation(issue, 'invitation:44', 'alice', ['bob'], signal), null);
   const observations = (await s.provider.invitations('fixture/repo', 'bob', ['bob'], signal)).observations;
   assert.equal(observations.length, 1);
@@ -54,6 +56,7 @@ test('original comment replacement withdraws old identity, receives new revision
   s.editor('outsider');
   assert.deepEqual((await s.provider.invitations('fixture/repo', 'bob', ['bob'], signal)).observations, [],
     'an editor cannot forge a replacement under the original trusted author name');
+  await assert.rejects(s.provider.replaceInvitation(issue, '44', previous, next, signal, async () => {}), /editor/i);
   s.editor('bob');
   s.raw.assignees = [{ login: 'alice' }];
   await assert.rejects(s.provider.replaceInvitation(issue, '44', next,
@@ -76,6 +79,11 @@ test('replacement refuses foreign comments, changed body, stale source and revok
   s.raw.body = 'blocked';
   await assert.rejects(s.provider.replaceInvitation(issue, '44', previous, next, signal, async () => { throw new Error('revoked'); }), /revoked/);
   assert.equal(s.patches(), 0);
+  s.extra([{ ...original, id: 45 }]);
+  await assert.rejects(s.provider.replaceInvitation(issue, '44', previous, next, signal, async () => {}), /marker/);
+  s.extra([{ ...original, id: 45, body: `A quoted marker: <!-- issue-workbench.dispatch.v1:${previous.id} -->`, user: { login: 'outsider' } }]);
+  assert.equal(await s.provider.replaceInvitation(issue, '44', previous, next, signal, async () => {}), '44');
+  assert.equal(s.patches(), 1, 'an outsider quoting the marker must not block the verified owner comment');
 });
 
 test('owner replacement persists its intent/history, fences changed owner and membership, and reconciles after restart', async () => {
@@ -85,10 +93,10 @@ test('owner replacement persists its intent/history, fences changed owner and me
     requestId: 'invite', sourceVersion: issueVersion(s.issues[0]), login: 'alice', delivery: 'invitation' }, { ...owner(), actionId: 'assignIssue' });
   let calls = 0;
   s.provider.replaceInvitation = async (_issue, commentId, previous, next, _signal, authorized) => {
-    await authorized(); calls++;
+    calls++;
     assert.equal(previous.assignee, 'alice'); assert.equal(next.assignee, 'bob');
-    s.dispatches[0] = next;
-    if (calls === 1) throw new Error('response lost');
+    if (calls === 1) { await authorized(); s.dispatches[0] = next; throw new Error('response lost'); }
+    assert.deepEqual(s.dispatches[0], next);
     return commentId;
   };
   const detail: any = await runtime.invokeOwner('get', { id: original.id }, { ...owner(), actionId: 'get' });
@@ -106,6 +114,7 @@ test('owner replacement persists its intent/history, fences changed owner and me
   await runtime.stop();
   const restarted = s.runtime(); await restarted.recover(); assert.equal(calls, 1);
   const read: any = await restarted.invokeOwner('get', { id: original.id }, { ...owner(), actionId: 'get' });
+  s.issues[0].assignees = ['bob']; s.issues[0].body = 'changed after the successful PATCH';
   const done: any = await restarted.invokeOwner('replaceInvitation', { ...input, expectedRevision: read.revision }, owner());
   assert.equal(done.assignment.login, 'bob'); assert.equal(done.assignment.commentId, original.assignment.commentId);
   assert.equal(done.assignment.invitationRevision.number, 1);

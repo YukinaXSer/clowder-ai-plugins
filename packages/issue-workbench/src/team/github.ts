@@ -235,10 +235,10 @@ export class GhTeamProvider implements TeamProvider {
     return String(result.id);
   }
   async replaceInvitation(issue: TeamIssue, commentId: string, previousInput: SharedDispatch, nextInput: SharedDispatch,
-    signal: AbortSignal, authorized: () => Promise<void>) {
+    signal: AbortSignal, beforeEdit: () => Promise<void>) {
     const previous = dispatchSchema.parse(previousInput), next = dispatchSchema.parse(nextInput);
     if (!/^[1-9][0-9]*$/.test(commentId) || previous.delivery !== 'invitation' || next.delivery !== 'invitation' ||
-        next.id !== previous.id || next.issueId !== previous.issueId || next.assignee === previous.assignee ||
+        next.id !== previous.id || next.issueId !== previous.issueId || issue.id !== previous.issueId || next.assignee === previous.assignee ||
         next.invitationRevision?.number !== (previous.invitationRevision?.number ?? 0) + 1 ||
         next.invitationRevision.previousAssignee !== previous.assignee ||
         JSON.stringify({ ...next, assignee: previous.assignee, invitationRevision: previous.invitationRevision }) !==
@@ -246,19 +246,23 @@ export class GhTeamProvider implements TeamProvider {
     const actor = await this.identity(signal), comments = await this.comments(issue, signal);
     const comment = comments.find(row => String(row.id) === commentId);
     if (!comment || comment.user?.login !== actor ||
-        comments.filter(row => row.body.includes(marker(previous.id))).length !== 1) throw new Error('Original invitation owner or marker changed');
+        comments.filter(row => row.user?.login === actor && row.body.includes(marker(previous.id))).length !== 1) throw new Error('Original invitation owner or marker changed');
     const body = dispatchBody(next);
-    if (comment.body !== body && (!await this.trustedInvitation(comment, previous.assignee, [actor], signal) || comment.body !== dispatchBody(previous))) {
+    // Reconcile an already-applied edit without another write. A subsequent
+    // claim/source change must not prevent recording what already happened.
+    // The caller still fences its local commit with owner authority.
+    if (comment.body === body) {
+      if (!await this.trustedInvitation(comment, next.assignee, [actor], signal)) throw new Error('Replacement editor is unverified');
+      signal.throwIfAborted(); return commentId;
+    }
+    if (!await this.trustedInvitation(comment, previous.assignee, [actor], signal) || comment.body !== dispatchBody(previous)) {
       throw new Error('Original invitation content changed; inspect before replacing');
     }
     const current = await this.issue(issue.repo, issue.number, signal);
     if (current.assignees.length) throw new Error('Issue has an assignee; invitation replacement is forbidden');
     if (current.id !== previous.issueId || current.state !== 'open' || issueVersion(current) !== previous.sourceVersion) throw new Error('Invitation source changed');
-    await authorized(); signal.throwIfAborted();
-    // A lost PATCH response is reconciled by its exact desired body. Never POST.
-    if (comment.body !== body) {
-      await this.api(`${this.path(issue.repo)}/issues/comments/${commentId}`, signal, { body }, false, 'PATCH');
-    }
+    await beforeEdit(); signal.throwIfAborted();
+    await this.api(`${this.path(issue.repo)}/issues/comments/${commentId}`, signal, { body }, false, 'PATCH');
     const verified = (await this.comments(issue, signal)).find(row => String(row.id) === commentId);
     if (!verified || verified.user?.login !== actor || verified.body !== body ||
         !await this.trustedInvitation(verified, next.assignee, [actor], signal)) throw new Error('Replacement outcome unverified; inspect and retry');
